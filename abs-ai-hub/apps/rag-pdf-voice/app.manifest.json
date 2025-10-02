@@ -1,0 +1,13 @@
+{
+  "name": "RAG PDF Voice",
+  "id": "rag-pdf-voice",
+  "category": "Legal Apps",
+  "description": "Document analysis with voice interaction capabilities.",
+  "entrypoint": "docker compose up -d",
+  "healthcheck": {
+    "url": "http://localhost:8080",
+    "expect": "200"
+  },
+  "port": 8080,
+  "icon": "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/pdf.svg"
+}

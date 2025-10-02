@@ -1,0 +1,20 @@
+name: abs-hub-ui
+
+networks:
+  abs-net:
+    external: true
+
+services:
+  hub-ui:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./assets:/usr/share/nginx/html
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -1,0 +1,76 @@
+# ABS AI Hub - Applications
+# Ignore common files and directories
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Data directories
+data/
+models/
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker volumes
+docker-volumes/
+
+# Backup files
+*.bak
+*.backup
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model files (large files)
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.pth
+
+# Cache directories
+.cache/
+cache/

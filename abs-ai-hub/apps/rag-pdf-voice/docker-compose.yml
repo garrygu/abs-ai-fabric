@@ -1,0 +1,41 @@
+name: abs-app-rag-pdf-voice
+
+networks:
+  abs-net:
+    external: true
+
+services:
+  rag-pdf-voice:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Connect to Core Services
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+      LLM_API_BASE: http://ollama:11434
+      
+      # App-specific configuration
+      APP_PORT: 8080
+      ABS_DATA_DIR: /data
+    volumes:
+      - ${ABS_DATA_DIR:-/opt/abs/data}:/data
+    ports:
+      - "8080:8080"
+    networks: [abs-net]
+    depends_on:
+      - wait-core
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  wait-core:
+    image: curlimages/curl:8.8.0
+    networks: [abs-net]
+    command: >
+      sh -c "
+        until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
+        until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting llm; sleep 2; done &&
+        echo core ready
+      "

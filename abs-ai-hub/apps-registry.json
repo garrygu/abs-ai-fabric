@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "description": "ABS AI Hub Applications Registry",
+  "applications": [
+    {
+      "name": "Contract Reviewer",
+      "id": "contract-reviewer",
+      "category": "Legal Apps",
+      "description": "Analyze contracts, extract key clauses, flag risks, and produce a citation-backed report.",
+      "entrypoint": "docker compose up -d",
+      "healthcheck": {
+        "url": "http://localhost:7860",
+        "expect": "200"
+      },
+      "port": 7860,
+      "icon": "contract-reviewer.png",
+      "path": "apps/contract-reviewer"
+    },
+    {
+      "name": "RAG PDF Voice",
+      "id": "rag-pdf-voice",
+      "category": "Legal Apps",
+      "description": "Document analysis with voice interaction capabilities.",
+      "entrypoint": "docker compose up -d",
+      "healthcheck": {
+        "url": "http://localhost:8080",
+        "expect": "200"
+      },
+      "port": 8080,
+      "icon": "pdf-voice.png",
+      "path": "apps/rag-pdf-voice"
+    },
+    {
+      "name": "Whisper Server",
+      "id": "whisper-server",
+      "category": "Utility Services",
+      "description": "Standalone speech-to-text transcription service.",
+      "entrypoint": "docker compose up -d",
+      "healthcheck": {
+        "url": "http://localhost:8001/healthz",
+        "expect": "200"
+      },
+      "port": 8001,
+      "icon": "whisper.png",
+      "path": "apps/whisper-server"
+    }
+  ]
+}

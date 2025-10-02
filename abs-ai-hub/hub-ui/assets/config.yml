@@ -1,0 +1,29 @@
+# ABS AI Hub UI Configuration
+title: "ABS AI Hub - Legal Workstation"
+description: "AI-powered legal workstation with contract review and document analysis"
+
+# Core Services
+core_services:
+  ollama: "http://localhost:11434"
+  qdrant: "http://localhost:6333"
+  redis: "http://localhost:6379"
+
+# Applications
+applications:
+  - name: "Contract Reviewer"
+    id: "contract-reviewer"
+    url: "http://localhost:7860"
+    icon: "contract.png"
+    description: "Analyze contracts and extract key clauses"
+  
+  - name: "RAG PDF Voice"
+    id: "rag-pdf-voice"
+    url: "http://localhost:8080"
+    icon: "pdf-voice.png"
+    description: "Document analysis with voice interaction"
+  
+  - name: "Whisper Server"
+    id: "whisper-server"
+    url: "http://localhost:8001"
+    icon: "whisper.png"
+    description: "Speech-to-text transcription service"
