@@ -1,0 +1,41 @@
+name: abs-app-contract-reviewer
+
+networks:
+  abs-net:
+    external: true    # <-- join the core network
+
+services:
+  reviewer:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Discover shared services by name on abs-net
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+
+      # Choose ONE depending on your core:
+      LLM_API_BASE: http://ollama:11434
+      # OPENAI_BASE_URL: http://vllm:8000     # if you switch to vLLM
+      # OPENAI_API_KEY: "not-used"            # vLLM ignores but client libs expect one
+
+      # Optional services (app can start them when needed)
+      # PARSER_URL: http://parser:8000
+      # S3_ENDPOINT: http://minio:9000
+    networks: [abs-net]
+    depends_on:
+      - wait-core
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  wait-core:
+    image: curlimages/curl:8.8.0
+    networks: [abs-net]
+    command: >
+      sh -c "
+        until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
+        until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting llm; sleep 2; done &&
+        echo core ready
+      "
