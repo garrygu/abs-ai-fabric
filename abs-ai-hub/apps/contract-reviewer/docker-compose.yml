@@ -12,12 +12,7 @@ services:
       # Discover shared services by name on abs-net
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
-
-      # Choose ONE depending on your core:
-      OLLAMA_API_BASE: http://ollama:11434
-      CHAT_MODEL: llama3.2:3b
-      # OPENAI_BASE_URL: http://vllm:8000     # if you switch to vLLM
-      # OPENAI_API_KEY: "not-used"            # vLLM ignores but client libs expect one
+      HUB_GATEWAY_URL: http://hub-gateway:8081
 
       # Optional services (app can start them when needed)
       # PARSER_URL: http://parser:8000
@@ -39,6 +34,6 @@ services:
     command: >
       sh -c "
         until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
-        until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting llm; sleep 2; done &&
+        until curl -sf http://hub-gateway:8081/.well-known/abs-services >/dev/null; do echo waiting hub-gateway; sleep 2; done &&
         echo core ready
       "

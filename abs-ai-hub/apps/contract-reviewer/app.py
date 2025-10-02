@@ -9,17 +9,14 @@ import uvicorn
 import requests
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
-from sentence_transformers import SentenceTransformer
 
 APP_PORT = int(os.getenv("APP_PORT", "7860"))
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = "contract_chunks"
-EMBED_MODEL_NAME = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
-OLLAMA_API_BASE = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+HUB_GATEWAY_URL = os.getenv("HUB_GATEWAY_URL", "http://hub-gateway:8081")
 POLICY_FILE = os.getenv("POLICY_FILE", "/app/policy/nda.yml")
 DATA_DIR = Path(os.getenv("ABS_DATA_DIR", "/data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2:3b")
 
 # app.py (add/replace helpers)
 from fastapi import HTTPException
@@ -44,14 +41,16 @@ def read_any_text(path: Path) -> tuple[str, str]:
 
 
 # ----- models/clients -----
-embedder = SentenceTransformer(EMBED_MODEL_NAME)
 qdrant = QdrantClient(url=QDRANT_URL)
+
+# Initialize collection with default embedding dimension (will be updated on first use)
+EMBED_DIM = 384  # Default for bge-small-en-v1.5
 try:
     qdrant.get_collection(COLLECTION)
 except Exception:
     qdrant.recreate_collection(
         COLLECTION,
-        vectors_config=VectorParams(size=embedder.get_sentence_embedding_dimension(), distance=Distance.COSINE)
+        vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE)
     )
 
 def sha256_of_bytes(b: bytes) -> str:
@@ -82,7 +81,17 @@ def chunk_text(text: str, max_chars=1200, overlap=120):
     return chunks
 
 def upsert_chunks(chunks: List[str]):
-    vectors = embedder.encode(chunks).tolist()
+    # Get embeddings from Hub Gateway
+    response = requests.post(
+        f"{HUB_GATEWAY_URL}/v1/embeddings",
+        headers={"X-ABS-App-Id": "contract-reviewer"},
+        json={"input": chunks},
+        timeout=60
+    )
+    response.raise_for_status()
+    embeddings_data = response.json()
+    
+    vectors = [item["embedding"] for item in embeddings_data["data"]]
     ids = [str(uuid.uuid4()) for _ in chunks]
     qdrant.upsert(
         COLLECTION,
@@ -90,25 +99,35 @@ def upsert_chunks(chunks: List[str]):
     )
 
 def retrieve(query: str, top_k=6) -> List[str]:
-    qvec = embedder.encode([query])[0].tolist()
+    # Get query embedding from Hub Gateway
+    response = requests.post(
+        f"{HUB_GATEWAY_URL}/v1/embeddings",
+        headers={"X-ABS-App-Id": "contract-reviewer"},
+        json={"input": [query]},
+        timeout=60
+    )
+    response.raise_for_status()
+    embeddings_data = response.json()
+    
+    qvec = embeddings_data["data"][0]["embedding"]
     res = qdrant.search(COLLECTION, query_vector=qvec, limit=top_k)
     return [hit.payload["text"] for hit in res]
 
 def openai_chat(messages, max_tokens=1024) -> str:
-    # Ollama API
-    url = f"{OLLAMA_API_BASE}/api/chat"
-    payload = {
-        "model": CHAT_MODEL,
-        "messages": messages,
-        "options": {
+    # Use Hub Gateway for chat completions
+    response = requests.post(
+        f"{HUB_GATEWAY_URL}/v1/chat/completions",
+        headers={"X-ABS-App-Id": "contract-reviewer"},
+        json={
+            "messages": messages,
             "temperature": 0.2,
-            "num_predict": max_tokens
+            "max_tokens": max_tokens
         },
-        "stream": False  # Disable streaming to get single JSON response
-    }
-    r = requests.post(url, json=payload, timeout=120)
-    r.raise_for_status()
-    return r.json()["message"]["content"]
+        timeout=120
+    )
+    response.raise_for_status()
+    result = response.json()
+    return result["choices"][0]["message"]["content"]
 
 def review_contract(text: str, policy: str) -> Dict:
     # collect context via retrieval queries for common clauses

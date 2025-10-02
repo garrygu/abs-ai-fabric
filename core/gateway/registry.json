@@ -1,16 +1,17 @@
 {
     "defaults": {
-    "chat_model": "contract-default",
+    "chat_model": "llama3.2:3b",
     "embed_model": "bge-small-en-v1.5",
     "provider": "auto",
     "dim": 384
     },
     "apps": {
-    "contract-reviewer": { "embed_model": "bge-small-en-v1.5", "provider": "auto", "dim": 384 },
+    "contract-reviewer": { "embed_model": "all-minilm", "provider": "auto", "dim": 384 },
     "deposition-summarizer": { "embed_model": "all-minilm", "provider": "ollama", "dim": 384 }
     },
     "aliases": {
     "llama3-8b-instruct": { "openai": "llama3-8b-instruct", "ollama": "llama3:8b-instruct-q4_K_M" },
+    "llama3.2:3b": { "openai": "llama3.2:3b", "ollama": "llama3.2:3b" },
     "bge-small-en-v1.5": { "openai": "bge-small-en-v1.5", "ollama": "bge-small" },
     "all-minilm": { "openai": "all-minilm", "ollama": "all-minilm" }
     }
