@@ -14,7 +14,8 @@ services:
       REDIS_URL: redis://redis:6379/0
 
       # Choose ONE depending on your core:
-      LLM_API_BASE: http://ollama:11434
+      OLLAMA_API_BASE: http://ollama:11434
+      CHAT_MODEL: llama3.2:3b
       # OPENAI_BASE_URL: http://vllm:8000     # if you switch to vLLM
       # OPENAI_API_KEY: "not-used"            # vLLM ignores but client libs expect one
 

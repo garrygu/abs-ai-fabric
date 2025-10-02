@@ -15,11 +15,11 @@ APP_PORT = int(os.getenv("APP_PORT", "7860"))
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = "contract_chunks"
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
-VLLM_API_BASE = os.getenv("VLLM_API_BASE", "http://localhost:8000/v1")
+OLLAMA_API_BASE = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
 POLICY_FILE = os.getenv("POLICY_FILE", "/app/policy/nda.yml")
 DATA_DIR = Path(os.getenv("ABS_DATA_DIR", "/data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-CHAT_MODEL = os.getenv("CHAT_MODEL", "local")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2:3b")
 
 # app.py (add/replace helpers)
 from fastapi import HTTPException
@@ -95,17 +95,19 @@ def retrieve(query: str, top_k=6) -> List[str]:
     return [hit.payload["text"] for hit in res]
 
 def openai_chat(messages, max_tokens=1024) -> str:
-    # vLLM OpenAI-compatible
-    url = f"{VLLM_API_BASE}/chat/completions"
+    # Ollama API
+    url = f"{OLLAMA_API_BASE}/api/chat"
     payload = {
         "model": CHAT_MODEL,
-        "max_tokens": max_tokens,
         "messages": messages,
-        "temperature": 0.2,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": max_tokens
+        }
     }
     r = requests.post(url, json=payload, timeout=120)
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    return r.json()["message"]["content"]
 
 def review_contract(text: str, policy: str) -> Dict:
     # collect context via retrieval queries for common clauses
