@@ -91,3 +91,17 @@ services:
       interval: 10s
       timeout: 2s
       retries: 15
+
+  # ---- Hub Gateway ----
+  hub-gateway:
+    build: ./gateway
+    container_name: abs-hub-gateway
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      OPENAI_BASE_URL: http://vllm:8000/v1
+      OPENAI_API_KEY: abs-local
+      REGISTRY_PATH: /app/registry.json
+    ports: ["8081:8081"]
+    depends_on: [redis]
+    networks: [abs-net]
