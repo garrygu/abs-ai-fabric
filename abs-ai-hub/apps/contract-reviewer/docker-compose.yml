@@ -21,6 +21,8 @@ services:
       # Optional services (app can start them when needed)
       # PARSER_URL: http://parser:8000
       # S3_ENDPOINT: http://minio:9000
+    ports:
+      - "7860:7860"
     networks: [abs-net]
     depends_on:
       - wait-core
