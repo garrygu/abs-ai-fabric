@@ -103,7 +103,8 @@ def openai_chat(messages, max_tokens=1024) -> str:
         "options": {
             "temperature": 0.2,
             "num_predict": max_tokens
-        }
+        },
+        "stream": False  # Disable streaming to get single JSON response
     }
     r = requests.post(url, json=payload, timeout=120)
     r.raise_for_status()
@@ -130,11 +131,30 @@ def review_contract(text: str, policy: str) -> Dict:
         {"role": "user", "content": user_prompt}
     ], max_tokens=int(os.getenv("MAX_TOKENS", "1024")))
 
+    # Debug: Log the raw response
+    print(f"DEBUG: Raw LLM response: {repr(rsp)}")
+    
     try:
-        data = json.loads(rsp)
-    except Exception:
-        # fallback: wrap text as JSON field
-        data = {"summary": rsp, "raw": rsp}
+        # Try to extract JSON from the response
+        # Look for JSON object in the response
+        import re
+        json_match = re.search(r'\{.*\}', rsp, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+            print(f"DEBUG: Extracted JSON string: {repr(json_str)}")
+            data = json.loads(json_str)
+        else:
+            # If no JSON found, wrap the response
+            print("DEBUG: No JSON found in response")
+            data = {"summary": rsp, "raw": rsp}
+    except json.JSONDecodeError as e:
+        # If JSON parsing fails, wrap the response
+        print(f"DEBUG: JSON parsing failed: {str(e)}")
+        data = {"summary": rsp, "raw": rsp, "error": f"JSON parsing failed: {str(e)}"}
+    except Exception as e:
+        # Any other error
+        print(f"DEBUG: Processing failed: {str(e)}")
+        data = {"summary": rsp, "raw": rsp, "error": f"Processing failed: {str(e)}"}
 
     return data
 
@@ -167,7 +187,11 @@ async def api_review(file: UploadFile = File(...)):
         input_hash = sha256_of_bytes(raw)
 
         text, kind = read_any_text(upath)
-        chunks = chunk_text(text);  upsert_chunks(chunks)
+        print(f"DEBUG: Text extracted, length: {len(text)}")
+        chunks = chunk_text(text)
+        print(f"DEBUG: Text chunked into {len(chunks)} chunks")
+        upsert_chunks(chunks)
+        print("DEBUG: Chunks upserted to Qdrant")
 
         policy = Path(POLICY_FILE).read_text(encoding="utf-8")
         result = review_contract(text, policy)
@@ -183,6 +207,10 @@ async def api_review(file: UploadFile = File(...)):
         return JSONResponse(status_code=he.status_code, content={"error": he.detail})
     except Exception as e:
         # last-resort error message (string only)
+        print(f"ERROR in review endpoint: {str(e)}")
+        print(f"ERROR type: {type(e)}")
+        import traceback
+        print(f"ERROR traceback: {traceback.format_exc()}")
         return JSONResponse(status_code=400, content={"error": str(e)})
 
 def gradio_ui():
