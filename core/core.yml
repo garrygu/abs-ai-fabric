@@ -1,0 +1,93 @@
+name: abs-core
+
+networks:
+  abs-net:
+    name: ${ABS_NETWORK}
+    driver: bridge
+
+volumes:
+  ollama_models:
+  qdrant_storage:
+  redis_data:
+
+services:
+
+  # ---- LLM Runtime (choose ONE) ----
+  # A) OLLAMA (default): simple, offline, great for workstation
+  ollama:
+    image: ollama/ollama:0.3.8
+    container_name: abs-ollama
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      TZ: ${TZ}
+      OLLAMA_KEEP_ALIVE: "24h"
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT}:11434"
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    # If you plan to use vLLM instead, comment this service out and enable vllm below.
+
+  # B) vLLM (OpenAI-compatible). Use instead of Ollama if you want /v1/chat/completions API.
+  # vllm:
+  #   image: vllm/vllm-openai:0.5.4
+  #   container_name: abs-vllm
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   environment:
+  #     TZ: ${TZ}
+  #   command: >
+  #     --model ${VLLM_MODEL}
+  #     --gpu-memory-utilization 0.90
+  #     --dtype float16
+  #     --max-model-len 8192
+  #   ports:
+  #     - "${VLLM_PORT}:8000"
+  #   networks: [abs-net]
+  #   healthcheck:
+  #     test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8000/v1/models"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 40
+
+  # ---- Vector DB ----
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: abs-qdrant
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    ports:
+      - "6333:6333"   # REST
+      - "6334:6334"   # gRPC
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:6333/collections"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  # ---- Cache / Queue ----
+  redis:
+    image: redis:7.2
+    container_name: abs-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 15
