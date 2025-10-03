@@ -661,6 +661,129 @@ async def api_review(file: UploadFile = File(...)):
         print(f"ERROR traceback: {traceback.format_exc()}")
         return JSONResponse(status_code=400, content={"error": str(e)})
 
+def get_vector_db_status():
+    """Get comprehensive vector database status information"""
+    try:
+        # Get collection info from Qdrant
+        collection_info = qdrant.get_collection(COLLECTION)
+        
+        # Get embedding model info from registry
+        embed_model = "legal-bert"
+        embed_dim = EMBED_DIM
+        distance_metric = "cosine"
+        
+        # Get vector count
+        vector_count = collection_info.points_count if hasattr(collection_info, 'points_count') else 0
+        
+        # Get collection status and last update info
+        status = "Connected" if collection_info.status == "green" else "Error"
+        last_update = "Active" if collection_info.status == "green" else "Inactive"
+        
+        # Get optimizer status
+        optimizer_status = getattr(collection_info, 'optimizer_status', 'Unknown')
+        if optimizer_status == "ok":
+            last_update = "Optimized"
+        
+        # Get owner app info
+        owner_app = "Contract Reviewer"
+        scope = "App-specific"
+        
+        # Get distance metric from collection config
+        if hasattr(collection_info, 'config') and hasattr(collection_info.config, 'params'):
+            config_params = collection_info.config.params
+            if hasattr(config_params, 'vectors') and hasattr(config_params.vectors, 'distance'):
+                distance_metric = str(config_params.vectors.distance).lower()
+        
+        return {
+            "embedding_model": embed_model,
+            "dimension": embed_dim,
+            "distance_metric": distance_metric,
+            "collection_name": COLLECTION,
+            "vector_count": vector_count,
+            "last_update": last_update,
+            "owner_app": owner_app,
+            "scope": scope,
+            "status": status,
+            "optimizer_status": optimizer_status
+        }
+    except Exception as e:
+        return {
+            "embedding_model": "legal-bert",
+            "dimension": EMBED_DIM,
+            "distance_metric": "cosine",
+            "collection_name": COLLECTION,
+            "vector_count": "Unknown",
+            "last_update": "Error",
+            "owner_app": "Contract Reviewer",
+            "scope": "App-specific",
+            "status": f"Error: {str(e)}",
+            "optimizer_status": "Unknown"
+        }
+
+def create_vector_status_html():
+    """Create HTML for vector database status display"""
+    status = get_vector_db_status()
+    
+    status_color = "🟢" if status["status"] == "Connected" else "🔴"
+    status_text = "Connected" if status["status"] == "Connected" else "Error"
+    
+    # Format vector count with commas
+    vector_count = status["vector_count"]
+    if isinstance(vector_count, int):
+        vector_count = f"{vector_count:,}"
+    
+    return f"""
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #007bff; margin: 10px 0;">
+        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <h4 style="margin: 0; color: #333; font-size: 18px;">{status_color} Vector Database Status: {status_text}</h4>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; font-size: 14px;">
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">🤖 Embedding Model</div>
+                <div style="color: #007bff; font-family: monospace;">{status['embedding_model']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">📏 Dimension</div>
+                <div style="color: #28a745; font-family: monospace;">{status['dimension']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">📐 Distance Metric</div>
+                <div style="color: #6f42c1; font-family: monospace;">{status['distance_metric']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">🗂️ Collection Name</div>
+                <div style="color: #fd7e14; font-family: monospace;">{status['collection_name']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">📊 Vector Count</div>
+                <div style="color: #20c997; font-family: monospace;">{vector_count}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">🔄 Last Update</div>
+                <div style="color: #17a2b8; font-family: monospace;">{status['last_update']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">👤 Owner App</div>
+                <div style="color: #6c757d; font-family: monospace;">{status['owner_app']}</div>
+            </div>
+            
+            <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="font-weight: bold; color: #495057; margin-bottom: 5px;">🎯 Scope</div>
+                <div style="color: #6c757d; font-family: monospace;">{status['scope']}</div>
+            </div>
+        </div>
+        
+        {f'<div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; color: #856404;"><strong>⚠️ Error:</strong> {status["status"]}</div>' if status["status"] != "Connected" else ""}
+    </div>
+    """
+
 def create_modern_ui():
     """Create a modern, production-ready UI using Gradio Blocks"""
     
@@ -1983,6 +2106,14 @@ def create_modern_ui():
                         - Reports: Stored locally
                         """)
                 
+                # Vector Database Status Section
+                gr.Markdown("### 🗄️ Vector Database Status")
+                vector_status_html = gr.HTML(value=create_vector_status_html(), label="Vector Database Information")
+                
+                # Refresh button for vector status
+                with gr.Row():
+                    refresh_vector_status_btn = gr.Button("🔄 Refresh Vector Status", variant="secondary")
+                
                 gr.Markdown("### 📁 Data Management")
                 with gr.Row():
                     clear_history_btn = gr.Button("🗑️ Clear History", variant="stop")
@@ -2071,6 +2202,12 @@ def create_modern_ui():
         history_btn.click(
             fn=get_history_data,
             outputs=[history_html]
+        )
+        
+        # Refresh vector status button
+        refresh_vector_status_btn.click(
+            fn=create_vector_status_html,
+            outputs=[vector_status_html]
         )
         
         # Load history on tab switch
