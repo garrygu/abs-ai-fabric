@@ -189,6 +189,11 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
         if json_end > 0:
             cleaned_rsp = cleaned_rsp[:json_end]
         
+        # Fix invalid JSON values - replace ellipsis and placeholders
+        cleaned_rsp = cleaned_rsp.replace('"..."', '""')  # Replace ellipsis in quotes with empty string
+        cleaned_rsp = cleaned_rsp.replace('"......"', '""')  # Replace multiple dots with empty string
+        cleaned_rsp = cleaned_rsp.replace('...', '""')  # Replace standalone ellipsis with empty string
+        
         print(f"DEBUG: Cleaned JSON string: {repr(cleaned_rsp)}")
         data = json.loads(cleaned_rsp)
         
@@ -220,11 +225,21 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
             if "liquidated_damages" in data:
                 risk_count += len(data["liquidated_damages"])
             
-            # Create meaningful summary
+            # Create meaningful summary based on document content
             if key_terms:
-                summary_parts.append(f"This document appears to be a legal agreement covering: {', '.join(key_terms[:3])}.")
+                summary_parts.append(f"This document is a legal agreement covering: {', '.join(key_terms[:3])}.")
             else:
-                summary_parts.append("This document appears to be a legal agreement or contract.")
+                summary_parts.append("This document is a legal agreement or contract.")
+            
+            # Add more specific analysis based on document content
+            if "user_data" in data:
+                summary_parts.append("The document includes data responsibility clauses.")
+            if "electronic_contracting" in data:
+                summary_parts.append("The document covers electronic contracting and payment terms.")
+            if "refund_policy" in data:
+                summary_parts.append("The document includes refund policy terms.")
+            if "modifications" in data:
+                summary_parts.append("The document includes modification and amendment procedures.")
             
             if risk_count > 0:
                 summary_parts.append(f"The document contains {risk_count} potential risk areas that require careful review.")
@@ -251,7 +266,7 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
                     for term in agreement["terms"][:5]:
                         section = term.get('section', '')
                         text = term.get('text', '')
-                        if section and text and text != section:
+                        if section and text and text != section and text != "":
                             key_points.append(f"{section}: {text}")
                         elif section:
                             key_points.append(section)
@@ -268,6 +283,36 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
                             "level": "High",
                             "description": liability.get("description", "Liability clause identified"),
                             "rationale": "Contract contains liability provisions"
+                        })
+            
+            # Extract risks from other sections
+            if "user_data" in data:
+                user_data = data["user_data"]
+                if "responsibility" in user_data:
+                    fallback_data["risks"].append({
+                        "level": "Medium",
+                        "description": "Data responsibility clause",
+                        "rationale": "User is responsible for all data transferred to the platform"
+                    })
+            
+            if "refund_policy" in data:
+                refund_policy = data["refund_policy"]
+                if "policy" in refund_policy and "no refunds" in refund_policy["policy"].lower():
+                    fallback_data["risks"].append({
+                        "level": "High",
+                        "description": "No refund policy",
+                        "rationale": "All payments are final with no refunds allowed"
+                    })
+            
+            if "electronic_contracting" in data:
+                electronic = data["electronic_contracting"]
+                if "payment" in electronic:
+                    payment = electronic["payment"]
+                    if "tax" in payment:
+                        fallback_data["risks"].append({
+                            "level": "Low",
+                            "description": "Tax obligations",
+                            "rationale": "Sales tax will be added to purchases as required"
                         })
             
             if "prohibitions" in data:

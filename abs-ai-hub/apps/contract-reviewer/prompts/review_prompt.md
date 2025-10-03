@@ -7,7 +7,8 @@ CRITICAL REQUIREMENTS - NO EXCEPTIONS:
 4. Do NOT include any text before or after the JSON
 5. Do NOT wrap JSON in ``` or any other formatting
 6. Do NOT add "Here is the analysis" or similar text
-7. If you cannot analyze the document, return {"error": "Unable to analyze document"}
+7. Do NOT use ellipsis (...) or placeholder text in JSON values
+8. If you cannot analyze the document, return {"error": "Unable to analyze document"}
 
 REQUIRED JSON STRUCTURE - USE EXACTLY THESE FIELD NAMES:
 {
@@ -45,5 +46,6 @@ ANALYSIS INSTRUCTIONS:
 - Provide specific recommendations tailored to this document
 - Include exact quotes from the document in citations
 - If no risks are found, return an empty risks array: []
+- ALWAYS provide a meaningful summary, not just a JSON structure description
 
 Remember: Your response must start with { and end with }. No other text is allowed.
