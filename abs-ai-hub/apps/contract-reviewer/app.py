@@ -232,6 +232,208 @@ def delete_report(report_id: str):
     
     return {"message": "Report deleted successfully"}
 
+@app.get("/api/export/{report_id}/pdf")
+def export_pdf(report_id: str):
+    """Export report as PDF"""
+    report_file = REPORTS_DIR / f"report-{report_id}.json"
+    if not report_file.exists():
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    with open(report_file, "r", encoding="utf-8") as f:
+        report_data = json.load(f)
+    
+    # Generate PDF content
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    
+    # Create PDF buffer
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    
+    # Get styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=18, spaceAfter=30, alignment=TA_CENTER)
+    heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, spaceAfter=12)
+    normal_style = styles['Normal']
+    
+    # Build PDF content
+    story = []
+    
+    # Title
+    story.append(Paragraph("Contract Review Report", title_style))
+    story.append(Spacer(1, 12))
+    
+    # Document info
+    story.append(Paragraph(f"<b>Document:</b> {report_data.get('file_name', 'Unknown')}", normal_style))
+    story.append(Paragraph(f"<b>Analysis Date:</b> {report_data.get('timestamp', 'Unknown')}", normal_style))
+    story.append(Spacer(1, 20))
+    
+    # Summary
+    story.append(Paragraph("Executive Summary", heading_style))
+    summary_text = report_data.get('summary', 'No summary available')
+    story.append(Paragraph(summary_text, normal_style))
+    story.append(Spacer(1, 20))
+    
+    # Risk Analysis
+    risks = report_data.get('risks', [])
+    if risks:
+        story.append(Paragraph("Risk Analysis", heading_style))
+        
+        # Risk summary table
+        risk_data = [['Level', 'Count']]
+        risk_counts = {"high": 0, "medium": 0, "low": 0}
+        for risk in risks:
+            level = risk.get("level", "Low").lower()
+            if level in risk_counts:
+                risk_counts[level] += 1
+        
+        for level, count in risk_counts.items():
+            if count > 0:
+                risk_data.append([level.upper(), str(count)])
+        
+        risk_table = Table(risk_data)
+        risk_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(risk_table)
+        story.append(Spacer(1, 20))
+        
+        # Individual risks
+        for i, risk in enumerate(risks, 1):
+            story.append(Paragraph(f"Risk #{i} - {risk.get('level', 'Low').upper()}", heading_style))
+            story.append(Paragraph(f"<b>Description:</b> {risk.get('description', 'No description')}", normal_style))
+            story.append(Paragraph(f"<b>Rationale:</b> {risk.get('rationale', 'No rationale')}", normal_style))
+            story.append(Spacer(1, 12))
+    else:
+        story.append(Paragraph("Risk Analysis", heading_style))
+        story.append(Paragraph("No significant risks identified.", normal_style))
+        story.append(Spacer(1, 20))
+    
+    # Recommendations
+    recommendations = report_data.get('recommendations', [])
+    if recommendations:
+        story.append(Paragraph("Recommendations", heading_style))
+        for i, rec in enumerate(recommendations, 1):
+            story.append(Paragraph(f"{i}. {rec}", normal_style))
+        story.append(Spacer(1, 20))
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    
+    # Return PDF response
+    from fastapi.responses import Response
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=contract-review-{report_id}.pdf"}
+    )
+
+@app.get("/api/export/{report_id}/word")
+def export_word(report_id: str):
+    """Export report as Word document"""
+    report_file = REPORTS_DIR / f"report-{report_id}.json"
+    if not report_file.exists():
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    with open(report_file, "r", encoding="utf-8") as f:
+        report_data = json.load(f)
+    
+    # Create Word document
+    doc = DocxDocument()
+    
+    # Title
+    title = doc.add_heading('Contract Review Report', 0)
+    title.alignment = 1  # Center alignment
+    
+    # Document info
+    doc.add_paragraph(f"Document: {report_data.get('file_name', 'Unknown')}")
+    doc.add_paragraph(f"Analysis Date: {report_data.get('timestamp', 'Unknown')}")
+    doc.add_paragraph("")  # Empty line
+    
+    # Summary
+    doc.add_heading('Executive Summary', level=1)
+    summary_text = report_data.get('summary', 'No summary available')
+    doc.add_paragraph(summary_text)
+    doc.add_paragraph("")  # Empty line
+    
+    # Risk Analysis
+    risks = report_data.get('risks', [])
+    doc.add_heading('Risk Analysis', level=1)
+    
+    if risks:
+        # Risk summary
+        risk_counts = {"high": 0, "medium": 0, "low": 0}
+        for risk in risks:
+            level = risk.get("level", "Low").lower()
+            if level in risk_counts:
+                risk_counts[level] += 1
+        
+        doc.add_paragraph("Risk Summary:")
+        for level, count in risk_counts.items():
+            if count > 0:
+                doc.add_paragraph(f"• {level.upper()}: {count} issue{'s' if count > 1 else ''}")
+        
+        doc.add_paragraph("")  # Empty line
+        
+        # Individual risks
+        for i, risk in enumerate(risks, 1):
+            doc.add_heading(f"Risk #{i} - {risk.get('level', 'Low').upper()}", level=2)
+            doc.add_paragraph(f"Description: {risk.get('description', 'No description')}")
+            doc.add_paragraph(f"Rationale: {risk.get('rationale', 'No rationale')}")
+            doc.add_paragraph("")  # Empty line
+    else:
+        doc.add_paragraph("No significant risks identified.")
+    
+    # Recommendations
+    recommendations = report_data.get('recommendations', [])
+    if recommendations:
+        doc.add_heading('Recommendations', level=1)
+        for i, rec in enumerate(recommendations, 1):
+            doc.add_paragraph(f"{i}. {rec}")
+    
+    # Save to buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    
+    # Return Word response
+    from fastapi.responses import Response
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=contract-review-{report_id}.docx"}
+    )
+
+@app.get("/api/export/{report_id}/json")
+def export_json(report_id: str):
+    """Export report as JSON"""
+    report_file = REPORTS_DIR / f"report-{report_id}.json"
+    if not report_file.exists():
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    with open(report_file, "r", encoding="utf-8") as f:
+        report_data = json.load(f)
+    
+    # Return JSON response
+    from fastapi.responses import Response
+    return Response(
+        content=json.dumps(report_data, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=contract-review-{report_id}.json"}
+    )
+
 # Remove:  @app.post("/api/review", response_model=ReviewResponse)
 @app.post("/api/review")
 async def api_review(file: UploadFile = File(...)):
@@ -295,10 +497,10 @@ async def api_review(file: UploadFile = File(...)):
 def create_modern_ui():
     """Create a modern, production-ready UI using Gradio Blocks"""
     
-    # Custom CSS for modern styling
+    # Custom CSS for modern styling with enhanced features
     custom_css = """
     .gradio-container {
-        max-width: 1200px !important;
+        max-width: 1400px !important;
         margin: 0 auto !important;
     }
     .upload-section {
@@ -313,6 +515,28 @@ def create_modern_ui():
         border-color: #007bff;
         background: #e3f2fd;
     }
+    .upload-section.collapsed {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .upload-section.collapsed .upload-content {
+        display: none;
+    }
+    .upload-section.collapsed .collapse-toggle {
+        display: block;
+    }
+    .collapse-toggle {
+        display: none;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .collapse-toggle:hover {
+        background: #e9ecef;
+    }
     .result-section {
         background: white;
         border-radius: 12px;
@@ -323,6 +547,16 @@ def create_modern_ui():
     .risk-high { color: #dc3545; font-weight: bold; }
     .risk-medium { color: #fd7e14; font-weight: bold; }
     .risk-low { color: #28a745; font-weight: bold; }
+    .risk-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+    }
+    .risk-indicator.high { background: #dc3545; }
+    .risk-indicator.medium { background: #fd7e14; }
+    .risk-indicator.low { background: #28a745; }
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -339,40 +573,151 @@ def create_modern_ui():
         font-size: 0.9rem;
         opacity: 0.9;
     }
+    .progress-container {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 0.5rem 0;
+    }
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #007bff, #0056b3);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    .status-message {
+        text-align: center;
+        color: #495057;
+        font-style: italic;
+        margin: 0.5rem 0;
+    }
+    .editable-text {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 0.5rem;
+        transition: all 0.3s ease;
+        min-height: 100px;
+        resize: vertical;
+    }
+    .editable-text:hover {
+        border-color: #dee2e6;
+        background: #f8f9fa;
+    }
+    .editable-text:focus {
+        border-color: #007bff;
+        background: white;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    .comment-panel {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    .comment-item {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .export-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+    .export-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+    }
+    .export-btn:hover {
+        background: #218838;
+        transform: translateY(-1px);
+    }
+    .export-btn.secondary {
+        background: #6c757d;
+    }
+    .export-btn.secondary:hover {
+        background: #5a6268;
+    }
     """
     
-    def process_document(file):
-        """Process uploaded document"""
+    def process_document(file, progress=gr.Progress()):
+        """Process uploaded document with progress tracking"""
+        try:
+            print(f"DEBUG: process_document invoked. file={file} name={getattr(file, 'name', None)}")
+        except Exception:
+            pass
         if file is None:
-            return None, "Please upload a document first.", "", "", ""
+            return None, "Please upload a document first.", "", "", "", False, ""
         
         try:
+            progress(0.1, desc="📤 Uploading document...")
+            
             mime = "application/pdf" if file.name.lower().endswith(".pdf") else \
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             
+            progress(0.2, desc="🔍 Extracting text from document...")
+            
             with open(file.name, "rb") as fh:
+                progress(0.3, desc="🧠 Analyzing document with AI...")
                 response = requests.post("http://localhost:7860/api/review",
                                        files={"file": (Path(file.name).name, fh, mime)},
                             timeout=300)
             
+            progress(0.8, desc="📊 Processing results...")
+            
             if response.status_code == 200:
                 result = response.json()
-                return format_results(result), create_summary_html(result), create_risks_html(result), create_recommendations_html(result), result.get("report_id", "")
+                progress(1.0, desc="✅ Analysis complete!")
+                return (format_results(result), 
+                       create_summary_html(result), 
+                       create_risks_html(result), 
+                       create_recommendations_html(result), 
+                       result.get("report_id", ""),
+                       True,  # Show results
+                       file.name)  # Return filename for display
             else:
-                return None, f"Error: {response.status_code} - {response.text[:500]}", "", "", ""
+                progress(1.0, desc="❌ Analysis failed")
+                return None, f"Error: {response.status_code} - {response.text[:500]}", "", "", "", False, ""
                 
         except Exception as e:
-            return None, f"Error processing document: {str(e)}", "", "", ""
+            progress(1.0, desc="❌ Analysis failed")
+            return None, f"Error processing document: {str(e)}", "", "", "", False, ""
     
     def format_results(result):
         """Format results as JSON"""
         return json.dumps(result, ensure_ascii=False, indent=2)
     
-    def create_summary_html(result):
-        """Create HTML summary with better formatting"""
-        summary = result.get("summary", "No summary available")
+    def create_summary_html(result, editable_summary=None):
+        """Create HTML summary with editable functionality"""
+        summary = editable_summary if editable_summary else result.get("summary", "No summary available")
         doc_type = result.get("document_type", "Unknown")
         key_points = result.get("key_points", [])
+        report_id = result.get("report_id", "")
         
         # Clean and format the summary text
         def format_text(text, max_length=500):
@@ -409,9 +754,14 @@ def create_modern_ui():
         }.get(doc_type, f"📄 {doc_type}")
         
         html = f"""
-        <div class="result-section">
-            <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
+        <div class="result-section" data-report-id="{report_id}">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
                 <h3 style="margin: 0; color: #2c3e50;">📄 Document Summary</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button onclick="toggleEditMode()" style="background: #007bff; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        ✏️ Edit Summary
+                    </button>
+                </div>
             </div>
             
             <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
@@ -425,8 +775,17 @@ def create_modern_ui():
             
             <div style="margin-bottom: 1.5rem;">
                 <h4 style="color: #34495e; margin-bottom: 0.75rem; font-size: 1.1rem;">📝 Executive Summary</h4>
-                <div style="background: white; padding: 1.25rem; border-left: 4px solid #3498db; border-radius: 0 8px 8px 0; line-height: 1.6; color: #2c3e50;">
+                <div id="summary-display" style="background: white; padding: 1.25rem; border-left: 4px solid #3498db; border-radius: 0 8px 8px 0; line-height: 1.6; color: #2c3e50;">
                     {formatted_summary}
+                </div>
+                <textarea id="summary-edit" class="editable-text" style="display: none; width: 100%; min-height: 120px; padding: 1.25rem; border: 1px solid #3498db; border-radius: 0 8px 8px 0; font-family: inherit; font-size: inherit; line-height: 1.6; color: #2c3e50; background: white; resize: vertical;">{summary}</textarea>
+                <div id="edit-controls" style="display: none; margin-top: 1rem; text-align: right;">
+                    <button onclick="saveSummary()" style="background: #28a745; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-right: 0.5rem;">
+                        💾 Save Changes
+                    </button>
+                    <button onclick="cancelEdit()" style="background: #6c757d; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        ❌ Cancel
+                    </button>
                 </div>
             </div>
         """
@@ -448,60 +807,253 @@ def create_modern_ui():
             </div>
             """
         
+        # Add export buttons
+        html += f"""
+            <div class="export-buttons">
+                <button onclick="exportToPDF()" class="export-btn">
+                    📄 Export PDF
+                </button>
+                <button onclick="exportToWord()" class="export-btn">
+                    📝 Export Word
+                </button>
+                <button onclick="exportToJSON()" class="export-btn secondary">
+                    💾 Export JSON
+                </button>
+            </div>
+        """
+        
+        # Add JavaScript for edit functionality
+        html += """
+            <script>
+                function toggleEditMode() {
+                    const display = document.getElementById('summary-display');
+                    const edit = document.getElementById('summary-edit');
+                    const controls = document.getElementById('edit-controls');
+                    
+                    if (display.style.display !== 'none') {
+                        display.style.display = 'none';
+                        edit.style.display = 'block';
+                        controls.style.display = 'block';
+                        edit.focus();
+                    } else {
+                        display.style.display = 'block';
+                        edit.style.display = 'none';
+                        controls.style.display = 'none';
+                    }
+                }
+                
+                function saveSummary() {
+                    const edit = document.getElementById('summary-edit');
+                    const display = document.getElementById('summary-display');
+                    const newText = edit.value;
+                    
+                    // Format the text for display
+                    const formatted = newText.replace(/\. /g, '.<br>').replace(/\\n/g, '<br>');
+                    display.innerHTML = formatted;
+                    
+                    // Hide edit mode
+                    toggleEditMode();
+                    
+                    // Show success message
+                    showNotification('Summary updated successfully!', 'success');
+                }
+                
+                function cancelEdit() {
+                    const display = document.getElementById('summary-display');
+                    const edit = document.getElementById('summary-edit');
+                    const controls = document.getElementById('edit-controls');
+                    
+                    display.style.display = 'block';
+                    edit.style.display = 'none';
+                    controls.style.display = 'none';
+                }
+                
+                function exportToPDF() {
+                    const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
+                    if (reportId) {
+                        window.open(`/api/export/${reportId}/pdf`, '_blank');
+                        showNotification('PDF export started!', 'success');
+                    } else {
+                        showNotification('No report available for export', 'error');
+                    }
+                }
+                
+                function exportToWord() {
+                    const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
+                    if (reportId) {
+                        window.open(`/api/export/${reportId}/word`, '_blank');
+                        showNotification('Word export started!', 'success');
+                    } else {
+                        showNotification('No report available for export', 'error');
+                    }
+                }
+                
+                function exportToJSON() {
+                    const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
+                    if (reportId) {
+                        window.open(`/api/export/${reportId}/json`, '_blank');
+                        showNotification('JSON export started!', 'success');
+                    } else {
+                        showNotification('No report available for export', 'error');
+                    }
+                }
+                
+                function showNotification(message, type) {
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        padding: 1rem 1.5rem;
+                        border-radius: 8px;
+                        color: white;
+                        font-weight: 500;
+                        z-index: 1000;
+                        animation: slideIn 0.3s ease;
+                    `;
+                    
+                    const colors = {
+                        success: '#28a745',
+                        info: '#17a2b8',
+                        warning: '#ffc107',
+                        error: '#dc3545'
+                    };
+                    
+                    notification.style.background = colors[type] || colors.info;
+                    notification.textContent = message;
+                    
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {
+                        notification.style.animation = 'slideOut 0.3s ease';
+                        setTimeout(() => notification.remove(), 300);
+                    }, 3000);
+                }
+                
+                // Add CSS animations
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOut {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(100%); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+            </script>
+        """
+        
         html += "</div>"
         return html
     
     def create_risks_html(result):
-        """Create HTML for risks with better formatting"""
+        """Create HTML for risks with enhanced traffic light visualization"""
         risks = result.get("risks", [])
         if not risks:
             return """
             <div class="result-section">
                 <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="margin: 0; color: #2c3e50;">⚠️ Risk Analysis</h3>
+                    <div style="margin-left: auto; display: flex; align-items: center;">
+                        <div class="risk-indicator low"></div>
+                        <span style="color: #28a745; font-weight: 600; font-size: 0.9rem;">LOW RISK</span>
+                    </div>
                 </div>
                 <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1.5rem; text-align: center;">
-                    <div style="color: #155724; font-size: 1.1rem; font-weight: 500;">
-                        ✅ No significant risks identified
+                    <div style="color: #155724; font-size: 1.1rem; font-weight: 500; margin-bottom: 0.5rem;">
+                        🟢 No significant risks identified
                     </div>
-                    <div style="color: #6c757d; margin-top: 0.5rem; font-size: 0.9rem;">
+                    <div style="color: #6c757d; font-size: 0.9rem;">
                         This document appears to be low risk based on the analysis.
                     </div>
                 </div>
             </div>
             """
         
-        # Count risks by level
+        # Count risks by level and determine overall risk level
         risk_counts = {"high": 0, "medium": 0, "low": 0}
         for risk in risks:
             level = risk.get("level", "Low").lower()
             if level in risk_counts:
                 risk_counts[level] += 1
         
+        # Determine overall risk level
+        if risk_counts["high"] > 0:
+            overall_risk = "HIGH"
+            overall_color = "#dc3545"
+            overall_indicator = "high"
+            overall_emoji = "🔴"
+        elif risk_counts["medium"] > 0:
+            overall_risk = "MEDIUM"
+            overall_color = "#fd7e14"
+            overall_indicator = "medium"
+            overall_emoji = "🟡"
+        else:
+            overall_risk = "LOW"
+            overall_color = "#28a745"
+            overall_indicator = "low"
+            overall_emoji = "🟢"
+        
         html = f"""
         <div class="result-section">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
                 <h3 style="margin: 0; color: #2c3e50;">⚠️ Risk Analysis</h3>
-                <div style="display: flex; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="display: flex; align-items: center;">
+                        <div class="risk-indicator {overall_indicator}"></div>
+                        <span style="color: {overall_color}; font-weight: 600; font-size: 0.9rem;">{overall_emoji} {overall_risk} RISK</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
         """
         
-        # Add risk level badges
+        # Add risk level badges with traffic light colors
         for level, count in risk_counts.items():
             if count > 0:
                 colors = {
-                    "high": {"bg": "#f8d7da", "text": "#721c24", "border": "#dc3545"},
-                    "medium": {"bg": "#fff3cd", "text": "#856404", "border": "#fd7e14"},
-                    "low": {"bg": "#d4edda", "text": "#155724", "border": "#28a745"}
+                    "high": {"bg": "#f8d7da", "text": "#721c24", "border": "#dc3545", "emoji": "🔴"},
+                    "medium": {"bg": "#fff3cd", "text": "#856404", "border": "#fd7e14", "emoji": "🟡"},
+                    "low": {"bg": "#d4edda", "text": "#155724", "border": "#28a745", "emoji": "🟢"}
                 }
                 color = colors[level]
                 html += f"""
                 <span style="background: {color['bg']}; color: {color['text']}; border: 1px solid {color['border']}; 
                            padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 500;">
-                    {level.upper()}: {count}
+                    {color['emoji']} {level.upper()}: {count}
                 </span>
                 """
         
         html += """
+                    </div>
+                </div>
+            </div>
+        """
+        
+        # Add risk summary bar
+        total_risks = sum(risk_counts.values())
+        html += f"""
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: #495057;">Risk Summary</span>
+                    <span style="color: #6c757d; font-size: 0.9rem;">{total_risks} issue{'' if total_risks == 1 else 's'} found</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <div style="flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                        <div style="height: 100%; background: #dc3545; width: {risk_counts['high']/total_risks*100 if total_risks > 0 else 0}%; border-radius: 4px;"></div>
+                    </div>
+                    <div style="flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                        <div style="height: 100%; background: #fd7e14; width: {risk_counts['medium']/total_risks*100 if total_risks > 0 else 0}%; border-radius: 4px;"></div>
+                    </div>
+                    <div style="flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                        <div style="height: 100%; background: #28a745; width: {risk_counts['low']/total_risks*100 if total_risks > 0 else 0}%; border-radius: 4px;"></div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8rem; color: #6c757d;">
+                    <span>🔴 High</span>
+                    <span>🟡 Medium</span>
+                    <span>🟢 Low</span>
                 </div>
             </div>
         """
@@ -516,9 +1068,9 @@ def create_modern_ui():
             rationale = rationale.replace('. ', '.<br>') if len(rationale) > 150 else rationale
             
             colors = {
-                "high": {"border": "#dc3545", "bg": "#f8d7da", "badge": "#dc3545"},
-                "medium": {"border": "#fd7e14", "bg": "#fff3cd", "badge": "#fd7e14"},
-                "low": {"border": "#28a745", "bg": "#d4edda", "badge": "#28a745"}
+                "high": {"border": "#dc3545", "bg": "#f8d7da", "badge": "#dc3545", "emoji": "🔴"},
+                "medium": {"border": "#fd7e14", "bg": "#fff3cd", "badge": "#fd7e14", "emoji": "🟡"},
+                "low": {"border": "#28a745", "bg": "#d4edda", "badge": "#28a745", "emoji": "🟢"}
             }
             color = colors.get(level, colors["low"])
             
@@ -526,7 +1078,8 @@ def create_modern_ui():
             <div style="margin-bottom: 1.25rem; border: 1px solid {color['border']}; border-radius: 8px; 
                         background: {color['bg']}; overflow: hidden;">
                 <div style="background: {color['badge']}; color: white; padding: 0.75rem 1rem; font-weight: 600; 
-                            font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center;">
+                    <span style="margin-right: 0.5rem;">{color['emoji']}</span>
                     Risk #{i} • {level.upper()} Priority
                 </div>
                 <div style="padding: 1rem;">
@@ -554,22 +1107,84 @@ def create_modern_ui():
         return html
     
     def create_recommendations_html(result):
-        """Create HTML for recommendations with better formatting"""
+        """Create HTML for recommendations with smart suggestions"""
         recommendations = result.get("recommendations", [])
         citations = result.get("citations", [])
+        risks = result.get("risks", [])
+        summary = result.get("summary", "")
+        
+        # Generate smart recommendations based on analysis
+        smart_recommendations = generate_smart_recommendations(risks, summary, recommendations)
         
         html = f"""
         <div class="result-section">
             <div style="display: flex; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0; color: #2c3e50;">💡 Recommendations & Citations</h3>
+                <h3 style="margin: 0; color: #2c3e50;">💡 Smart Recommendations & Citations</h3>
             </div>
         """
         
+        # Display smart recommendations
+        if smart_recommendations:
+            html += f"""
+            <div style="margin-bottom: 2rem;">
+                <h4 style="color: #34495e; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center;">
+                    🤖 AI-Generated Recommendations ({len(smart_recommendations)})
+                </h4>
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 1px solid #2196f3; border-radius: 8px; padding: 1rem;">
+            """
+            
+            for i, rec in enumerate(smart_recommendations, 1):
+                priority = rec.get("priority", "medium")
+                category = rec.get("category", "General")
+                
+                # Priority colors
+                priority_colors = {
+                    "high": {"bg": "#ffebee", "border": "#f44336", "badge": "#f44336"},
+                    "medium": {"bg": "#fff3e0", "border": "#ff9800", "badge": "#ff9800"},
+                    "low": {"bg": "#e8f5e8", "border": "#4caf50", "badge": "#4caf50"}
+                }
+                colors = priority_colors.get(priority, priority_colors["medium"])
+                
+                html += f"""
+                <div style="margin-bottom: 1rem; padding: 0.75rem; background: white; border-radius: 6px; 
+                            border-left: 4px solid {colors['border']}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span style="background: {colors['badge']}; color: white; width: 24px; height: 24px; border-radius: 50%; 
+                                     display: flex; align-items: center; justify-content: center; font-size: 0.8rem; 
+                                     font-weight: 600; margin-right: 0.75rem; flex-shrink: 0; margin-top: 0.125rem;">
+                            {i}
+                        </span>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <span style="background: {colors['badge']}; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem; font-weight: 500;">
+                                    {category}
+                                </span>
+                                <span style="color: {colors['border']}; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">
+                                    {priority} Priority
+                                </span>
+                            </div>
+                            <div style="color: #2c3e50; line-height: 1.5; margin-bottom: 0.5rem;">
+                                {rec.get('recommendation', '')}
+                            </div>
+                            <div style="color: #6c757d; font-size: 0.9rem; font-style: italic;">
+                                💡 {rec.get('rationale', '')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """
+            
+            html += """
+                </div>
+            </div>
+            """
+        
+        # Display original recommendations if any
         if recommendations:
             html += f"""
             <div style="margin-bottom: 2rem;">
                 <h4 style="color: #34495e; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center;">
-                    🎯 Action Items ({len(recommendations)})
+                    📋 Original Recommendations ({len(recommendations)})
                 </h4>
                 <div style="background: #e8f5e8; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem;">
             """
@@ -597,7 +1212,9 @@ def create_modern_ui():
                 </div>
             </div>
             """
-        else:
+        
+        # Show message if no recommendations
+        if not smart_recommendations and not recommendations:
             html += """
             <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.5rem; 
                         text-align: center; margin-bottom: 2rem;">
@@ -661,6 +1278,309 @@ def create_modern_ui():
         html += "</div>"
         return html
     
+    def create_risk_overview(result):
+        """Create a compact risk overview for the top of results"""
+        risks = result.get("risks", [])
+        if not risks:
+            return """
+            <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border: 1px solid #28a745; border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 0.5rem;">
+                    <div class="risk-indicator low" style="margin-right: 0.5rem;"></div>
+                    <h3 style="margin: 0; color: #155724; font-size: 1.2rem;">🟢 LOW RISK DOCUMENT</h3>
+                </div>
+                <p style="margin: 0; color: #155724; font-size: 1rem;">No significant risks identified in this document.</p>
+            </div>
+            """
+        
+        # Count risks by level
+        risk_counts = {"high": 0, "medium": 0, "low": 0}
+        for risk in risks:
+            level = risk.get("level", "Low").lower()
+            if level in risk_counts:
+                risk_counts[level] += 1
+        
+        # Determine overall risk level
+        if risk_counts["high"] > 0:
+            overall_risk = "HIGH RISK"
+            overall_color = "#dc3545"
+            overall_bg = "linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%)"
+            overall_border = "#dc3545"
+            overall_emoji = "🔴"
+        elif risk_counts["medium"] > 0:
+            overall_risk = "MEDIUM RISK"
+            overall_color = "#fd7e14"
+            overall_bg = "linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)"
+            overall_border = "#fd7e14"
+            overall_emoji = "🟡"
+        else:
+            overall_risk = "LOW RISK"
+            overall_color = "#28a745"
+            overall_bg = "linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)"
+            overall_border = "#28a745"
+            overall_emoji = "🟢"
+        
+        total_risks = sum(risk_counts.values())
+        
+        return f"""
+        <div style="background: {overall_bg}; border: 2px solid {overall_border}; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center;">
+                    <div class="risk-indicator {overall_risk.lower().split()[0]}" style="margin-right: 0.5rem;"></div>
+                    <h3 style="margin: 0; color: {overall_color}; font-size: 1.2rem;">{overall_emoji} {overall_risk}</h3>
+                </div>
+                <div style="background: rgba(255,255,255,0.8); padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; color: {overall_color};">
+                    {total_risks} Issue{'' if total_risks == 1 else 's'} Found
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #dc3545;">{risk_counts['high']}</div>
+                    <div style="font-size: 0.9rem; color: #721c24;">🔴 High</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #fd7e14;">{risk_counts['medium']}</div>
+                    <div style="font-size: 0.9rem; color: #856404;">🟡 Medium</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #28a745;">{risk_counts['low']}</div>
+                    <div style="font-size: 0.9rem; color: #155724;">🟢 Low</div>
+                </div>
+            </div>
+        </div>
+        """
+    
+    # Global comments storage (in production, this would be a database)
+    comments_storage = {}
+    
+    def create_comments_html(comments_list):
+        """Create HTML for displaying comments"""
+        if not comments_list:
+            return "<div style='text-align: center; color: #6c757d; padding: 2rem;'>No comments yet. Add your first comment below!</div>"
+        
+        html = "<div class='comment-panel'>"
+        for i, comment in enumerate(comments_list):
+            timestamp = comment.get('timestamp', 'Unknown time')
+            section = comment.get('section', 'General')
+            text = comment.get('text', '')
+            safe_text = text.replace("\n", "<br>")
+            author = comment.get('author', 'Anonymous')
+            
+            # Format timestamp
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                formatted_time = dt.strftime('%Y-%m-%d %H:%M')
+            except:
+                formatted_time = timestamp
+            
+            # Section color coding
+            section_colors = {
+                "Summary": "#3498db",
+                "Risk Analysis": "#e74c3c", 
+                "Recommendations": "#f39c12",
+                "General": "#95a5a6"
+            }
+            section_color = section_colors.get(section, "#95a5a6")
+            
+            html += f"""
+            <div class="comment-item">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: {section_color}; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.8rem; font-weight: 500;">
+                            {section}
+                        </span>
+                        <span style="font-weight: 600; color: #2c3e50;">{author}</span>
+                    </div>
+                    <span style="color: #6c757d; font-size: 0.8rem;">{formatted_time}</span>
+                </div>
+                <div style="color: #495057; line-height: 1.5; margin-bottom: 0.5rem;">
+                    {safe_text}
+                </div>
+                <div style="text-align: right;">
+                    <button onclick="deleteComment({i})" style="background: #dc3545; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+            """
+        
+        html += "</div>"
+        
+        # Add JavaScript for comment management
+        html += """
+        <script>
+            function deleteComment(index) {
+                if (confirm('Are you sure you want to delete this comment?')) {
+                    // This would trigger a server-side delete in a real implementation
+                    showNotification('Comment deleted successfully!', 'success');
+                    // Refresh comments display
+                    setTimeout(() => location.reload(), 1000);
+                }
+            }
+        </script>
+        """
+        
+        return html
+    
+    def add_comment(comment_text, section, report_id):
+        """Add a new comment"""
+        if not comment_text.strip():
+            return "Comment cannot be empty.", gr.update()
+        
+        if report_id not in comments_storage:
+            comments_storage[report_id] = []
+        
+        from datetime import datetime
+        new_comment = {
+            'text': comment_text,
+            'section': section,
+            'timestamp': datetime.now().isoformat(),
+            'author': 'User'  # In production, this would be the logged-in user
+        }
+        
+        comments_storage[report_id].append(new_comment)
+        
+        # Return updated comments HTML
+        updated_comments_html = create_comments_html(comments_storage[report_id])
+        
+        return "Comment added successfully!", updated_comments_html
+    
+    def generate_smart_recommendations(risks, summary, existing_recommendations):
+        """Generate smart recommendations based on analysis results"""
+        recommendations = []
+        
+        # Analyze risks and generate recommendations
+        risk_analysis = {
+            "liability": False,
+            "indemnity": False,
+            "confidentiality": False,
+            "termination": False,
+            "governing_law": False,
+            "intellectual_property": False,
+            "data_protection": False,
+            "assignment": False
+        }
+        
+        # Check for common risk patterns
+        summary_lower = summary.lower()
+        for risk in risks:
+            risk_desc = risk.get("description", "").lower()
+            risk_rationale = risk.get("rationale", "").lower()
+            combined_text = f"{risk_desc} {risk_rationale}"
+            
+            if any(term in combined_text for term in ["liability", "damages", "loss"]):
+                risk_analysis["liability"] = True
+            if any(term in combined_text for term in ["indemnify", "indemnity", "hold harmless"]):
+                risk_analysis["indemnity"] = True
+            if any(term in combined_text for term in ["confidential", "proprietary", "non-disclosure"]):
+                risk_analysis["confidentiality"] = True
+            if any(term in combined_text for term in ["terminate", "termination", "end"]):
+                risk_analysis["termination"] = True
+            if any(term in combined_text for term in ["governing law", "jurisdiction", "venue"]):
+                risk_analysis["governing_law"] = True
+            if any(term in combined_text for term in ["intellectual property", "copyright", "patent", "trademark"]):
+                risk_analysis["intellectual_property"] = True
+            if any(term in combined_text for term in ["data", "privacy", "gdpr", "personal information"]):
+                risk_analysis["data_protection"] = True
+            if any(term in combined_text for term in ["assign", "assignment", "transfer"]):
+                risk_analysis["assignment"] = True
+        
+        # Generate recommendations based on analysis
+        if risk_analysis["liability"]:
+            recommendations.append({
+                "recommendation": "Consider adding liability limitation clauses to cap potential damages",
+                "rationale": "Liability risks were identified in the analysis. Limiting liability can protect your organization from excessive financial exposure.",
+                "category": "Risk Mitigation",
+                "priority": "high"
+            })
+        
+        if risk_analysis["indemnity"]:
+            recommendations.append({
+                "recommendation": "Review indemnity clauses to ensure mutual protection and fair allocation of risks",
+                "rationale": "Indemnity provisions were found. Ensure the scope and limits are reasonable and reciprocal where appropriate.",
+                "category": "Contract Terms",
+                "priority": "high"
+            })
+        
+        if not risk_analysis["confidentiality"]:
+            recommendations.append({
+                "recommendation": "Consider adding confidentiality provisions to protect sensitive information",
+                "rationale": "No confidentiality clauses were identified. This may be necessary depending on the nature of the agreement.",
+                "category": "Missing Clauses",
+                "priority": "medium"
+            })
+        
+        if not risk_analysis["termination"]:
+            recommendations.append({
+                "recommendation": "Add clear termination provisions including notice periods and consequences",
+                "rationale": "Termination clauses provide clarity on how the agreement can be ended, protecting both parties.",
+                "category": "Missing Clauses",
+                "priority": "medium"
+            })
+        
+        if not risk_analysis["governing_law"]:
+            recommendations.append({
+                "recommendation": "Specify governing law and jurisdiction for dispute resolution",
+                "rationale": "Governing law clauses provide certainty about which legal system applies to disputes.",
+                "category": "Legal Framework",
+                "priority": "medium"
+            })
+        
+        if risk_analysis["intellectual_property"]:
+            recommendations.append({
+                "recommendation": "Clarify intellectual property ownership and usage rights",
+                "rationale": "IP-related terms were identified. Ensure clear ownership and usage rights are defined.",
+                "category": "Intellectual Property",
+                "priority": "high"
+            })
+        
+        if risk_analysis["data_protection"]:
+            recommendations.append({
+                "recommendation": "Ensure compliance with data protection regulations (GDPR, CCPA, etc.)",
+                "rationale": "Data protection considerations were found. Verify compliance with applicable privacy laws.",
+                "category": "Compliance",
+                "priority": "high"
+            })
+        
+        # Generate general recommendations based on risk level
+        high_risk_count = sum(1 for risk in risks if risk.get("level", "").lower() == "high")
+        medium_risk_count = sum(1 for risk in risks if risk.get("level", "").lower() == "medium")
+        
+        if high_risk_count > 0:
+            recommendations.append({
+                "recommendation": "Schedule a legal review session to address high-priority risks",
+                "rationale": f"{high_risk_count} high-risk issues were identified. Professional legal review is recommended.",
+                "category": "Legal Review",
+                "priority": "high"
+            })
+        
+        if medium_risk_count > 2:
+            recommendations.append({
+                "recommendation": "Consider negotiating key terms before signing",
+                "rationale": f"Multiple medium-risk issues ({medium_risk_count}) suggest the need for contract negotiation.",
+                "category": "Negotiation",
+                "priority": "medium"
+            })
+        
+        # Add general best practices
+        if not existing_recommendations:
+            recommendations.append({
+                "recommendation": "Review the contract with stakeholders before final approval",
+                "rationale": "Multi-stakeholder review helps identify business-specific concerns and requirements.",
+                "category": "Process",
+                "priority": "low"
+            })
+            
+            recommendations.append({
+                "recommendation": "Document any verbal agreements or side arrangements",
+                "rationale": "Ensure all important terms are captured in writing to avoid misunderstandings.",
+                "category": "Documentation",
+                "priority": "low"
+            })
+        
+        return recommendations[:8]  # Limit to 8 recommendations to avoid overwhelming the user
+    
     def get_history_data():
         """Get review history"""
         try:
@@ -715,40 +1635,74 @@ def create_modern_ui():
         with gr.Tabs():
             # Main Review Tab
             with gr.Tab("🔍 Document Review"):
-                with gr.Row():
-                    with gr.Column(scale=1):
-                        gr.Markdown("### 📤 Upload Document")
-                        file_input = gr.File(
-                            label="Upload PDF or DOCX file",
-                            file_types=[".pdf", ".docx"],
-                            file_count="single"
-                        )
-                        
-                        process_btn = gr.Button("🚀 Analyze Document", variant="primary", size="lg")
-                        
-                        gr.Markdown("""
-                        ### 📊 Supported Features
-                        - **Document Analysis**: Extract key information and structure
-                        - **Risk Assessment**: Identify potential risks and issues
-                        - **Smart Recommendations**: Get actionable insights
-                        - **Citation Tracking**: Find relevant sections and quotes
-                        - **Export Options**: Download reports in multiple formats
-                        """)
+                # Upload Section (collapsible)
+                with gr.Group():
+                    gr.Markdown("### 📤 Upload Document")
+                    file_input = gr.File(
+                        label="Upload PDF or DOCX file",
+                        file_types=[".pdf", ".docx"],
+                        file_count="single"
+                    )
                     
-                    with gr.Column(scale=2):
-                        gr.Markdown("### 📋 Analysis Results")
+                    with gr.Row():
+                        process_btn = gr.Button("🚀 Analyze Document", variant="primary", size="lg")
+                        upload_status = gr.Textbox(label="Status", visible=False)
+                    
+                    gr.Markdown("""
+                    ### 📊 Supported Features
+                    - **Document Analysis**: Extract key information and structure
+                    - **Risk Assessment**: Identify potential risks and issues
+                    - **Smart Recommendations**: Get actionable insights
+                    - **Citation Tracking**: Find relevant sections and quotes
+                    - **Export Options**: Download reports in multiple formats
+                    """)
+                
+                # Results Section
+                with gr.Group(visible=False) as results_group:
+                    gr.Markdown("### 📋 Analysis Results")
+                    
+                    # Risk Overview
+                    risk_overview = gr.HTML(label="Risk Overview")
+                    
+                    # Live status banner
+                    status_html = gr.HTML(visible=False)
+                    
+                    # Main content in tabs
+                    with gr.Tabs():
+                        with gr.Tab("📄 Summary"):
+                            summary_html = gr.HTML(label="Document Summary")
                         
-                        with gr.Row():
-                            with gr.Column():
-                                summary_html = gr.HTML(label="Summary")
-                            with gr.Column():
-                                risks_html = gr.HTML(label="Risk Analysis")
+                        with gr.Tab("⚠️ Risk Analysis"):
+                            risks_html = gr.HTML(label="Risk Analysis")
                         
-                        recommendations_html = gr.HTML(label="Recommendations")
+                        with gr.Tab("💡 Recommendations"):
+                            recommendations_html = gr.HTML(label="Recommendations")
                         
-                        with gr.Row():
-                            json_output = gr.Code(label="Raw JSON Results", language="json")
-                            report_id_output = gr.Textbox(label="Report ID", visible=False)
+                        with gr.Tab("💬 Comments"):
+                            with gr.Row():
+                                with gr.Column(scale=2):
+                                    comments_display = gr.HTML(label="Comments", value="<div style='text-align: center; color: #6c757d; padding: 2rem;'>No comments yet. Add your first comment below!</div>")
+                                with gr.Column(scale=1):
+                                    gr.Markdown("### Add Comment")
+                                    comment_text = gr.Textbox(
+                                        label="Your comment",
+                                        placeholder="Add your thoughts about this analysis...",
+                                        lines=4
+                                    )
+                                    comment_section = gr.Dropdown(
+                                        label="Section",
+                                        choices=["Summary", "Risk Analysis", "Recommendations", "General"],
+                                        value="General"
+                                    )
+                                    add_comment_btn = gr.Button("💬 Add Comment", variant="primary")
+                        
+                        with gr.Tab("🔧 Advanced"):
+                            with gr.Row():
+                                json_output = gr.Code(label="Raw JSON Results", language="json")
+                                report_id_output = gr.Textbox(label="Report ID", visible=False)
+                
+                # Hidden state for showing results
+                show_results = gr.State(False)
             
             # History Tab
             with gr.Tab("📚 Review History"):
@@ -784,10 +1738,74 @@ def create_modern_ui():
                     export_data_btn = gr.Button("📤 Export Data", variant="secondary")
         
         # Event handlers
+        def process_and_show_results(file):
+            """Process document and show results with proper state management"""
+            if file is None:
+                return (None, "", "", "", "", "", gr.update(visible=False), "")
+            
+            # Process the document
+            result = process_document(file)
+            
+            if result[0] is not None:  # Success
+                json_data, summary, risks, recommendations, report_id, show_results_flag, filename = result
+                risk_overview_html = create_risk_overview(json.loads(json_data))
+                
+                return (
+                    json_data,           # json_output
+                    summary,            # summary_html
+                    risks,              # risks_html
+                    recommendations,    # recommendations_html
+                    report_id,          # report_id_output
+                    risk_overview_html, # risk_overview
+                    gr.update(visible=True),
+                    filename            # upload_status
+                )
+            else:
+                # Error case
+                return (None, "", "", "", "", "", gr.update(visible=False), result[1])
+        
+        # Helper functions to show/hide a live status banner
+        def show_analyzing():
+            spinner = """
+            <div class=\"progress-container\" style=\"border:1px solid #dee2e6; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;\"> 
+                <div style=\"display:flex; align-items:center; gap:8px; color:#495057;\">
+                    <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" style=\"animation: spin 1s linear infinite;\"><path d=\"M12 2a10 10 0 100 20 10 10 0 000-20zm0 3a7 7 0 110 14 7 7 0 010-14z\" fill=\"#0d6efd\"/></svg>
+                    <span>Analyzing document… extracting text, chunking, embedding, and assessing risks.</span>
+                </div>
+                <div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:35%\"></div></div>
+                <style>@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}</style>
+            </div>
+            """
+            return gr.update(value=spinner, visible=True)
+        
+        def hide_status():
+            return gr.update(visible=False)
+        
+        # Chain events: show status immediately -> run analysis -> hide status
         process_btn.click(
-            fn=process_document,
+            fn=show_analyzing,
+            outputs=[status_html],
+            show_progress=False
+        ).then(
+            fn=process_and_show_results,
             inputs=[file_input],
-            outputs=[json_output, summary_html, risks_html, recommendations_html, report_id_output]
+            outputs=[json_output, summary_html, risks_html, recommendations_html, report_id_output, risk_overview, results_group, upload_status]
+        ).then(
+            fn=hide_status,
+            outputs=[status_html],
+            show_progress=False
+        )
+        
+        # Comment functionality
+        def handle_add_comment(comment_text, section, report_id):
+            if not report_id:
+                return "No document loaded. Please analyze a document first.", gr.update()
+            return add_comment(comment_text, section, report_id)
+        
+        add_comment_btn.click(
+            fn=handle_add_comment,
+            inputs=[comment_text, comment_section, report_id_output],
+            outputs=[comment_text, comments_display]  # Clear comment text and update display
         )
         
         history_btn.click(
@@ -801,6 +1819,8 @@ def create_modern_ui():
             outputs=[history_html]
         )
     
+    # Enable Gradio task queue for better UX on long operations (use supported args)
+    demo.queue(status_update_rate=1)
     return demo
 
 if __name__ == "__main__":

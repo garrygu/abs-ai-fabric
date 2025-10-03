@@ -9,3 +9,4 @@ ocrmypdf==16.4.0
 tqdm==4.66.4
 requests==2.32.3
 pydantic==2.8.2
+reportlab==4.0.9
