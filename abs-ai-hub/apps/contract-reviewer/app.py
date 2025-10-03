@@ -53,8 +53,8 @@ def read_any_text(path: Path) -> tuple[str, str]:
 # ----- models/clients -----
 qdrant = QdrantClient(url=QDRANT_URL)
 
-# Initialize collection with default embedding dimension (will be updated on first use)
-EMBED_DIM = 384  # Default for bge-small-en-v1.5
+# Initialize collection with legal embedding dimension
+EMBED_DIM = 768  # Legal-BERT dimension
 try:
     qdrant.get_collection(COLLECTION)
 except Exception:
@@ -158,9 +158,9 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
     with open("/app/prompts/review_prompt.md", "r", encoding="utf-8") as f:
         system_prompt = f.read()
 
-    # Include a document excerpt to anchor the model on the uploaded file
-    doc_excerpt = text[:4000]
-    user_prompt = f"""POLICY:\n{policy}\n\nDOCUMENT_EXCERPT (truncated):\n{doc_excerpt}\n\nRETRIEVED_CONTEXT:\n{context}\n"""
+    # Include a substantial document excerpt to anchor the model on the uploaded file
+    doc_excerpt = text[:6000]  # Increased excerpt size
+    user_prompt = f"""DOCUMENT TO ANALYZE:\n{doc_excerpt}\n\nPOLICY GUIDELINES:\n{policy}\n\nRELEVANT CONTEXT FROM SIMILAR DOCUMENTS:\n{context}\n\nINSTRUCTIONS: Analyze the DOCUMENT TO ANALYZE above and return ONLY valid JSON as specified in the system prompt."""
     rsp = openai_chat([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
@@ -170,18 +170,132 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
     print(f"DEBUG: Raw LLM response: {repr(rsp)}")
     
     try:
-        # Try to extract JSON from the response
-        # Look for JSON object in the response
-        import re
-        json_match = re.search(r'\{.*\}', rsp, re.DOTALL)
-        if json_match:
-            json_str = json_match.group()
-            print(f"DEBUG: Extracted JSON string: {repr(json_str)}")
-            data = json.loads(json_str)
-        else:
-            # If no JSON found, wrap the response
-            print("DEBUG: No JSON found in response")
-            data = {"summary": rsp, "raw": rsp}
+        # Clean the response - remove markdown code blocks and extra text
+        cleaned_rsp = rsp.strip()
+        
+        # Remove markdown code blocks if present
+        if cleaned_rsp.startswith('```'):
+            lines = cleaned_rsp.split('\n')
+            if len(lines) > 2:
+                cleaned_rsp = '\n'.join(lines[1:-1])
+        
+        # Remove explanatory text before JSON
+        json_start = cleaned_rsp.find('{')
+        if json_start != -1:
+            cleaned_rsp = cleaned_rsp[json_start:]
+        
+        # Find the end of JSON object
+        json_end = cleaned_rsp.rfind('}') + 1
+        if json_end > 0:
+            cleaned_rsp = cleaned_rsp[:json_end]
+        
+        print(f"DEBUG: Cleaned JSON string: {repr(cleaned_rsp)}")
+        data = json.loads(cleaned_rsp)
+        
+        # Fallback: If LLM returns wrong structure, create expected structure
+        if "summary" not in data:
+            print("DEBUG: Wrong JSON structure detected, creating fallback")
+            
+            # Create a meaningful summary from the document content
+            summary_parts = []
+            risk_count = 0
+            key_terms = []
+            
+            # Extract meaningful information from wrong structure
+            if "agreement" in data:
+                agreement = data["agreement"]
+                if "terms" in agreement:
+                    key_terms = [term.get('text', '') for term in agreement["terms"][:3] if term.get('text')]
+                
+                # Count risks from various sources
+                if "representations" in agreement:
+                    risk_count += len(agreement["representations"])
+                if "liabilities" in agreement:
+                    risk_count += len(agreement["liabilities"])
+                if "disclaimers" in agreement:
+                    risk_count += len(agreement["disclaimers"])
+            
+            if "prohibitions" in data:
+                risk_count += len(data["prohibitions"])
+            if "liquidated_damages" in data:
+                risk_count += len(data["liquidated_damages"])
+            
+            # Create meaningful summary
+            if key_terms:
+                summary_parts.append(f"This document appears to be a legal agreement covering: {', '.join(key_terms[:3])}.")
+            else:
+                summary_parts.append("This document appears to be a legal agreement or contract.")
+            
+            if risk_count > 0:
+                summary_parts.append(f"The document contains {risk_count} potential risk areas that require careful review.")
+            else:
+                summary_parts.append("The document appears to be relatively standard with no obvious high-risk provisions.")
+            
+            summary_parts.append("Please review the detailed analysis below for specific recommendations.")
+            
+            fallback_data = {
+                "summary": " ".join(summary_parts),
+                "document_type": "Contract",
+                "key_points": [],
+                "risks": [],
+                "recommendations": [],
+                "citations": []
+            }
+            
+            # Try to extract useful info from wrong structure
+            if "agreement" in data:
+                agreement = data["agreement"]
+                if "terms" in agreement:
+                    # Create meaningful key points from terms
+                    key_points = []
+                    for term in agreement["terms"][:5]:
+                        section = term.get('section', '')
+                        text = term.get('text', '')
+                        if section and text and text != section:
+                            key_points.append(f"{section}: {text}")
+                        elif section:
+                            key_points.append(section)
+                    fallback_data["key_points"] = key_points
+                if "representations" in agreement:
+                    fallback_data["risks"].append({
+                        "level": "Medium",
+                        "description": "Representations and warranties identified",
+                        "rationale": "Contract contains specific representations that may create liability"
+                    })
+                if "liabilities" in agreement:
+                    for liability in agreement["liabilities"]:
+                        fallback_data["risks"].append({
+                            "level": "High",
+                            "description": liability.get("description", "Liability clause identified"),
+                            "rationale": "Contract contains liability provisions"
+                        })
+            
+            if "prohibitions" in data:
+                for prohibition in data["prohibitions"]:
+                    fallback_data["risks"].append({
+                        "level": "Medium",
+                        "description": prohibition.get("description", "Restriction identified"),
+                        "rationale": "Contract contains restrictive provisions"
+                    })
+            
+            if "liquidated_damages" in data:
+                for damage in data["liquidated_damages"]:
+                    fallback_data["risks"].append({
+                        "level": "High",
+                        "description": f"Liquidated damages: {damage.get('amount', 'Amount specified')}",
+                        "rationale": "Contract contains liquidated damages clause"
+                    })
+            
+            # Add generic recommendations if none found
+            if not fallback_data["recommendations"]:
+                fallback_data["recommendations"] = [
+                    "Review all liability and damage clauses carefully",
+                    "Consider legal counsel for complex provisions",
+                    "Verify compliance with applicable laws"
+                ]
+            
+            data = fallback_data
+        
     except json.JSONDecodeError as e:
         # If JSON parsing fails, wrap the response
         print(f"DEBUG: JSON parsing failed: {str(e)}")
@@ -680,7 +794,7 @@ def create_modern_ui():
         except Exception:
             pass
         if file is None:
-            return None, "Please upload a document first.", "", "", "", False, ""
+            return None, "Please upload a document first.", "", "", "", "", False, ""
         
         try:
             progress(0.1, desc="📤 Uploading document...")
@@ -703,6 +817,7 @@ def create_modern_ui():
                 progress(1.0, desc="✅ Analysis complete!")
                 return (format_results(result), 
                        create_summary_html(result), 
+                       create_key_terms_html(result),
                        create_risks_html(result), 
                        create_recommendations_html(result), 
                        result.get("report_id", ""),
@@ -710,16 +825,95 @@ def create_modern_ui():
                        file.name)  # Return filename for display
             else:
                 progress(1.0, desc="❌ Analysis failed")
-                return None, f"Error: {response.status_code} - {response.text[:500]}", "", "", "", False, ""
+                return None, f"Error: {response.status_code} - {response.text[:500]}", "", "", "", "", False, ""
                 
         except Exception as e:
             progress(1.0, desc="❌ Analysis failed")
-            return None, f"Error processing document: {str(e)}", "", "", "", False, ""
+            return None, f"Error processing document: {str(e)}", "", "", "", "", False, ""
     
     def format_results(result):
         """Format results as JSON"""
         return json.dumps(result, ensure_ascii=False, indent=2)
     
+    def create_key_points_html(key_points):
+        """Create HTML for key points section"""
+        if not key_points:
+            return ""
+        
+        points_html = ""
+        for i, point in enumerate(key_points, 1):
+            points_html += f'<div class="key-point-item"><span class="point-number">{i}.</span> {point}</div>'
+        
+        return f"""
+        <div class="summary-section">
+            <h3>🔑 Key Points</h3>
+            <div class="summary-content">
+                <div class="key-points-list">
+                    {points_html}
+                </div>
+            </div>
+        </div>
+        """
+
+    def create_key_terms_html(data):
+        """Create HTML for key terms section"""
+        key_points = data.get("key_points", [])
+        citations = data.get("citations", [])
+        
+        if not key_points and not citations:
+            return """
+            <div style="text-align: center; color: #6c757d; padding: 2rem;">
+                <h3>🔑 Key Terms</h3>
+                <p>No key terms identified in this document.</p>
+            </div>
+            """
+        
+        html = """
+        <div style="max-width: 100%; margin: 0 auto;">
+            <h3 style="color: #2c3e50; margin-bottom: 1.5rem; text-align: center;">🔑 Key Terms & Clauses</h3>
+        """
+        
+        if key_points:
+            html += """
+            <div style="margin-bottom: 2rem;">
+                <h4 style="color: #34495e; margin-bottom: 1rem; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem;">
+                    📋 Document Sections
+                </h4>
+                <div style="background: #f8f9fa; border-radius: 8px; padding: 1rem;">
+            """
+            for i, point in enumerate(key_points, 1):
+                html += f"""
+                <div style="background: white; margin-bottom: 0.75rem; padding: 1rem; border-radius: 6px; border-left: 4px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display: flex; align-items: flex-start;">
+                        <span style="background: #3498db; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; margin-right: 0.75rem; flex-shrink: 0;">{i}</span>
+                        <div style="flex: 1; line-height: 1.5; color: #2c3e50;">{point}</div>
+                    </div>
+                </div>
+                """
+            html += "</div></div>"
+        
+        if citations:
+            html += """
+            <div>
+                <h4 style="color: #34495e; margin-bottom: 1rem; border-bottom: 2px solid #e74c3c; padding-bottom: 0.5rem;">
+                    📖 Document Citations
+                </h4>
+                <div style="background: #fdf2f2; border-radius: 8px; padding: 1rem;">
+            """
+            for i, citation in enumerate(citations, 1):
+                section = citation.get("section", "Unknown Section")
+                text = citation.get("text", "No text available")
+                html += f"""
+                <div style="background: white; margin-bottom: 0.75rem; padding: 1rem; border-radius: 6px; border-left: 4px solid #e74c3c; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="font-weight: 600; color: #c0392b; margin-bottom: 0.5rem;">{section}</div>
+                    <div style="color: #2c3e50; line-height: 1.5; font-style: italic;">"{text}"</div>
+                </div>
+                """
+            html += "</div></div>"
+        
+        html += "</div>"
+        return html
+
     def create_summary_html(result, editable_summary=None):
         """Create HTML summary with editable functionality"""
         summary = editable_summary if editable_summary else result.get("summary", "No summary available")
@@ -1680,6 +1874,9 @@ def create_modern_ui():
                         with gr.Tab("📄 Summary"):
                             summary_html = gr.HTML(label="Document Summary")
                         
+                        with gr.Tab("🔑 Key Terms"):
+                            key_terms_html = gr.HTML(label="Key Terms")
+                        
                         with gr.Tab("⚠️ Risk Analysis"):
                             risks_html = gr.HTML(label="Risk Analysis")
                         
@@ -1723,12 +1920,13 @@ def create_modern_ui():
                 
                 with gr.Row():
                     with gr.Column():
-                        gr.Markdown("""
+                        gr.Markdown(f"""
                         **Processing Options:**
                         - Document chunk size: 1200 characters
                         - Overlap: 120 characters
-                        - Embedding model: all-minilm
-                        - Chat model: llama3.2:3b
+                        - Embedding model: legal-bert (768-dim)
+                        - Chat model: llama3.2:7b
+                        - Vector dimension: {EMBED_DIM}
                         """)
                     
                     with gr.Column():
@@ -1749,18 +1947,19 @@ def create_modern_ui():
         def process_and_show_results(file):
             """Process document and show results with proper state management"""
             if file is None:
-                return (None, "", "", "", "", "", gr.update(visible=False), "")
+                return (None, "", "", "", "", "", "", gr.update(visible=False), "")
             
             # Process the document
             result = process_document(file)
             
             if result[0] is not None:  # Success
-                json_data, summary, risks, recommendations, report_id, show_results_flag, filename = result
+                json_data, summary, key_terms, risks, recommendations, report_id, show_results_flag, filename = result
                 risk_overview_html = create_risk_overview(json.loads(json_data))
                 
                 return (
                     json_data,           # json_output
                     summary,            # summary_html
+                    key_terms,          # key_terms_html
                     risks,              # risks_html
                     recommendations,    # recommendations_html
                     report_id,          # report_id_output
@@ -1770,7 +1969,7 @@ def create_modern_ui():
                 )
             else:
                 # Error case
-                return (None, "", "", "", "", "", gr.update(visible=False), result[1])
+                return (None, "", "", "", "", "", "", gr.update(visible=False), result[1])
         
         # Helper functions to show/hide a live status banner
         def show_analyzing():
@@ -1789,15 +1988,23 @@ def create_modern_ui():
         def hide_status():
             return gr.update(visible=False)
         
-        # Chain events: show status immediately -> run analysis -> hide status
+        def show_results_immediately():
+            """Show results section immediately when analysis starts"""
+            return gr.update(visible=True)
+        
+        # Chain events: show results immediately -> show status -> run analysis -> hide status
         process_btn.click(
+            fn=show_results_immediately,
+            outputs=[results_group],
+            show_progress=False
+        ).then(
             fn=show_analyzing,
             outputs=[status_html],
             show_progress=False
         ).then(
             fn=process_and_show_results,
             inputs=[file_input],
-            outputs=[json_output, summary_html, risks_html, recommendations_html, report_id_output, risk_overview, results_group, upload_status]
+            outputs=[json_output, summary_html, key_terms_html, risks_html, recommendations_html, report_id_output, risk_overview, results_group, upload_status]
         ).then(
             fn=hide_status,
             outputs=[status_html],
