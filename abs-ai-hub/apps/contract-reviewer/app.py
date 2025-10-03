@@ -90,7 +90,7 @@ def chunk_text(text: str, max_chars=1200, overlap=120):
         i += max_chars - overlap
     return chunks
 
-def upsert_chunks(chunks: List[str]):
+def upsert_chunks(chunks: List[str], doc_id: str):
     # Get embeddings from Hub Gateway
     response = requests.post(
         f"{HUB_GATEWAY_URL}/v1/embeddings",
@@ -105,10 +105,10 @@ def upsert_chunks(chunks: List[str]):
     ids = [str(uuid.uuid4()) for _ in chunks]
     qdrant.upsert(
         COLLECTION,
-        points=[{"id": ids[i], "vector": vectors[i], "payload": {"text": chunks[i]}} for i in range(len(chunks))]
+        points=[{"id": ids[i], "vector": vectors[i], "payload": {"text": chunks[i], "doc_id": doc_id}} for i in range(len(chunks))]
     )
 
-def retrieve(query: str, top_k=6) -> List[str]:
+def retrieve(query: str, top_k=6, doc_id: Optional[str] = None) -> List[str]:
     # Get query embedding from Hub Gateway
     response = requests.post(
         f"{HUB_GATEWAY_URL}/v1/embeddings",
@@ -120,7 +120,11 @@ def retrieve(query: str, top_k=6) -> List[str]:
     embeddings_data = response.json()
     
     qvec = embeddings_data["data"][0]["embedding"]
-    res = qdrant.search(COLLECTION, query_vector=qvec, limit=top_k)
+    search_filter = None
+    if doc_id:
+        from qdrant_client.http import models as qmodels
+        search_filter = qmodels.Filter(must=[qmodels.FieldCondition(key="doc_id", match=qmodels.MatchValue(value=doc_id))])
+    res = qdrant.search(COLLECTION, query_vector=qvec, limit=top_k, query_filter=search_filter)
     return [hit.payload["text"] for hit in res]
 
 def openai_chat(messages, max_tokens=1024) -> str:
@@ -139,7 +143,7 @@ def openai_chat(messages, max_tokens=1024) -> str:
     result = response.json()
     return result["choices"][0]["message"]["content"]
 
-def review_contract(text: str, policy: str) -> Dict:
+def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
     # collect context via retrieval queries for common clauses
     queries = [
         "Confidentiality clause", "Liability limitation", "Indemnity",
@@ -148,13 +152,15 @@ def review_contract(text: str, policy: str) -> Dict:
     ]
     contexts = []
     for q in queries:
-        contexts.extend(retrieve(q))
+        contexts.extend(retrieve(q, doc_id=doc_id))
     context = "\n---\n".join(contexts[:12])
 
     with open("/app/prompts/review_prompt.md", "r", encoding="utf-8") as f:
         system_prompt = f.read()
 
-    user_prompt = f"""POLICY:\n{policy}\n\nCONTEXT:\n{context}\n"""
+    # Include a document excerpt to anchor the model on the uploaded file
+    doc_excerpt = text[:4000]
+    user_prompt = f"""POLICY:\n{policy}\n\nDOCUMENT_EXCERPT (truncated):\n{doc_excerpt}\n\nRETRIEVED_CONTEXT:\n{context}\n"""
     rsp = openai_chat([
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
@@ -451,11 +457,13 @@ async def api_review(file: UploadFile = File(...)):
         print(f"DEBUG: Text extracted, length: {len(text)}")
         chunks = chunk_text(text)
         print(f"DEBUG: Text chunked into {len(chunks)} chunks")
-        upsert_chunks(chunks)
+        # Tag chunks with a per-upload doc_id so retrieval only hits this document
+        doc_id = str(uuid.uuid4())
+        upsert_chunks(chunks, doc_id)
         print("DEBUG: Chunks upserted to Qdrant")
 
         policy = Path(POLICY_FILE).read_text(encoding="utf-8")
-        result = review_contract(text, policy)
+        result = review_contract(text, policy, doc_id)
         result.update({"input_sha256": input_hash, "file_kind": kind})
 
         # Save report to reports directory
