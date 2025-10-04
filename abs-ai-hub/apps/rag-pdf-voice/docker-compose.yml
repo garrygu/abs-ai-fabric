@@ -13,6 +13,7 @@ services:
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       LLM_API_BASE: http://ollama:11434
+      ONYX_BASE_URL: http://onyx:8000
       
       # App-specific configuration
       APP_PORT: 8080
@@ -37,5 +38,6 @@ services:
       sh -c "
         until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
         until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting llm; sleep 2; done &&
+        until curl -sf http://onyx:8000/health >/dev/null; do echo waiting onyx; sleep 2; done &&
         echo core ready
       "

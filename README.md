@@ -10,6 +10,7 @@ This workstation follows a **Core Services** strategy with shared infrastructure
 - **LLM Runtime**: Ollama or vLLM for language model inference
 - **Qdrant**: Vector database for semantic search and document embeddings
 - **Redis**: Cache and message queue for performance optimization
+- **Onyx**: AI assistant with chat interface, RAG capabilities, and agent management
 
 ### Optional Services (On-Demand)
 - **Parser/OCR**: Document parsing and optical character recognition
@@ -52,8 +53,10 @@ docker compose up -d
 ```
 
 ### 3. Access Applications
-- Contract Reviewer: http://localhost:7860
-- Hub UI: http://localhost:3000
+- **ABS AI Hub**: http://localhost:3000 (Main interface)
+- **Onyx Chat**: http://localhost:8000 (AI assistant with chat interface)
+- **Contract Reviewer**: http://localhost:7860
+- **RAG PDF Voice**: http://localhost:8080
 
 ## Requirements
 
@@ -79,6 +82,30 @@ Document analysis with voice interaction capabilities.
 
 ### Whisper Server
 Speech-to-text transcription service for audio processing.
+
+### Onyx AI Assistant
+AI assistant with built-in chat interface, RAG capabilities, and agent management.
+
+**Features:**
+- Natural language chat interface
+- Document upload and analysis
+- RAG queries against knowledge base
+- Custom agent creation and management
+- Multi-model support (Ollama, vLLM)
+- Web search integration
+- Code execution capabilities
+
+## Documentation
+
+### Onyx Integration
+- **[Onyx Integration Guide](core/docs/Onyx_Integration_Guide.md)**: Complete technical integration guide
+- **[Onyx Chat User Manual](core/docs/Onyx_Chat_User_Manual.md)**: User interface guide
+- **[Onyx Quick Reference](core/docs/Onyx_Quick_Reference.md)**: Quick reference card
+
+### Core Services
+- **[Core Services Guide](core/docs/core_services_guide.md)**: Core service management
+- **[Hub Gateway Implementation](core/docs/hub_gateway_implementation_guide.md)**: Gateway configuration
+- **[Auto-Wake Architecture](core/docs/Flexible%20Core%20Services%20and%20Auto-Wake%20Architecture.md)**: Service orchestration
 
 ## Development
 

@@ -16,6 +16,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 OPENAI_BASE = os.getenv("OPENAI_BASE_URL", "http://vllm:8000/v1")
 OPENAI_KEY  = os.getenv("OPENAI_API_KEY", "abs-local")
+ONYX_BASE = os.getenv("ONYX_BASE_URL", "http://onyx:8000")
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "registry.json")
 
 # Redis cache (optional but recommended)
@@ -101,7 +102,8 @@ AUTO_WAKE_SETTINGS = {
 SERVICE_REGISTRY = {
     "ollama": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
     "qdrant": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
-    "redis": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False}  # Redis should stay running
+    "redis": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False},  # Redis should stay running
+    "onyx": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True}
 }
 
 # Model registry for tracking loaded models and their usage
@@ -115,7 +117,8 @@ CONTAINER_MAP = {
     "ollama": "abs-ollama",
     "qdrant": "abs-qdrant", 
     "redis": "abs-redis",
-    "hub-gateway": "abs-hub-gateway"
+    "hub-gateway": "abs-hub-gateway",
+    "onyx": "abs-onyx"
 }
 
 # Service dependencies - defines what services must be running before starting a service
@@ -124,6 +127,7 @@ SERVICE_DEPENDENCIES = {
     "qdrant": [],  # Qdrant has no dependencies
     "redis": [],   # Redis has no dependencies
     "hub-gateway": ["redis"],  # Hub Gateway depends on Redis
+    "onyx": ["redis", "qdrant"],  # Onyx depends on Redis and Qdrant
     # Future services can be added here
     "whisper": [],
     "minio": [],
@@ -131,7 +135,7 @@ SERVICE_DEPENDENCIES = {
 }
 
 # Service startup order - defines the order services should be started
-SERVICE_STARTUP_ORDER = ["redis", "qdrant", "ollama", "hub-gateway"]
+SERVICE_STARTUP_ORDER = ["redis", "qdrant", "ollama", "onyx", "hub-gateway"]
 
 # ---- Schemas ----
 class ChatMessage(BaseModel):
@@ -1082,6 +1086,120 @@ async def get_service_logs(service_name: str, lines: int = 100):
         raise HTTPException(404, f"Container not found for service: {service_name}")
     except Exception as e:
         raise HTTPException(500, f"Error getting logs: {str(e)}")
+
+# ---- Onyx RAG/Agent Endpoints ----
+
+@app.post("/v1/onyx/chat")
+async def onyx_chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
+    """Chat with Onyx AI assistant"""
+    try:
+        # Auto-wake: Ensure Onyx is running
+        if not await ensure_service_ready("onyx"):
+            raise HTTPException(503, "Onyx service unavailable and auto-wake failed")
+        
+        # Prepare payload for Onyx
+        payload = {
+            "messages": [m.model_dump() for m in req.messages],
+            "model": req.model,
+            "temperature": req.temperature,
+            "max_tokens": req.max_tokens,
+            "app_id": app_id
+        }
+        
+        # Route to Onyx
+        r = await HTTP.post(f"{ONYX_BASE.rstrip('/')}/chat", json=payload)
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return r.json()
+    except Exception as e:
+        raise HTTPException(500, f"Error with Onyx chat: {str(e)}")
+
+@app.post("/v1/onyx/rag")
+async def onyx_rag(request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
+    """RAG query through Onyx"""
+    try:
+        # Auto-wake: Ensure Onyx is running
+        if not await ensure_service_ready("onyx"):
+            raise HTTPException(503, "Onyx service unavailable and auto-wake failed")
+        
+        # Get request body
+        payload = await request.json()
+        
+        # Add app context
+        payload["app_id"] = app_id
+        
+        # Route to Onyx RAG endpoint
+        r = await HTTP.post(f"{ONYX_BASE.rstrip('/')}/rag", json=payload)
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return r.json()
+    except Exception as e:
+        raise HTTPException(500, f"Error with Onyx RAG: {str(e)}")
+
+@app.post("/v1/onyx/ingest")
+async def onyx_ingest(request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
+    """Ingest documents through Onyx"""
+    try:
+        # Auto-wake: Ensure Onyx is running
+        if not await ensure_service_ready("onyx"):
+            raise HTTPException(503, "Onyx service unavailable and auto-wake failed")
+        
+        # Get request body
+        payload = await request.json()
+        
+        # Add app context
+        payload["app_id"] = app_id
+        
+        # Route to Onyx ingest endpoint
+        r = await HTTP.post(f"{ONYX_BASE.rstrip('/')}/ingest", json=payload)
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return r.json()
+    except Exception as e:
+        raise HTTPException(500, f"Error with Onyx ingest: {str(e)}")
+
+@app.get("/v1/onyx/agents")
+async def list_onyx_agents(app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
+    """List available Onyx agents"""
+    try:
+        # Auto-wake: Ensure Onyx is running
+        if not await ensure_service_ready("onyx"):
+            raise HTTPException(503, "Onyx service unavailable and auto-wake failed")
+        
+        # Route to Onyx agents endpoint
+        r = await HTTP.get(f"{ONYX_BASE.rstrip('/')}/agents", params={"app_id": app_id})
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return r.json()
+    except Exception as e:
+        raise HTTPException(500, f"Error listing Onyx agents: {str(e)}")
+
+@app.post("/v1/onyx/agents/{agent_id}/execute")
+async def execute_onyx_agent(agent_id: str, request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
+    """Execute a specific Onyx agent"""
+    try:
+        # Auto-wake: Ensure Onyx is running
+        if not await ensure_service_ready("onyx"):
+            raise HTTPException(503, "Onyx service unavailable and auto-wake failed")
+        
+        # Get request body
+        payload = await request.json()
+        
+        # Add app context
+        payload["app_id"] = app_id
+        
+        # Route to Onyx agent execution endpoint
+        r = await HTTP.post(f"{ONYX_BASE.rstrip('/')}/agents/{agent_id}/execute", json=payload)
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return r.json()
+    except Exception as e:
+        raise HTTPException(500, f"Error executing Onyx agent: {str(e)}")
 
 @app.websocket("/admin/ws/metrics")
 async def websocket_metrics(websocket: WebSocket):

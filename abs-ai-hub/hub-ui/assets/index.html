@@ -1441,6 +1441,16 @@
 
         <div class="apps-grid">
             <div class="app-card">
+                <h3>🤖 Onyx AI Assistant</h3>
+                <p>AI assistant with built-in chat interface, RAG capabilities, agent management, and document ingestion. Interact with your knowledge base through natural conversation.</p>
+                <div class="app-models">
+                    <span class="model-badge llm">Multi-Model</span>
+                    <span class="model-badge embed">RAG Engine</span>
+                </div>
+                <a href="http://localhost:8000" class="app-link" target="_blank">Open Onyx Chat</a>
+            </div>
+
+            <div class="app-card">
                 <h3>📄 Contract Reviewer</h3>
                 <p>Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports. Supports PDF and DOCX documents with OCR capabilities.</p>
                 <div class="app-models">
@@ -1896,6 +1906,11 @@
                             <div class="node-label">Redis</div>
                             <div class="node-status online">Online</div>
                         </div>
+                        <div class="service-node onyx">
+                            <div class="node-icon">🤖</div>
+                            <div class="node-label">Onyx</div>
+                            <div class="node-status online">Online</div>
+                        </div>
                         <div class="service-node contract-reviewer">
                             <div class="node-icon">📄</div>
                             <div class="node-label">Contract Reviewer</div>
@@ -1907,6 +1922,10 @@
                         <div class="dependency-arrow" data-from="hub-gateway" data-to="ollama"></div>
                         <div class="dependency-arrow" data-from="hub-gateway" data-to="qdrant"></div>
                         <div class="dependency-arrow" data-from="hub-gateway" data-to="redis"></div>
+                        <div class="dependency-arrow" data-from="hub-gateway" data-to="onyx"></div>
+                        <div class="dependency-arrow" data-from="onyx" data-to="ollama"></div>
+                        <div class="dependency-arrow" data-from="onyx" data-to="qdrant"></div>
+                        <div class="dependency-arrow" data-from="onyx" data-to="redis"></div>
                     </div>
                     <div class="dependency-info">
                         <h4>Dependency Status</h4>
