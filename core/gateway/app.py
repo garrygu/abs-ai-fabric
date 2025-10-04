@@ -40,6 +40,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on application startup"""
+    if AUTO_WAKE_SETTINGS["idle_sleep_enabled"]:
+        await start_idle_monitor()
+        print("ABS Hub Gateway started with idle sleep monitoring enabled")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop background tasks on application shutdown"""
+    await stop_idle_monitor()
+    print("ABS Hub Gateway shutdown - idle monitor stopped")
+
 HTTP = httpx.AsyncClient(timeout=60)
 
 # Docker client for container management
@@ -78,15 +92,23 @@ MODEL_CACHE = {}
 AUTO_WAKE_SETTINGS = {
     "enabled": True,
     "idle_timeout_minutes": 60,
-    "model_keep_alive_hours": 2
+    "model_keep_alive_hours": 2,
+    "idle_sleep_enabled": True,
+    "idle_check_interval_minutes": 5
 }
 
 # Service registry tracking desired vs actual state
 SERVICE_REGISTRY = {
-    "ollama": {"desired": "on", "actual": "unknown", "last_used": 0},
-    "qdrant": {"desired": "on", "actual": "unknown", "last_used": 0},
-    "redis": {"desired": "on", "actual": "unknown", "last_used": 0}
+    "ollama": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
+    "qdrant": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
+    "redis": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False}  # Redis should stay running
 }
+
+# Model registry for tracking loaded models and their usage
+MODEL_REGISTRY = {}  # Will track: {"model_name": {"last_used": timestamp, "keep_alive_until": timestamp}}
+
+# Background task management
+IDLE_MONITOR_TASK = None
 
 # Container name mapping
 CONTAINER_MAP = {
@@ -296,6 +318,19 @@ async def preload_model_if_needed(model_name: str, provider: str) -> bool:
             "options": {"keep_alive": f"{AUTO_WAKE_SETTINGS['model_keep_alive_hours']}h"}
         }
         r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=test_payload, timeout=30)
+        
+        if r.is_success:
+            # Track model usage and keep-alive
+            current_time = time.time()
+            keep_alive_until = current_time + (AUTO_WAKE_SETTINGS['model_keep_alive_hours'] * 3600)
+            
+            MODEL_REGISTRY[model_name] = {
+                "last_used": current_time,
+                "keep_alive_until": keep_alive_until,
+                "provider": provider
+            }
+            print(f"Model {model_name} loaded and tracked for keep-alive until {keep_alive_until}")
+        
         return r.is_success
     except Exception as e:
         print(f"Error pre-loading model {model_name}: {e}")
@@ -349,6 +384,119 @@ async def ensure_multiple_services_ready(required_services: List[str]) -> bool:
             return False
     
     return True
+
+# ---- Idle Sleep Management ----
+async def stop_service(service_name: str) -> bool:
+    """Stop a service container"""
+    try:
+        container_name = CONTAINER_MAP.get(service_name)
+        if not container_name:
+            return False
+        
+        if docker_client == "subprocess":
+            cmd = ["docker", "stop", container_name]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return result.returncode == 0
+        else:
+            container = docker_client.containers.get(container_name)
+            container.stop()
+            return True
+    except Exception as e:
+        print(f"Error stopping {service_name}: {e}")
+        return False
+
+async def unload_model(model_name: str) -> bool:
+    """Unload a model from Ollama to free VRAM"""
+    try:
+        # Send a request to Ollama to unload the model
+        payload = {"name": model_name}
+        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", 
+                           json={"model": model_name, "prompt": "", "stream": False}, 
+                           timeout=10)
+        # This will trigger model unloading after the request
+        return True
+    except Exception as e:
+        print(f"Error unloading model {model_name}: {e}")
+        return False
+
+async def check_and_handle_idle_services():
+    """Check for idle services and stop them if configured"""
+    if not AUTO_WAKE_SETTINGS["idle_sleep_enabled"]:
+        return
+    
+    current_time = time.time()
+    idle_timeout_seconds = AUTO_WAKE_SETTINGS["idle_timeout_minutes"] * 60
+    
+    for service_name, service_info in SERVICE_REGISTRY.items():
+        # Skip if idle sleep is disabled for this service
+        if not service_info.get("idle_sleep_enabled", True):
+            continue
+        
+        # Skip if service is desired to be on
+        if service_info.get("desired") == "on":
+            continue
+        
+        # Check if service has been idle too long
+        last_used = service_info.get("last_used", 0)
+        if last_used > 0 and (current_time - last_used) > idle_timeout_seconds:
+            current_status = await check_service_status(service_name)
+            if current_status == "running":
+                print(f"Service {service_name} has been idle for {idle_timeout_seconds/60} minutes, stopping...")
+                if await stop_service(service_name):
+                    SERVICE_REGISTRY[service_name]["actual"] = "stopped"
+                    print(f"Successfully stopped idle service {service_name}")
+                else:
+                    print(f"Failed to stop idle service {service_name}")
+
+async def check_and_handle_idle_models():
+    """Check for idle models and unload them if configured"""
+    if not AUTO_WAKE_SETTINGS["idle_sleep_enabled"]:
+        return
+    
+    current_time = time.time()
+    model_keep_alive_seconds = AUTO_WAKE_SETTINGS["model_keep_alive_hours"] * 3600
+    
+    for model_name, model_info in MODEL_REGISTRY.items():
+        keep_alive_until = model_info.get("keep_alive_until", 0)
+        if keep_alive_until > 0 and current_time > keep_alive_until:
+            print(f"Model {model_name} keep-alive expired, unloading...")
+            if await unload_model(model_name):
+                MODEL_REGISTRY[model_name]["keep_alive_until"] = 0
+                print(f"Successfully unloaded idle model {model_name}")
+            else:
+                print(f"Failed to unload idle model {model_name}")
+
+async def idle_monitor_task():
+    """Background task to monitor and handle idle services and models"""
+    while True:
+        try:
+            await check_and_handle_idle_services()
+            await check_and_handle_idle_models()
+            
+            # Sleep for the configured interval
+            sleep_seconds = AUTO_WAKE_SETTINGS["idle_check_interval_minutes"] * 60
+            await asyncio.sleep(sleep_seconds)
+        except Exception as e:
+            print(f"Error in idle monitor task: {e}")
+            await asyncio.sleep(60)  # Sleep for 1 minute on error
+
+async def start_idle_monitor():
+    """Start the idle monitor background task"""
+    global IDLE_MONITOR_TASK
+    if IDLE_MONITOR_TASK is None or IDLE_MONITOR_TASK.done():
+        IDLE_MONITOR_TASK = asyncio.create_task(idle_monitor_task())
+        print("Idle monitor task started")
+
+async def stop_idle_monitor():
+    """Stop the idle monitor background task"""
+    global IDLE_MONITOR_TASK
+    if IDLE_MONITOR_TASK and not IDLE_MONITOR_TASK.done():
+        IDLE_MONITOR_TASK.cancel()
+        try:
+            await IDLE_MONITOR_TASK
+        except asyncio.CancelledError:
+            pass
+        print("Idle monitor task stopped")
 
 # ---- Discovery & Catalog ----
 @app.get("/.well-known/abs-services")
@@ -742,7 +890,10 @@ async def get_settings():
         "autoWakeEnabled": AUTO_WAKE_SETTINGS["enabled"],
         "idleTimeout": AUTO_WAKE_SETTINGS["idle_timeout_minutes"],
         "modelKeepAlive": AUTO_WAKE_SETTINGS["model_keep_alive_hours"],
+        "idleSleepEnabled": AUTO_WAKE_SETTINGS["idle_sleep_enabled"],
+        "idleCheckInterval": AUTO_WAKE_SETTINGS["idle_check_interval_minutes"],
         "serviceRegistry": SERVICE_REGISTRY,
+        "modelRegistry": MODEL_REGISTRY,
         "serviceDependencies": SERVICE_DEPENDENCIES,
         "startupOrder": SERVICE_STARTUP_ORDER
     }
@@ -782,10 +933,97 @@ async def update_settings(settings: dict):
             AUTO_WAKE_SETTINGS["idle_timeout_minutes"] = int(settings["idleTimeout"])
         if "modelKeepAlive" in settings:
             AUTO_WAKE_SETTINGS["model_keep_alive_hours"] = float(settings["modelKeepAlive"])
+        if "idleSleepEnabled" in settings:
+            AUTO_WAKE_SETTINGS["idle_sleep_enabled"] = bool(settings["idleSleepEnabled"])
+            # Start or stop idle monitor based on setting
+            if AUTO_WAKE_SETTINGS["idle_sleep_enabled"]:
+                await start_idle_monitor()
+            else:
+                await stop_idle_monitor()
+        if "idleCheckInterval" in settings:
+            AUTO_WAKE_SETTINGS["idle_check_interval_minutes"] = int(settings["idleCheckInterval"])
         
         return {"status": "success", "message": "Settings updated successfully"}
     except Exception as e:
         raise HTTPException(500, f"Error updating settings: {str(e)}")
+
+@app.post("/admin/services/{service_name}/idle-sleep")
+async def toggle_service_idle_sleep(service_name: str, enabled: bool):
+    """Enable or disable idle sleep for a specific service"""
+    try:
+        if service_name not in SERVICE_REGISTRY:
+            raise HTTPException(400, f"Unknown service: {service_name}")
+        
+        SERVICE_REGISTRY[service_name]["idle_sleep_enabled"] = enabled
+        
+        return {
+            "status": "success", 
+            "message": f"Idle sleep {'enabled' if enabled else 'disabled'} for {service_name}",
+            "service": service_name,
+            "idle_sleep_enabled": enabled
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Error updating service idle sleep: {str(e)}")
+
+@app.post("/admin/models/{model_name}/unload")
+async def force_unload_model(model_name: str):
+    """Force unload a model from memory"""
+    try:
+        if await unload_model(model_name):
+            # Remove from model registry
+            if model_name in MODEL_REGISTRY:
+                MODEL_REGISTRY[model_name]["keep_alive_until"] = 0
+            
+            return {"status": "unloaded", "model": model_name}
+        else:
+            raise HTTPException(500, f"Failed to unload model {model_name}")
+    except Exception as e:
+        raise HTTPException(500, f"Error unloading model: {str(e)}")
+
+@app.get("/admin/idle-status")
+async def get_idle_status():
+    """Get current idle status of all services and models"""
+    try:
+        current_time = time.time()
+        idle_timeout_seconds = AUTO_WAKE_SETTINGS["idle_timeout_minutes"] * 60
+        model_keep_alive_seconds = AUTO_WAKE_SETTINGS["model_keep_alive_hours"] * 3600
+        
+        service_status = {}
+        for service_name, service_info in SERVICE_REGISTRY.items():
+            last_used = service_info.get("last_used", 0)
+            idle_for_seconds = current_time - last_used if last_used > 0 else 0
+            
+            service_status[service_name] = {
+                "last_used": last_used,
+                "idle_for_minutes": idle_for_seconds / 60,
+                "idle_sleep_enabled": service_info.get("idle_sleep_enabled", True),
+                "desired": service_info.get("desired", "unknown"),
+                "actual": service_info.get("actual", "unknown"),
+                "will_sleep_in_minutes": max(0, (idle_timeout_seconds - idle_for_seconds) / 60) if service_info.get("idle_sleep_enabled", True) and service_info.get("desired") != "on" else None
+            }
+        
+        model_status = {}
+        for model_name, model_info in MODEL_REGISTRY.items():
+            keep_alive_until = model_info.get("keep_alive_until", 0)
+            time_until_unload = keep_alive_until - current_time if keep_alive_until > 0 else 0
+            
+            model_status[model_name] = {
+                "last_used": model_info.get("last_used", 0),
+                "keep_alive_until": keep_alive_until,
+                "will_unload_in_minutes": max(0, time_until_unload / 60) if time_until_unload > 0 else 0,
+                "provider": model_info.get("provider", "unknown")
+            }
+        
+        return {
+            "idle_sleep_enabled": AUTO_WAKE_SETTINGS["idle_sleep_enabled"],
+            "idle_timeout_minutes": AUTO_WAKE_SETTINGS["idle_timeout_minutes"],
+            "model_keep_alive_hours": AUTO_WAKE_SETTINGS["model_keep_alive_hours"],
+            "services": service_status,
+            "models": model_status,
+            "monitor_task_running": IDLE_MONITOR_TASK is not None and not IDLE_MONITOR_TASK.done()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Error getting idle status: {str(e)}")
 
 @app.post("/admin/models/{model_name}/load")
 async def load_model(model_name: str):

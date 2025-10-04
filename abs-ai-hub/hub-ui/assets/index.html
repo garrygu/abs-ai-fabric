@@ -652,6 +652,38 @@
             min-width: 50px;
             text-align: right;
         }
+        
+        .metric-value.enabled {
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        .metric-value.disabled {
+            color: #6b7280;
+        }
+        
+        .metric-value.running {
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        .metric-value.stopped {
+            color: #ef4444;
+        }
+        
+        .metric-value.warning {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+        
+        .metric-value.normal {
+            color: #6b7280;
+        }
+        
+        .metric-value.error {
+            color: #ef4444;
+            font-weight: bold;
+        }
 
         /* Health & Alerts */
         .health-grid {
@@ -1564,6 +1596,59 @@
             </div>
 
             <div class="admin-section">
+                <h2>😴 Idle Sleep Monitoring</h2>
+                <div class="monitoring-grid">
+                    <div class="metric-card">
+                        <h4>⏰ Idle Sleep Status</h4>
+                        <div class="metric-item">
+                            <span class="metric-label">Idle Sleep</span>
+                            <span class="metric-value" id="idle-sleep-status">Checking...</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Monitor Task</span>
+                            <span class="metric-value" id="monitor-task-status">Checking...</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Idle Timeout</span>
+                            <span class="metric-value" id="idle-timeout-display">60 min</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h4>🔄 Service Idle Status</h4>
+                        <div class="metric-item">
+                            <span class="metric-label">Ollama Idle</span>
+                            <span class="metric-value" id="ollama-idle-status">Checking...</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Qdrant Idle</span>
+                            <span class="metric-value" id="qdrant-idle-status">Checking...</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Redis Idle</span>
+                            <span class="metric-value" id="redis-idle-status">Checking...</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <h4>🧠 Model Idle Status</h4>
+                        <div class="metric-item">
+                            <span class="metric-label">Models Tracked</span>
+                            <span class="metric-value" id="models-tracked">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Next Unload</span>
+                            <span class="metric-value" id="next-model-unload">None</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">Keep-Alive Time</span>
+                            <span class="metric-value" id="model-keep-alive-display">2h</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
                 <h2>📊 Real-Time Monitoring</h2>
                 <div class="monitoring-grid">
                     <div class="metric-card">
@@ -2064,6 +2149,7 @@
         async function loadAdminData() {
             await checkServiceStatus();
             await checkModelStatus();
+            await loadIdleSleepStatus();
             await loadSystemStatus();
             startRealTimeMonitoring();
             updateCharts();
@@ -2274,6 +2360,119 @@
             }
         }
 
+        async function loadIdleSleepStatus() {
+            try {
+                const response = await fetch('http://localhost:8081/admin/idle-status');
+                if (response.ok) {
+                    const idleData = await response.json();
+                    
+                    // Update idle sleep status
+                    const idleSleepStatus = document.getElementById('idle-sleep-status');
+                    if (idleSleepStatus) {
+                        idleSleepStatus.textContent = idleData.idle_sleep_enabled ? 'Enabled' : 'Disabled';
+                        idleSleepStatus.className = idleData.idle_sleep_enabled ? 'metric-value enabled' : 'metric-value disabled';
+                    }
+                    
+                    // Update monitor task status
+                    const monitorTaskStatus = document.getElementById('monitor-task-status');
+                    if (monitorTaskStatus) {
+                        monitorTaskStatus.textContent = idleData.monitor_task_running ? 'Running' : 'Stopped';
+                        monitorTaskStatus.className = idleData.monitor_task_running ? 'metric-value running' : 'metric-value stopped';
+                    }
+                    
+                    // Update idle timeout display
+                    const idleTimeoutDisplay = document.getElementById('idle-timeout-display');
+                    if (idleTimeoutDisplay) {
+                        idleTimeoutDisplay.textContent = `${idleData.idle_timeout_minutes} min`;
+                    }
+                    
+                    // Update model keep-alive display
+                    const modelKeepAliveDisplay = document.getElementById('model-keep-alive-display');
+                    if (modelKeepAliveDisplay) {
+                        modelKeepAliveDisplay.textContent = `${idleData.model_keep_alive_hours}h`;
+                    }
+                    
+                    // Update service idle status
+                    const services = ['ollama', 'qdrant', 'redis'];
+                    services.forEach(serviceName => {
+                        const serviceIdleStatus = document.getElementById(`${serviceName}-idle-status`);
+                        if (serviceIdleStatus && idleData.services[serviceName]) {
+                            const serviceData = idleData.services[serviceName];
+                            const idleMinutes = Math.round(serviceData.idle_for_minutes);
+                            const willSleepIn = serviceData.will_sleep_in_minutes;
+                            
+                            if (willSleepIn !== null && willSleepIn > 0) {
+                                serviceIdleStatus.textContent = `Sleeps in ${Math.round(willSleepIn)}m`;
+                                serviceIdleStatus.className = 'metric-value warning';
+                            } else if (serviceData.idle_sleep_enabled === false) {
+                                serviceIdleStatus.textContent = 'Always On';
+                                serviceIdleStatus.className = 'metric-value disabled';
+                            } else {
+                                serviceIdleStatus.textContent = `${idleMinutes}m idle`;
+                                serviceIdleStatus.className = 'metric-value normal';
+                            }
+                        }
+                    });
+                    
+                    // Update model tracking status
+                    const modelsTracked = document.getElementById('models-tracked');
+                    if (modelsTracked) {
+                        const modelCount = Object.keys(idleData.models).length;
+                        modelsTracked.textContent = modelCount;
+                    }
+                    
+                    // Update next model unload
+                    const nextModelUnload = document.getElementById('next-model-unload');
+                    if (nextModelUnload) {
+                        let nextUnload = 'None';
+                        let minTime = Infinity;
+                        
+                        Object.values(idleData.models).forEach(model => {
+                            if (model.will_unload_in_minutes > 0 && model.will_unload_in_minutes < minTime) {
+                                minTime = model.will_unload_in_minutes;
+                                nextUnload = `${Math.round(minTime)}m`;
+                            }
+                        });
+                        
+                        nextModelUnload.textContent = nextUnload;
+                        nextModelUnload.className = nextUnload === 'None' ? 'metric-value normal' : 'metric-value warning';
+                    }
+                    
+                    console.log('Idle sleep status updated successfully');
+                } else {
+                    console.error('Failed to fetch idle sleep status');
+                    // Set all elements to error state
+                    const elements = [
+                        'idle-sleep-status', 'monitor-task-status', 'idle-timeout-display',
+                        'ollama-idle-status', 'qdrant-idle-status', 'redis-idle-status',
+                        'models-tracked', 'next-model-unload', 'model-keep-alive-display'
+                    ];
+                    elements.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.textContent = 'Error';
+                            element.className = 'metric-value error';
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading idle sleep status:', error);
+                // Set all elements to error state
+                const elements = [
+                    'idle-sleep-status', 'monitor-task-status', 'idle-timeout-display',
+                    'ollama-idle-status', 'qdrant-idle-status', 'redis-idle-status',
+                    'models-tracked', 'next-model-unload', 'model-keep-alive-display'
+                ];
+                elements.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.textContent = 'Error';
+                        element.className = 'metric-value error';
+                    }
+                });
+            }
+        }
+
         async function loadSystemStatus() {
             try {
                 // Simulate system status data instead of API calls with null checks
@@ -2336,6 +2535,7 @@
             monitoringInterval = setInterval(async () => {
                 await updateSystemMetrics();
                 await updateHealthChecks();
+                await loadIdleSleepStatus();
                 await updateCharts();
             }, 5000); // Update every 5 seconds
         }
