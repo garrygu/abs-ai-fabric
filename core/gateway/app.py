@@ -74,6 +74,43 @@ except Exception as e:
 # Global model cache for Hugging Face models
 MODEL_CACHE = {}
 
+# Auto-wake settings and service registry
+AUTO_WAKE_SETTINGS = {
+    "enabled": True,
+    "idle_timeout_minutes": 60,
+    "model_keep_alive_hours": 2
+}
+
+# Service registry tracking desired vs actual state
+SERVICE_REGISTRY = {
+    "ollama": {"desired": "on", "actual": "unknown", "last_used": 0},
+    "qdrant": {"desired": "on", "actual": "unknown", "last_used": 0},
+    "redis": {"desired": "on", "actual": "unknown", "last_used": 0}
+}
+
+# Container name mapping
+CONTAINER_MAP = {
+    "ollama": "abs-ollama",
+    "qdrant": "abs-qdrant", 
+    "redis": "abs-redis",
+    "hub-gateway": "abs-hub-gateway"
+}
+
+# Service dependencies - defines what services must be running before starting a service
+SERVICE_DEPENDENCIES = {
+    "ollama": [],  # Ollama has no dependencies
+    "qdrant": [],  # Qdrant has no dependencies
+    "redis": [],   # Redis has no dependencies
+    "hub-gateway": ["redis"],  # Hub Gateway depends on Redis
+    # Future services can be added here
+    "whisper": [],
+    "minio": [],
+    "parser": []
+}
+
+# Service startup order - defines the order services should be started
+SERVICE_STARTUP_ORDER = ["redis", "qdrant", "ollama", "hub-gateway"]
+
 # ---- Schemas ----
 class ChatMessage(BaseModel):
     role: str
@@ -114,6 +151,205 @@ def pick_app_cfg(app_id: Optional[str]):
     app_cfg = REG.get("apps", {}).get(app_id or "", {})
     return {**dfl, **app_cfg}
 
+# ---- Auto-Wake Helpers ----
+async def check_service_status(service_name: str) -> str:
+    """Check if a service is running"""
+    try:
+        container_name = CONTAINER_MAP.get(service_name)
+        if not container_name:
+            return "unknown"
+        
+        if docker_client == "subprocess":
+            result = subprocess.run(['docker', 'ps', '--filter', f'name={container_name}', '--format', '{{.Status}}'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                return "running" if "Up" in result.stdout else "stopped"
+            return "stopped"
+        else:
+            container = docker_client.containers.get(container_name)
+            return "running" if container.status == "running" else "stopped"
+    except Exception:
+        return "unknown"
+
+async def start_service_with_dependencies(service_name: str) -> bool:
+    """Start a service and all its dependencies in the correct order"""
+    if not AUTO_WAKE_SETTINGS["enabled"]:
+        return True
+    
+    # Get dependencies for this service
+    dependencies = SERVICE_DEPENDENCIES.get(service_name, [])
+    
+    # Start dependencies first
+    for dep in dependencies:
+        dep_status = await check_service_status(dep)
+        if dep_status != "running":
+            print(f"Starting dependency {dep} for {service_name}...")
+            if not await start_service(dep):
+                print(f"Failed to start dependency {dep}")
+                return False
+            # Wait for dependency to be ready
+            if not await wait_for_service_ready(dep):
+                print(f"Dependency {dep} started but not ready")
+                return False
+    
+    # Now start the main service
+    return await start_service(service_name)
+
+async def ensure_service_ready_with_dependencies(service_name: str) -> bool:
+    """Ensure a service and all its dependencies are running and ready"""
+    if not AUTO_WAKE_SETTINGS["enabled"]:
+        return True
+    
+    # Update last used timestamp
+    SERVICE_REGISTRY[service_name]["last_used"] = time.time()
+    
+    # Check current status
+    current_status = await check_service_status(service_name)
+    SERVICE_REGISTRY[service_name]["actual"] = current_status
+    
+    if current_status == "running":
+        # Service is running, but check if dependencies are also running
+        dependencies = SERVICE_DEPENDENCIES.get(service_name, [])
+        for dep in dependencies:
+            dep_status = await check_service_status(dep)
+            if dep_status != "running":
+                print(f"Dependency {dep} is not running, restarting {service_name}...")
+                if not await start_service_with_dependencies(service_name):
+                    return False
+                break
+        return True
+    
+    # Service is not running, try to start it with dependencies
+    print(f"Auto-waking {service_name} with dependencies...")
+    if await start_service_with_dependencies(service_name):
+        # Wait for service to be ready
+        if await wait_for_service_ready(service_name):
+            SERVICE_REGISTRY[service_name]["actual"] = "running"
+            print(f"Successfully auto-waked {service_name} with dependencies")
+            return True
+        else:
+            print(f"Service {service_name} started but not ready")
+            return False
+    else:
+        print(f"Failed to start {service_name} with dependencies")
+        return False
+
+async def start_service(service_name: str) -> bool:
+    """Start a service container"""
+    try:
+        container_name = CONTAINER_MAP.get(service_name)
+        if not container_name:
+            return False
+        
+        if docker_client == "subprocess":
+            cmd = ["docker", "start", container_name]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return result.returncode == 0
+        else:
+            container = docker_client.containers.get(container_name)
+            container.start()
+            return True
+    except Exception as e:
+        print(f"Error starting {service_name}: {e}")
+        return False
+
+async def wait_for_service_ready(service_name: str, timeout: int = 60) -> bool:
+    """Wait for a service to be ready by checking its health endpoint"""
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            if service_name == "ollama":
+                r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags", timeout=5)
+                if r.is_success:
+                    return True
+            elif service_name == "qdrant":
+                r = await HTTP.get("http://qdrant:6333/collections", timeout=5)
+                if r.is_success:
+                    return True
+            elif service_name == "redis":
+                if rds is not None:
+                    rds.ping()
+                    return True
+        except Exception:
+            pass
+        
+        await asyncio.sleep(2)
+    
+    return False
+
+async def ensure_service_ready(service_name: str) -> bool:
+    """Ensure a service is running and ready, auto-start if needed (with dependencies)"""
+    return await ensure_service_ready_with_dependencies(service_name)
+
+async def preload_model_if_needed(model_name: str, provider: str) -> bool:
+    """Pre-load a model into VRAM if using Ollama"""
+    if provider != "ollama":
+        return True
+    
+    try:
+        # Check if model is already loaded by making a test request
+        test_payload = {
+            "model": model_name,
+            "prompt": "test",
+            "stream": False,
+            "options": {"keep_alive": f"{AUTO_WAKE_SETTINGS['model_keep_alive_hours']}h"}
+        }
+        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=test_payload, timeout=30)
+        return r.is_success
+    except Exception as e:
+        print(f"Error pre-loading model {model_name}: {e}")
+        return False
+
+async def resolve_service_dependencies(required_services: List[str]) -> List[str]:
+    """Resolve all dependencies for a list of required services"""
+    resolved = set()
+    to_resolve = set(required_services)
+    
+    while to_resolve:
+        service = to_resolve.pop()
+        if service in resolved:
+            continue
+            
+        # Add dependencies
+        dependencies = SERVICE_DEPENDENCIES.get(service, [])
+        for dep in dependencies:
+            if dep not in resolved:
+                to_resolve.add(dep)
+        
+        resolved.add(service)
+    
+    # Return in startup order
+    ordered_services = []
+    for service in SERVICE_STARTUP_ORDER:
+        if service in resolved:
+            ordered_services.append(service)
+    
+    # Add any services not in the startup order
+    for service in resolved:
+        if service not in ordered_services:
+            ordered_services.append(service)
+    
+    return ordered_services
+
+async def ensure_multiple_services_ready(required_services: List[str]) -> bool:
+    """Ensure multiple services and their dependencies are running"""
+    if not AUTO_WAKE_SETTINGS["enabled"]:
+        return True
+    
+    # Resolve all dependencies
+    all_services = await resolve_service_dependencies(required_services)
+    
+    print(f"Resolved service dependencies: {all_services}")
+    
+    # Start services in dependency order
+    for service in all_services:
+        if not await ensure_service_ready_with_dependencies(service):
+            print(f"Failed to ensure {service} is ready")
+            return False
+    
+    return True
+
 # ---- Discovery & Catalog ----
 @app.get("/.well-known/abs-services")
 async def services():
@@ -139,6 +375,16 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
 
     model_logical = req.model or cfg.get("chat_model", "contract-default")
     model = logical_to_provider_id(model_logical, provider)
+    
+    # Auto-wake: Ensure required services are running
+    if provider == "ollama":
+        if not await ensure_service_ready("ollama"):
+            raise HTTPException(503, "Ollama service unavailable and auto-wake failed")
+        # Pre-load model if needed
+        await preload_model_if_needed(model, provider)
+    elif provider == "openai":
+        # For OpenAI/vLLM, we might need different service management
+        pass
 
     if provider == "openai":
         payload = {
@@ -193,6 +439,16 @@ async def embeddings(req: EmbedReq, request: Request, app_id: Optional[str] = He
 
     logical = req.override_model or cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
     model = logical_to_provider_id(logical, provider)
+    
+    # Auto-wake: Ensure required services are running
+    if provider == "ollama":
+        if not await ensure_service_ready("ollama"):
+            raise HTTPException(503, "Ollama service unavailable and auto-wake failed")
+        # Pre-load embedding model if needed
+        await preload_model_if_needed(model, provider)
+    elif provider == "huggingface":
+        # Hugging Face models are loaded locally, no service needed
+        pass
 
     # Cache key
     hasher = hashlib.sha256()
@@ -245,6 +501,10 @@ async def embeddings(req: EmbedReq, request: Request, app_id: Optional[str] = He
 async def create_collection(collection_name: str, payload: dict, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
     """Create a collection for a specific embedding model"""
     try:
+        # Auto-wake: Ensure Qdrant is running
+        if not await ensure_service_ready("qdrant"):
+            raise HTTPException(503, "Qdrant service unavailable and auto-wake failed")
+        
         cfg = pick_app_cfg(app_id)
         embed_model = cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
         
@@ -264,6 +524,10 @@ async def create_collection(collection_name: str, payload: dict, app_id: Optiona
 async def get_collection_info(collection_name: str, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
     """Get collection information for a specific embedding model"""
     try:
+        # Auto-wake: Ensure Qdrant is running
+        if not await ensure_service_ready("qdrant"):
+            raise HTTPException(503, "Qdrant service unavailable and auto-wake failed")
+        
         cfg = pick_app_cfg(app_id)
         embed_model = cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
         
@@ -284,6 +548,10 @@ async def get_collection_info(collection_name: str, app_id: Optional[str] = Head
 async def upsert_points(collection_name: str, payload: dict, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
     """Upsert points to the correct collection based on embedding model"""
     try:
+        # Auto-wake: Ensure Qdrant is running
+        if not await ensure_service_ready("qdrant"):
+            raise HTTPException(503, "Qdrant service unavailable and auto-wake failed")
+        
         cfg = pick_app_cfg(app_id)
         embed_model = cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
         
@@ -303,6 +571,10 @@ async def upsert_points(collection_name: str, payload: dict, app_id: Optional[st
 async def search_points(collection_name: str, payload: dict, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
     """Search points in the correct collection based on embedding model"""
     try:
+        # Auto-wake: Ensure Qdrant is running
+        if not await ensure_service_ready("qdrant"):
+            raise HTTPException(503, "Qdrant service unavailable and auto-wake failed")
+        
         cfg = pick_app_cfg(app_id)
         embed_model = cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
         
@@ -430,16 +702,7 @@ async def control_service(service_name: str, action: str):
         raise HTTPException(500, "Docker client not available")
     
     try:
-        # Map service names to container names
-        container_map = {
-            "ollama": "abs-ollama",
-            "qdrant": "abs-qdrant", 
-            "redis": "abs-redis",
-            "hub-gateway": "abs-hub-gateway",
-            "contract-reviewer": "abs-app-contract-reviewer-reviewer-1"
-        }
-        
-        container_name = container_map.get(service_name)
+        container_name = CONTAINER_MAP.get(service_name)
         if not container_name:
             raise HTTPException(400, f"Unknown service: {service_name}")
         
@@ -462,12 +725,67 @@ async def control_service(service_name: str, action: str):
             else:
                 raise HTTPException(400, f"Invalid action: {action}")
         
+        # Update service registry
+        SERVICE_REGISTRY[service_name]["actual"] = action if action == "start" else "stopped"
+        
         return {"status": "success", "message": f"Service {service_name} {action}ed successfully"}
             
     except docker.errors.NotFound:
         raise HTTPException(404, f"Container not found for service: {service_name}")
     except Exception as e:
         raise HTTPException(500, f"Error controlling service: {str(e)}")
+
+@app.get("/admin/settings")
+async def get_settings():
+    """Get auto-wake settings"""
+    return {
+        "autoWakeEnabled": AUTO_WAKE_SETTINGS["enabled"],
+        "idleTimeout": AUTO_WAKE_SETTINGS["idle_timeout_minutes"],
+        "modelKeepAlive": AUTO_WAKE_SETTINGS["model_keep_alive_hours"],
+        "serviceRegistry": SERVICE_REGISTRY,
+        "serviceDependencies": SERVICE_DEPENDENCIES,
+        "startupOrder": SERVICE_STARTUP_ORDER
+    }
+
+@app.post("/admin/services/ensure-ready")
+async def ensure_services_ready(required_services: List[str]):
+    """Ensure multiple services and their dependencies are running"""
+    try:
+        success = await ensure_multiple_services_ready(required_services)
+        if success:
+            return {
+                "status": "success", 
+                "message": f"All required services are ready: {required_services}",
+                "resolved_services": await resolve_service_dependencies(required_services)
+            }
+        else:
+            raise HTTPException(503, "Failed to ensure all services are ready")
+    except Exception as e:
+        raise HTTPException(500, f"Error ensuring services ready: {str(e)}")
+
+@app.get("/admin/services/dependencies")
+async def get_service_dependencies():
+    """Get service dependency information"""
+    return {
+        "dependencies": SERVICE_DEPENDENCIES,
+        "startupOrder": SERVICE_STARTUP_ORDER,
+        "containerMap": CONTAINER_MAP
+    }
+
+@app.post("/admin/settings")
+async def update_settings(settings: dict):
+    """Update auto-wake settings"""
+    try:
+        if "autoWakeEnabled" in settings:
+            AUTO_WAKE_SETTINGS["enabled"] = bool(settings["autoWakeEnabled"])
+        if "idleTimeout" in settings:
+            AUTO_WAKE_SETTINGS["idle_timeout_minutes"] = int(settings["idleTimeout"])
+        if "modelKeepAlive" in settings:
+            AUTO_WAKE_SETTINGS["model_keep_alive_hours"] = float(settings["modelKeepAlive"])
+        
+        return {"status": "success", "message": "Settings updated successfully"}
+    except Exception as e:
+        raise HTTPException(500, f"Error updating settings: {str(e)}")
 
 @app.post("/admin/models/{model_name}/load")
 async def load_model(model_name: str):
@@ -514,15 +832,7 @@ async def get_service_logs(service_name: str, lines: int = 100):
         raise HTTPException(500, "Docker client not available")
     
     try:
-        container_map = {
-            "ollama": "abs-ollama",
-            "qdrant": "abs-qdrant",
-            "redis": "abs-redis", 
-            "hub-gateway": "abs-hub-gateway",
-            "contract-reviewer": "abs-app-contract-reviewer-reviewer-1"
-        }
-        
-        container_name = container_map.get(service_name)
+        container_name = CONTAINER_MAP.get(service_name)
         if not container_name:
             raise HTTPException(400, f"Unknown service: {service_name}")
         
