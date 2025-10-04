@@ -6,7 +6,7 @@
     "dim": 384
     },
     "apps": {
-    "contract-reviewer": { "embed_model": "legal-bert", "chat_model": "llama3.2:7b", "provider": "auto", "dim": 768 },
+    "contract-reviewer": { "embed_model": "legal-bert", "chat_model": "llama3.2:latest", "provider": "huggingface", "dim": 768 },
     "deposition-summarizer": { "embed_model": "all-minilm", "provider": "ollama", "dim": 384 }
     },
     "aliases": {

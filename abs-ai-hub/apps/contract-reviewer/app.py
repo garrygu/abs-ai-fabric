@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 APP_PORT = int(os.getenv("APP_PORT", "7860"))
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-COLLECTION = "contract_chunks"
+COLLECTION = "legal-bert_vectors"
 HUB_GATEWAY_URL = os.getenv("HUB_GATEWAY_URL", "http://hub-gateway:8081")
 POLICY_FILE = os.getenv("POLICY_FILE", "/app/policy/nda.yml")
 DATA_DIR = Path(os.getenv("ABS_DATA_DIR", "/data"))
@@ -55,13 +55,53 @@ qdrant = QdrantClient(url=QDRANT_URL)
 
 # Initialize collection with legal embedding dimension
 EMBED_DIM = 768  # Legal-BERT dimension
-try:
-    qdrant.get_collection(COLLECTION)
-except Exception:
-    qdrant.recreate_collection(
-        COLLECTION,
-        vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE)
-    )
+
+def ensure_collection_exists():
+    """Ensure the collection exists via Hub Gateway"""
+    try:
+        # Try to get collection info
+        response = requests.get(
+            f"{HUB_GATEWAY_URL}/v1/collections/{COLLECTION}",
+            headers={"X-ABS-App-Id": "contract-reviewer"}
+        )
+        if response.status_code == 200:
+            print(f"Collection {COLLECTION} already exists")
+            return  # Collection exists
+    except Exception as e:
+        print(f"Error checking collection: {e}")
+    
+    # Collection doesn't exist, create it via Hub Gateway
+    try:
+        payload = {
+            "vectors": {
+                "size": EMBED_DIM,
+                "distance": "Cosine"
+            }
+        }
+        response = requests.put(
+            f"{HUB_GATEWAY_URL}/v1/collections/{COLLECTION}",
+            json=payload,
+            headers={"X-ABS-App-Id": "contract-reviewer"}
+        )
+        if response.status_code not in [200, 201]:
+            print(f"Failed to create collection via Hub Gateway: {response.text}")
+            raise Exception(f"Failed to create collection: {response.text}")
+        print(f"Collection {COLLECTION} created successfully")
+    except Exception as e:
+        print(f"Warning: Could not create collection via Hub Gateway: {e}")
+        # Fallback to direct Qdrant access
+        try:
+            qdrant.get_collection(COLLECTION)
+            print(f"Collection {COLLECTION} exists in Qdrant")
+        except Exception:
+            print(f"Creating collection {COLLECTION} directly in Qdrant")
+            qdrant.recreate_collection(
+                COLLECTION,
+                vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE)
+            )
+
+# Initialize collection
+ensure_collection_exists()
 
 def sha256_of_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
@@ -103,10 +143,20 @@ def upsert_chunks(chunks: List[str], doc_id: str):
     
     vectors = [item["embedding"] for item in embeddings_data["data"]]
     ids = [str(uuid.uuid4()) for _ in chunks]
-    qdrant.upsert(
-        COLLECTION,
-        points=[{"id": ids[i], "vector": vectors[i], "payload": {"text": chunks[i], "doc_id": doc_id}} for i in range(len(chunks))]
+    
+    # Use Hub Gateway for Qdrant operations
+    payload = {
+        "points": [{"id": ids[i], "vector": vectors[i], "payload": {"text": chunks[i], "doc_id": doc_id}} for i in range(len(chunks))]
+    }
+    
+    response = requests.put(
+        f"{HUB_GATEWAY_URL}/v1/collections/{COLLECTION}/points",
+        json=payload,
+        headers={"X-ABS-App-Id": "contract-reviewer"}
     )
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to upsert chunks: {response.text}")
 
 def retrieve(query: str, top_k=6, doc_id: Optional[str] = None) -> List[str]:
     # Get query embedding from Hub Gateway
@@ -120,12 +170,40 @@ def retrieve(query: str, top_k=6, doc_id: Optional[str] = None) -> List[str]:
     embeddings_data = response.json()
     
     qvec = embeddings_data["data"][0]["embedding"]
-    search_filter = None
+    
+    # Use Hub Gateway for Qdrant search
+    payload = {
+        "vector": qvec,
+        "limit": top_k,
+        "with_payload": True
+    }
+    
+    # Add filter for doc_id if specified
     if doc_id:
-        from qdrant_client.http import models as qmodels
-        search_filter = qmodels.Filter(must=[qmodels.FieldCondition(key="doc_id", match=qmodels.MatchValue(value=doc_id))])
-    res = qdrant.search(COLLECTION, query_vector=qvec, limit=top_k, query_filter=search_filter)
-    return [hit.payload["text"] for hit in res]
+        payload["filter"] = {
+            "must": [{"key": "doc_id", "match": {"value": doc_id}}]
+        }
+    
+    response = requests.post(
+        f"{HUB_GATEWAY_URL}/v1/collections/{COLLECTION}/points/search",
+        json=payload,
+        headers={"X-ABS-App-Id": "contract-reviewer"}
+    )
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to search chunks: {response.text}")
+    
+    search_results = response.json()
+    print(f"DEBUG: Search response: {search_results}")
+    print(f"DEBUG: Response status: {response.status_code}")
+    print(f"DEBUG: Response text: {response.text}")
+    
+    if not search_results or "result" not in search_results:
+        print(f"DEBUG: Invalid search response structure: {search_results}")
+        return []
+    
+    print(f"DEBUG: Found {len(search_results['result'])} results")
+    return [hit["payload"]["text"] for hit in search_results["result"]]
 
 def openai_chat(messages, max_tokens=1024) -> str:
     # Use Hub Gateway for chat completions
@@ -664,8 +742,16 @@ async def api_review(file: UploadFile = File(...)):
 def get_vector_db_status():
     """Get comprehensive vector database status information"""
     try:
-        # Get collection info from Qdrant
-        collection_info = qdrant.get_collection(COLLECTION)
+        # Get collection info via Hub Gateway
+        response = requests.get(
+            f"{HUB_GATEWAY_URL}/v1/collections/{COLLECTION}",
+            headers={"X-ABS-App-Id": "contract-reviewer"}
+        )
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to get collection info: {response.text}")
+        
+        collection_info = response.json()
         
         # Get embedding model info from registry
         embed_model = "legal-bert"
@@ -673,14 +759,15 @@ def get_vector_db_status():
         distance_metric = "cosine"
         
         # Get vector count
-        vector_count = collection_info.points_count if hasattr(collection_info, 'points_count') else 0
+        vector_count = collection_info.get("result", {}).get("points_count", 0)
         
         # Get collection status and last update info
-        status = "Connected" if collection_info.status == "green" else "Error"
-        last_update = "Active" if collection_info.status == "green" else "Inactive"
+        status_info = collection_info.get("result", {}).get("status", "unknown")
+        status = "Connected" if status_info == "green" else "Error"
+        last_update = "Active" if status_info == "green" else "Inactive"
         
         # Get optimizer status
-        optimizer_status = getattr(collection_info, 'optimizer_status', 'Unknown')
+        optimizer_status = collection_info.get("result", {}).get("optimizer_status", "Unknown")
         if optimizer_status == "ok":
             last_update = "Optimized"
         
