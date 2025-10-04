@@ -95,7 +95,7 @@ services:
 
   # ---- RAG/Agent Engine ----
   onyx:
-    image: onyxai/onyx:latest
+    build: ./onyx
     container_name: abs-onyx
     restart: unless-stopped
     environment:
