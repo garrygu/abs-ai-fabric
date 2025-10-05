@@ -36,6 +36,55 @@ USER_SETTINGS = {
     "theme": "light"
 }
 
+# Supported default models list for UI fallback when discovery fails
+SUPPORTED_DEFAULT_MODELS = [
+    "llama3.2:latest",
+    "llama3.2:3b",
+    "llama3:8b"
+]
+
+async def list_ollama_tags() -> List[str]:
+    """Return list of pulled models in Ollama (by name)."""
+    try:
+        response = await HTTP_CLIENT.get(f"{OLLAMA_BASE_URL.rstrip('/')}/api/tags")
+        if response.is_success:
+            models_data = response.json()
+            return [model.get("name") for model in models_data.get("models", []) if model.get("name")]
+    except Exception:
+        logger.exception("Failed to list Ollama tags")
+    return []
+
+async def list_ollama_running_models() -> List[str]:
+    """Return list of running models from Ollama ps."""
+    try:
+        response = await HTTP_CLIENT.get(f"{OLLAMA_BASE_URL.rstrip('/')}/api/ps")
+        if response.is_success:
+            data = response.json()
+            return [m.get("name") for m in data.get("models", []) if m.get("name")]
+    except Exception:
+        logger.exception("Failed to list Ollama running models")
+    return []
+
+async def ensure_model_available(model_name: str) -> None:
+    """Ensure an Ollama model is pulled; if missing, pull it (blocking)."""
+    # Only applies to Ollama-backed models (heuristic: no "openai"/"vllm" in name)
+    lower = model_name.lower()
+    if "openai" in lower or "vllm" in lower:
+        return
+    tags = await list_ollama_tags()
+    if model_name in tags:
+        return
+    logger.info(f"Model '{model_name}' not found locally. Pulling via Ollama...")
+    try:
+        # Ollama pull API can stream progress; send a simple blocking request
+        pull_endpoint = f"{OLLAMA_BASE_URL.rstrip('/')}/api/pull"
+        resp = await HTTP_CLIENT.post(pull_endpoint, json={"name": model_name}, timeout=httpx.Timeout(None))
+        resp.raise_for_status()
+        logger.info(f"Model '{model_name}' pulled successfully.")
+    except Exception as e:
+        logger.exception(f"Failed to pull model '{model_name}'")
+        raise HTTPException(status_code=502, detail=f"Failed to pull model '{model_name}': {str(e)}")
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -72,11 +121,17 @@ async def chat_with_llm(req: ChatReq, app_id: Optional[str] = Header(None, alias
         payload = req.model_dump()
         endpoint = f"{llm_base_url.rstrip('/')}/chat/completions"
     else: # Assume Ollama
+        # Ensure model exists locally (auto-pull if needed)
+        await ensure_model_available(req.model)
         payload = {
             "model": req.model,
             "messages": [m.model_dump() for m in req.messages],
             "stream": False,
-            "options": {"temperature": req.temperature}
+            "options": {
+                "temperature": req.temperature,
+                # Keep model warm for faster successive requests
+                "keep_alive": "2h"
+            }
         }
         endpoint = f"{llm_base_url.rstrip('/')}/api/chat"
 
@@ -215,18 +270,43 @@ async def update_settings(request: Request):
 
 @app.get("/models")
 async def get_available_models():
-    """Get list of available models from Ollama"""
+    """List supported models with availability and running status."""
     try:
-        response = await HTTP_CLIENT.get(f"{OLLAMA_BASE_URL.rstrip('/')}/api/tags")
-        if response.is_success:
-            models_data = response.json()
-            models = [model["name"] for model in models_data.get("models", [])]
-            return {"models": models}
-        else:
-            return {"models": ["llama3.2:latest"]}
+        available = await list_ollama_tags()
+        running = await list_ollama_running_models()
+        # If discovery fails, fall back to defaults
+        if not available:
+            available = SUPPORTED_DEFAULT_MODELS
+        models = []
+        seen = set()
+        for name in available:
+            if name in seen:
+                continue
+            seen.add(name)
+            models.append({
+                "name": name,
+                "available": True,
+                "running": name in running
+            })
+        # Also include running models that might not be in tags list (edge cases)
+        for name in running:
+            if name not in seen:
+                models.append({"name": name, "available": False, "running": True})
+        return {"models": models}
     except Exception as e:
-        logger.error(f"Error fetching models: {e}")
-        return {"models": ["llama3.2:latest"]}
+        logger.exception("Error fetching models")
+        # Minimal fallback
+        return {"models": [{"name": m, "available": False, "running": False} for m in SUPPORTED_DEFAULT_MODELS]}
+
+@app.post("/models/load")
+async def load_model(request: Request):
+    """Pull a model on demand into Ollama so it becomes available."""
+    payload = await request.json()
+    model = payload.get("model")
+    if not model:
+        raise HTTPException(status_code=400, detail="'model' is required")
+    await ensure_model_available(model)
+    return {"status": "ok", "model": model}
 
 # Web UI endpoint
 @app.get("/", response_class=HTMLResponse)
@@ -764,13 +844,26 @@ async def web_ui():
                     // Clear existing options
                     modelSelect.innerHTML = '';
                     
-                    // Add available models
-                    data.models.forEach(model => {
+                    // Add model options with availability badges
+                    (data.models || []).forEach(m => {
                         const option = document.createElement('option');
-                        option.value = model;
-                        option.textContent = model;
+                        option.value = m.name;
+                        option.dataset.available = m.available ? 'true' : 'false';
+                        option.dataset.running = m.running ? 'true' : 'false';
+                        const badge = m.running ? ' (running)' : (m.available ? ' (available)' : ' (pull to use)');
+                        option.textContent = `${m.name}${badge}`;
                         modelSelect.appendChild(option);
                     });
+
+                    // Ensure current setting exists as option
+                    if (![...modelSelect.options].some(o => o.value === currentSettings.default_model)) {
+                        const opt = document.createElement('option');
+                        opt.value = currentSettings.default_model;
+                        opt.dataset.available = 'false';
+                        opt.dataset.running = 'false';
+                        opt.textContent = `${currentSettings.default_model} (not listed)`;
+                        modelSelect.appendChild(opt);
+                    }
                 } catch (error) {
                     console.error('Error loading models:', error);
                 }
@@ -787,10 +880,46 @@ async def web_ui():
                 document.getElementById('themeSelect').value = currentSettings.theme;
             }
             
+            async function ensureModelAvailableClient(modelName) {
+                // Check selected option availability
+                const option = [...document.getElementById('modelSelect').options].find(o => o.value === modelName);
+                const available = option ? option.dataset.available === 'true' : false;
+                if (available) return true;
+
+                // Ask user to confirm pulling model
+                const confirmPull = confirm(`Model "${modelName}" is not available locally. Pull it now?`);
+                if (!confirmPull) return false;
+                
+                // Show temporary loading indicator in UI
+                const originalText = option ? option.textContent : modelName;
+                if (option) option.textContent = `${modelName} (pulling...)`;
+                try {
+                    const resp = await fetch('/models/load', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: modelName })
+                    });
+                    if (!resp.ok) throw new Error('Pull failed');
+                    // Refresh list to update badges
+                    await loadAvailableModels();
+                    return true;
+                } catch (e) {
+                    alert('Failed to pull model. Please try again.');
+                    console.error(e);
+                    if (option) option.textContent = originalText;
+                    return false;
+                }
+            }
+
             async function saveSettingsToServer() {
                 try {
+                    const selectedModel = document.getElementById('modelSelect').value;
+                    // Auto-load if needed before saving
+                    const ok = await ensureModelAvailableClient(selectedModel);
+                    if (!ok) return false;
+
                     const settingsToSave = {
-                        default_model: document.getElementById('modelSelect').value,
+                        default_model: selectedModel,
                         temperature: parseFloat(document.getElementById('temperatureRange').value),
                         max_tokens: parseInt(document.getElementById('maxTokensInput').value),
                         system_prompt: document.getElementById('systemPromptTextarea').value,
@@ -845,6 +974,13 @@ async def web_ui():
                 } else {
                     alert('Failed to save settings. Please try again.');
                 }
+            });
+
+            // Auto-load on selection change if desired
+            document.getElementById('modelSelect').addEventListener('change', async (e) => {
+                const modelName = e.target.value;
+                // Offer to pull on change; non-blocking for user if they cancel
+                await ensureModelAvailableClient(modelName);
             });
             
             temperatureRange.addEventListener('input', () => {
