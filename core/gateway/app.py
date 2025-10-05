@@ -548,6 +548,9 @@ async def services():
         "llm_openai": OPENAI_BASE,
         "llm_ollama": OLLAMA_BASE,
         "redis": REDIS_URL,
+        "qdrant": "http://qdrant:6333",
+        "onyx": "http://onyx:8000",
+        "whisper-server": "http://whisper-server:8001",
         "catalog": "/catalog"
     }
 

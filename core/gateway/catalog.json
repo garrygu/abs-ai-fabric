@@ -88,10 +88,18 @@
       "class": "service",
       "type": "asr",
       "name": "Whisper Server",
-      "description": "Standalone speech-to-text transcription service",
+      "description": "Standalone speech-to-text transcription service using OpenAI Whisper",
+      "lifecycle": {
+        "desired": "running"
+      },
       "metadata": {
         "url": "http://localhost:8001",
-        "health": "http://localhost:8001/healthz"
+        "health": "http://localhost:8001/healthz",
+        "endpoints": {
+          "transcribe": "/transcribe",
+          "health": "/healthz"
+        },
+        "container": "abs-whisper-server"
       }
     },
     {

@@ -107,62 +107,32 @@ async def health_check():
 @app.post("/chat")
 async def chat_with_llm(req: ChatReq, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
     """
-    Handles chat requests, forwarding them to the appropriate LLM (Ollama or OpenAI-compatible).
-    This is a simplified example; a real Onyx would have more sophisticated routing and RAG.
+    Handles chat requests by forwarding to the Hub Gateway for policy enforcement and routing.
     """
     logger.info(f"Received chat request from app_id: {app_id} for model: {req.model}")
     
-    # Determine which LLM to use (simplified logic)
-    llm_base_url = OLLAMA_BASE_URL
-    headers = {}
-    if "openai" in req.model.lower() or "vllm" in req.model.lower(): # Example for routing
-        llm_base_url = OPENAI_BASE_URL
-        headers["Authorization"] = f"Bearer {OPENAI_API_KEY}"
-        # Adjust payload for OpenAI compatibility if needed
-        payload = req.model_dump()
-        endpoint = f"{llm_base_url.rstrip('/')}/chat/completions"
-    else: # Assume Ollama
-        # Ensure model exists locally (auto-pull if needed)
-        await ensure_model_available(req.model)
-        payload = {
-            "model": req.model,
-            "messages": [m.model_dump() for m in req.messages],
-            "stream": False,
-            "options": {
-                "temperature": req.temperature,
-                # Keep model warm for faster successive requests
-                "keep_alive": "2h"
-            }
-        }
-        endpoint = f"{llm_base_url.rstrip('/')}/api/chat"
-
+    # Forward to Hub Gateway with proper app identification
+    gateway_headers = {"X-ABS-App-Id": app_id or "onyx-assistant"}
+    
     try:
         response = await HTTP_CLIENT.post(
-            endpoint,
-            json=payload,
-            headers=headers,
+            f"{HUB_GATEWAY_URL}/v1/chat/completions",
+            json=req.model_dump(),
+            headers=gateway_headers,
             timeout=httpx.Timeout(30.0, connect=10.0)
         )
         response.raise_for_status()
         
-        if "ollama" in llm_base_url:
-            # Normalize Ollama response to OpenAI-like format
-            ollama_data = response.json()
-            text = ollama_data.get("message", {}).get("content", ollama_data.get("response", ""))
-            return {
-                "id": "chatcmpl_onyx",
-                "object": "chat.completion",
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": text}}],
-                "model": req.model,
-                "provider": "ollama"
-            }
-        return response.json()
+        result = response.json()
+        logger.info(f"Chat completed successfully for app_id: {app_id}")
+        return result
+        
     except httpx.HTTPStatusError as e:
-        logger.error(f"LLM service HTTP error: status={e.response.status_code} body={e.response.text}")
+        logger.error(f"Gateway HTTP error: status={e.response.status_code} body={e.response.text}")
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
     except httpx.RequestError as e:
-        logger.exception(f"LLM service request error: {e}")
-        raise HTTPException(status_code=502, detail=f"Upstream LLM request error: {str(e)}")
+        logger.exception(f"Gateway request error: {e}")
+        raise HTTPException(status_code=502, detail=f"Gateway request error: {str(e)}")
     except Exception as e:
         logger.exception("Unexpected error forwarding chat request")
         raise HTTPException(status_code=500, detail=f"Onyx chat internal error: {str(e)}")
@@ -180,25 +150,77 @@ async def rag_query(request: Request, app_id: Optional[str] = Header(None, alias
 
     logger.info(f"Received RAG query from app_id: {app_id} for query: {query} in collection: {collection}")
 
-    # Placeholder: Simulate Qdrant search
     try:
-        # In a real scenario, you'd first embed the query, then search Qdrant
-        # For now, we'll just simulate a response
-        search_results = [{"id": "doc1", "payload": {"text": "Simulated RAG document content."}}]
-
-        context = " ".join([res["payload"]["text"] for res in search_results])
+        # Get query embedding from Hub Gateway
+        gateway_headers = {"X-ABS-App-Id": app_id or "onyx-assistant"}
         
-        # Simulate LLM call with context
-        llm_response = await chat_with_llm(ChatReq(
-            messages=[
-                ChatMessage(role="system", content=f"You are an AI assistant. Use the following context to answer: {context}"),
-                ChatMessage(role="user", content=query)
+        embed_response = await HTTP_CLIENT.post(
+            f"{HUB_GATEWAY_URL}/v1/embeddings",
+            json={"input": [query]},
+            headers=gateway_headers,
+            timeout=httpx.Timeout(30.0)
+        )
+        embed_response.raise_for_status()
+        embeddings_data = embed_response.json()
+        query_vector = embeddings_data["data"][0]["embedding"]
+        
+        # Search Qdrant via Hub Gateway
+        search_payload = {
+            "vector": query_vector,
+            "limit": top_k,
+            "with_payload": True
+        }
+        
+        search_response = await HTTP_CLIENT.post(
+            f"{HUB_GATEWAY_URL}/v1/collections/{collection}/points/search",
+            json=search_payload,
+            headers=gateway_headers,
+            timeout=httpx.Timeout(30.0)
+        )
+        search_response.raise_for_status()
+        search_results = search_response.json()
+        
+        # Extract context from search results
+        context_parts = []
+        if "result" in search_results:
+            context_parts = [hit["payload"]["text"] for hit in search_results["result"]]
+        
+        context = " ".join(context_parts)
+        
+        # Use Hub Gateway for chat with context
+        chat_payload = {
+            "messages": [
+                {"role": "system", "content": f"You are an AI assistant. Use the following context to answer: {context}"},
+                {"role": "user", "content": query}
             ],
-            model="llama3.2:latest"
-        ))
-        return {"response": llm_response["choices"][0]["message"]["content"], "context": search_results}
+            "temperature": 0.2,
+            "max_tokens": 1024
+        }
+        
+        chat_response = await HTTP_CLIENT.post(
+            f"{HUB_GATEWAY_URL}/v1/chat/completions",
+            json=chat_payload,
+            headers=gateway_headers,
+            timeout=httpx.Timeout(60.0)
+        )
+        chat_response.raise_for_status()
+        chat_result = chat_response.json()
+        
+        return {
+            "response": chat_result["choices"][0]["message"]["content"],
+            "context": search_results.get("result", []),
+            "model": chat_result.get("model"),
+            "provider": chat_result.get("provider")
+        }
+        
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Gateway HTTP error: status={e.response.status_code} body={e.response.text}")
+        raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+    except httpx.RequestError as e:
+        logger.exception(f"Gateway request error: {e}")
+        raise HTTPException(status_code=502, detail=f"Gateway request error: {str(e)}")
     except Exception as e:
-        logger.error(f"Error during RAG query: {e}")
+        logger.exception("Unexpected error in RAG query")
         raise HTTPException(status_code=500, detail=f"Onyx RAG internal error: {str(e)}")
 
 @app.post("/ingest")

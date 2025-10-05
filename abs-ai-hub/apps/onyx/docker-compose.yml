@@ -16,6 +16,7 @@ services:
         until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
         until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting ollama; sleep 2; done &&
         until redis-cli -h redis ping >/dev/null 2>&1; do echo waiting redis; sleep 2; done &&
+        until curl -sf http://hub-gateway:8081/.well-known/abs-services >/dev/null; do echo waiting gateway; sleep 2; done &&
         echo core ready
       "
   
@@ -34,6 +35,7 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ""
       REDIS_URL: redis://redis:6379/0
+      HUB_GATEWAY_URL: http://hub-gateway:8081
       # Onyx configuration
       ONYX_PORT: 8000
       ONYX_LOG_LEVEL: info
