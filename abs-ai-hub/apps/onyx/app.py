@@ -21,6 +21,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
 # HTTP client for forwarding requests
 HTTP_CLIENT = httpx.AsyncClient()
+HUB_GATEWAY_URL = os.getenv("HUB_GATEWAY_URL", "http://hub-gateway:8081")
 
 # Placeholder for a simple in-memory "knowledge base"
 KNOWLEDGE_BASE = {}
@@ -44,25 +45,25 @@ SUPPORTED_DEFAULT_MODELS = [
 ]
 
 async def list_ollama_tags() -> List[str]:
-    """Return list of pulled models in Ollama (by name)."""
+    """Return list of pulled models (via Hub Gateway)."""
     try:
-        response = await HTTP_CLIENT.get(f"{OLLAMA_BASE_URL.rstrip('/')}/api/tags")
+        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models")
         if response.is_success:
-            models_data = response.json()
-            return [model.get("name") for model in models_data.get("models", []) if model.get("name")]
+            data = response.json()
+            return [m.get("name") for m in data.get("models", []) if m.get("available")]
     except Exception:
-        logger.exception("Failed to list Ollama tags")
+        logger.exception("Failed to list models via Hub Gateway")
     return []
 
 async def list_ollama_running_models() -> List[str]:
-    """Return list of running models from Ollama ps."""
+    """Return list of running models (via Hub Gateway)."""
     try:
-        response = await HTTP_CLIENT.get(f"{OLLAMA_BASE_URL.rstrip('/')}/api/ps")
+        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models")
         if response.is_success:
             data = response.json()
-            return [m.get("name") for m in data.get("models", []) if m.get("name")]
+            return [m.get("name") for m in data.get("models", []) if m.get("running")]
     except Exception:
-        logger.exception("Failed to list Ollama running models")
+        logger.exception("Failed to list running models via Hub Gateway")
     return []
 
 async def ensure_model_available(model_name: str) -> None:
@@ -74,16 +75,16 @@ async def ensure_model_available(model_name: str) -> None:
     tags = await list_ollama_tags()
     if model_name in tags:
         return
-    logger.info(f"Model '{model_name}' not found locally. Pulling via Ollama...")
+    logger.info(f"Model '{model_name}' not found locally. Requesting Hub Gateway to pull...")
     try:
-        # Ollama pull API can stream progress; send a simple blocking request
-        pull_endpoint = f"{OLLAMA_BASE_URL.rstrip('/')}/api/pull"
-        resp = await HTTP_CLIENT.post(pull_endpoint, json={"name": model_name}, timeout=httpx.Timeout(None))
+        # Ask Hub Gateway to load the model; it will auto-wake services as needed
+        pull_endpoint = f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models/{model_name}/load"
+        resp = await HTTP_CLIENT.post(pull_endpoint, json={}, timeout=httpx.Timeout(None))
         resp.raise_for_status()
-        logger.info(f"Model '{model_name}' pulled successfully.")
+        logger.info(f"Model '{model_name}' pull requested successfully via Hub Gateway.")
     except Exception as e:
-        logger.exception(f"Failed to pull model '{model_name}'")
-        raise HTTPException(status_code=502, detail=f"Failed to pull model '{model_name}': {str(e)}")
+        logger.exception(f"Failed to pull model '{model_name}' via Hub Gateway")
+        raise HTTPException(status_code=502, detail=f"Failed to pull model '{model_name}' via Hub Gateway: {str(e)}")
 
 class ChatMessage(BaseModel):
     role: str

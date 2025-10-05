@@ -1504,20 +1504,7 @@
                         <div class="service-details" id="ollama-details">
                             <div class="model-management">
                                 <h4>Model Management</h4>
-                                <div class="models-list" id="ollama-models">
-                                    <div class="model-item">
-                                        <span class="model-name">llama3.2:latest</span>
-                                        <span class="model-status" id="llama3.2-latest-status">Checking...</span>
-                                        <button class="model-btn load-btn" onclick="loadModel('llama3.2:latest')">Load</button>
-                                        <button class="model-btn unload-btn" onclick="unloadModel('llama3.2:latest')">Unload</button>
-                                    </div>
-                                    <div class="model-item">
-                                        <span class="model-name">llama3.2:3b</span>
-                                        <span class="model-status" id="llama3.2-3b-status">Checking...</span>
-                                        <button class="model-btn load-btn" onclick="loadModel('llama3.2:3b')">Load</button>
-                                        <button class="model-btn unload-btn" onclick="unloadModel('llama3.2:3b')">Unload</button>
-                                    </div>
-                                </div>
+                                <div class="models-list" id="ollama-models"></div>
                             </div>
                         </div>
                     </div>
@@ -2986,9 +2973,56 @@
             }
         }
 
+        async function renderModelManagement() {
+            try {
+                const resp = await fetch('http://localhost:8081/admin/models');
+                const data = await resp.json();
+                const models = data.models || [];
+                const container = document.getElementById('ollama-models');
+                if (!container) return;
+                container.innerHTML = '';
+
+                models.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = 'model-item';
+                    row.innerHTML = `
+                        <span class="model-name">${m.name}</span>
+                        <span class="model-status ${m.running || m.available ? 'available' : 'unavailable'}">${m.running ? 'Running' : (m.available ? 'Available' : 'Not Loaded')}</span>
+                        <button class="model-btn load-btn">Load</button>
+                        <button class="model-btn unload-btn">Unload</button>
+                    `;
+                    const [nameEl, statusEl, loadBtn, unloadBtn] = row.children;
+                    loadBtn.addEventListener('click', async () => {
+                        loadBtn.disabled = true; unloadBtn.disabled = true; statusEl.textContent = 'Loading...';
+                        try {
+                            await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(m.name)}/load`, { method: 'POST' });
+                            await checkModelAvailability();
+                            await renderModelManagement();
+                        } finally {
+                            loadBtn.disabled = false; unloadBtn.disabled = false;
+                        }
+                    });
+                    unloadBtn.addEventListener('click', async () => {
+                        loadBtn.disabled = true; unloadBtn.disabled = true; statusEl.textContent = 'Unloading...';
+                        try {
+                            await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(m.name)}`, { method: 'DELETE' });
+                            await checkModelAvailability();
+                            await renderModelManagement();
+                        } finally {
+                            loadBtn.disabled = false; unloadBtn.disabled = false;
+                        }
+                    });
+                    container.appendChild(row);
+                });
+            } catch (e) {
+                console.error('Failed rendering model management', e);
+            }
+        }
+
         // Check status on page load
         checkServiceStatus();
         checkModelAvailability();
+        renderModelManagement();
     </script>
 </body>
 </html>
