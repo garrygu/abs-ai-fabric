@@ -274,18 +274,17 @@ async def get_available_models():
     try:
         available = await list_ollama_tags()
         running = await list_ollama_running_models()
-        # If discovery fails, fall back to defaults
-        if not available:
-            available = SUPPORTED_DEFAULT_MODELS
+        # Build a union so supported-but-not-pulled models show up (e.g., llama3:8b)
+        union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
         models = []
         seen = set()
-        for name in available:
+        for name in union_names:
             if name in seen:
                 continue
             seen.add(name)
             models.append({
                 "name": name,
-                "available": True,
+                "available": name in available,
                 "running": name in running
             })
         # Also include running models that might not be in tags list (edge cases)
