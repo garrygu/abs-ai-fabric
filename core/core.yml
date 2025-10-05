@@ -9,7 +9,6 @@ volumes:
   ollama_models:
   qdrant_storage:
   redis_data:
-  onyx_data:
 
 services:
 
@@ -93,39 +92,6 @@ services:
       timeout: 2s
       retries: 15
 
-  # ---- RAG/Agent Engine ----
-  onyx:
-    image: abs-onyx-v2
-    container_name: abs-onyx
-    restart: unless-stopped
-    environment:
-      TZ: ${TZ}
-      # Connect to inference engines
-      OLLAMA_BASE_URL: http://ollama:11434
-      OPENAI_BASE_URL: http://vllm:8000/v1
-      OPENAI_API_KEY: abs-local
-      # Connect to vector database
-      QDRANT_URL: http://qdrant:6333
-      QDRANT_API_KEY: ""
-      # Connect to cache
-      REDIS_URL: redis://redis:6379/0
-      # Onyx-specific configuration
-      ONYX_PORT: 8000
-      ONYX_LOG_LEVEL: info
-    volumes:
-      - onyx_data:/app/data
-    ports:
-      - "8000:8000"
-    networks: [abs-net]
-    depends_on:
-      - redis
-      - qdrant
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   # ---- Hub Gateway ----
   hub-gateway:
     build: ./gateway
@@ -135,10 +101,9 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OPENAI_BASE_URL: http://vllm:8000/v1
       OPENAI_API_KEY: abs-local
-      ONYX_BASE_URL: http://onyx:8000
       REGISTRY_PATH: /app/registry.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports: ["8081:8081"]
-    depends_on: [redis, onyx]
+    depends_on: [redis]
     networks: [abs-net]

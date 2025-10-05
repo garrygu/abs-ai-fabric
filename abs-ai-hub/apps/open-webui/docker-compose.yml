@@ -1,0 +1,56 @@
+name: abs-open-webui
+version: "3.9"
+
+networks:
+  abs-net:
+    external: true
+
+services:
+  # Wait for core services
+  wait-core:
+    image: curlimages/curl:latest
+    container_name: abs-openwebui-wait
+    networks: [abs-net]
+    command: >
+      sh -c "
+        until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting ollama; sleep 2; done &&
+        echo core ready
+      "
+  
+  # Open WebUI - Alternative Chat Interface
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: abs-open-webui
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      # Connect to Ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      # WebUI Configuration
+      WEBUI_NAME: "ABS AI Hub"
+      WEBUI_URL: http://localhost:3000/openwebui
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-change-me-in-production}
+      # Optional: Connect to other services
+      OPENAI_API_BASE_URL: http://vllm:8000/v1
+      OPENAI_API_KEY: abs-local
+      # Data persistence
+      DATA_DIR: /app/backend/data
+    volumes:
+      - open-webui-data:/app/backend/data
+    ports:
+      - "8080:8080"  # Can be removed if only accessed via Hub UI
+    networks: [abs-net]
+    depends_on:
+      wait-core:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  open-webui-data:
+    name: abs-open-webui-data
+

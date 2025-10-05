@@ -1,0 +1,55 @@
+name: abs-onyx
+version: "3.9"
+
+networks:
+  abs-net:
+    external: true
+
+services:
+  # Wait for core services to be ready
+  wait-core:
+    image: redis:7.2-alpine
+    container_name: abs-onyx-wait
+    networks: [abs-net]
+    command: >
+      sh -c "
+        until curl -sf http://qdrant:6333/collections >/dev/null; do echo waiting qdrant; sleep 2; done &&
+        until curl -sf http://ollama:11434/api/tags >/dev/null; do echo waiting ollama; sleep 2; done &&
+        until redis-cli -h redis ping >/dev/null 2>&1; do echo waiting redis; sleep 2; done &&
+        echo core ready
+      "
+  
+  # Onyx AI Assistant
+  onyx:
+    build: .
+    image: abs-onyx:latest
+    container_name: abs-onyx
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      # Connect to core services
+      OLLAMA_BASE_URL: http://ollama:11434
+      OPENAI_BASE_URL: http://vllm:8000/v1
+      OPENAI_API_KEY: abs-local
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ""
+      REDIS_URL: redis://redis:6379/0
+      # Onyx configuration
+      ONYX_PORT: 8000
+      ONYX_LOG_LEVEL: info
+    volumes:
+      - onyx_data:/app/data
+    ports:
+      - "8000:8000"  # Can be removed if only accessed via Hub UI
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  onyx_data:
+    name: abs-onyx-data
+

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Unavailable - ABS AI Hub</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .error-container {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            max-width: 600px;
+        }
+        h1 { font-size: 4rem; margin-bottom: 1rem; }
+        h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+        p { font-size: 1rem; line-height: 1.6; margin-bottom: 2rem; opacity: 0.9; }
+        .button {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        .button:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1>502</h1>
+        <h2>Service Temporarily Unavailable</h2>
+        <p>The application you're trying to access is currently starting up or experiencing issues. This usually resolves within a few seconds.</p>
+        <p>Please wait a moment and try refreshing the page.</p>
+        <a href="/" class="button">← Back to Hub</a>
+    </div>
+</body>
+</html>
+

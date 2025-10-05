@@ -7,11 +7,14 @@ networks:
 services:
   hub-ui:
     image: nginx:alpine
+    container_name: abs-hub-ui
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3000:80"                       # single entry point
     volumes:
-      - ./assets:/usr/share/nginx/html
+      - ./assets:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./error_pages:/usr/share/nginx/errors:ro
     networks: [abs-net]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
