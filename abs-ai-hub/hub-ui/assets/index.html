@@ -1304,7 +1304,7 @@
                 <div class="service-card" id="ollama-card">
                     <div class="service-header" onclick="toggleServiceDetails('ollama')">
                         <div class="service-info">
-                            <span class="status online" id="ollama-status"></span>
+                            <span class="status online" id="ollama-status-top"></span>
                             <span class="service-name">Ollama (LLM)</span>
                 </div>
                         <span class="expand-icon" id="ollama-expand">▼</span>
@@ -1335,7 +1335,7 @@
                 <div class="service-card" id="qdrant-card">
                     <div class="service-header" onclick="toggleServiceDetails('qdrant')">
                         <div class="service-info">
-                            <span class="status online" id="qdrant-status"></span>
+                            <span class="status online" id="qdrant-status-top"></span>
                             <span class="service-name">Qdrant (Vector DB)</span>
                         </div>
                         <span class="expand-icon" id="qdrant-expand">▼</span>
@@ -1366,7 +1366,7 @@
                 <div class="service-card" id="redis-card">
                     <div class="service-header" onclick="toggleServiceDetails('redis')">
                         <div class="service-info">
-                            <span class="status online" id="redis-status"></span>
+                            <span class="status online" id="redis-status-top"></span>
                             <span class="service-name">Redis (Cache)</span>
                         </div>
                         <span class="expand-icon" id="redis-expand">▼</span>
@@ -1964,6 +1964,28 @@
                 }
             } catch (error) {
                 console.error('Error checking service status:', error);
+            }
+            // Also reflect status on service cards (top section)
+            try {
+                const resp = await fetch('http://localhost:8081/admin/services/status');
+                if (resp.ok) {
+                    const services = await resp.json();
+                    const map = {
+                        'ollama': 'ollama-status-top',
+                        'qdrant': 'qdrant-status-top',
+                        'redis': 'redis-status-top',
+                        'hub-gateway': 'hub-gateway-status'
+                    };
+                    Object.entries(map).forEach(([svc, id]) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        const online = services[svc] && services[svc].status === 'online';
+                        el.textContent = online ? 'Online' : 'Offline';
+                        el.className = `status-indicator ${online ? 'online' : 'offline'}`;
+                    });
+                }
+            } catch (e) {
+                // ignore
             }
         }
 
