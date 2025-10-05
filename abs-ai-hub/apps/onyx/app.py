@@ -81,7 +81,12 @@ async def chat_with_llm(req: ChatReq, app_id: Optional[str] = Header(None, alias
         endpoint = f"{llm_base_url.rstrip('/')}/api/chat"
 
     try:
-        response = await HTTP_CLIENT.post(endpoint, json=payload, headers=headers)
+        response = await HTTP_CLIENT.post(
+            endpoint,
+            json=payload,
+            headers=headers,
+            timeout=httpx.Timeout(30.0, connect=10.0)
+        )
         response.raise_for_status()
         
         if "ollama" in llm_base_url:
@@ -97,10 +102,13 @@ async def chat_with_llm(req: ChatReq, app_id: Optional[str] = Header(None, alias
             }
         return response.json()
     except httpx.HTTPStatusError as e:
-        logger.error(f"LLM service error: {e.response.text}")
+        logger.error(f"LLM service HTTP error: status={e.response.status_code} body={e.response.text}")
         raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+    except httpx.RequestError as e:
+        logger.exception(f"LLM service request error: {e}")
+        raise HTTPException(status_code=502, detail=f"Upstream LLM request error: {str(e)}")
     except Exception as e:
-        logger.error(f"Error forwarding chat request: {e}")
+        logger.exception("Unexpected error forwarding chat request")
         raise HTTPException(status_code=500, detail=f"Onyx chat internal error: {str(e)}")
 
 @app.post("/rag")
@@ -221,7 +229,7 @@ async def get_available_models():
         return {"models": ["llama3.2:latest"]}
 
 # Web UI endpoint
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def web_ui():
     """Serve a chat interface"""
     return HTMLResponse("""
