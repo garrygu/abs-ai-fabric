@@ -1317,7 +1317,7 @@
                 </div>
                             <div class="detail-item">
                                 <span class="detail-label">Models Loaded:</span>
-                                <span class="detail-value" id="ollama-models">Checking...</span>
+                                <span class="detail-value" id="ollama-models-count">Checking...</span>
                             </div>
                             <div class="detail-item">
                                 <span class="detail-label">API Version:</span>
@@ -2155,6 +2155,10 @@
 
         async function loadAdminData() {
             await checkServiceStatus();
+            // New: fetch model availability and render management
+            await checkModelAvailability();
+            await renderModelManagement();
+            // Legacy status (kept for compatibility with other UI badges)
             await checkModelStatus();
             await loadIdleSleepStatus();
             await loadSystemStatus();
@@ -2931,8 +2935,7 @@
         async function checkModelAvailability() {
             try {
                 // Use Hub Gateway as the single source of truth
-                const response = await fetch('http://localhost:8081/admin/models');
-                const data = await response.json();
+                const data = await fetchJsonWithRetry('http://localhost:8081/admin/models');
                 const models = data.models || [];
 
                 // Build a quick lookup
@@ -2975,12 +2978,22 @@
 
         async function renderModelManagement() {
             try {
-                const resp = await fetch('http://localhost:8081/admin/models');
-                const data = await resp.json();
+                console.log('[admin] renderModelManagement: fetching models...');
+                const data = await fetchJsonWithRetry('http://localhost:8081/admin/models');
                 const models = data.models || [];
                 const container = document.getElementById('ollama-models');
+                const countEl = document.getElementById('ollama-models-count');
                 if (!container) return;
                 container.innerHTML = '';
+                console.log('[admin] renderModelManagement: models=', models);
+
+                if (!models.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'model-item';
+                    empty.innerHTML = '<span class="model-name">No models discovered</span><span class="model-status unavailable">Unavailable</span>';
+                    container.appendChild(empty);
+                    if (countEl) countEl.textContent = '0 models';
+                }
 
                 models.forEach(m => {
                     const row = document.createElement('div');
@@ -3014,8 +3027,27 @@
                     });
                     container.appendChild(row);
                 });
+                if (countEl) countEl.textContent = `${models.length} models`;
             } catch (e) {
                 console.error('Failed rendering model management', e);
+                const container = document.getElementById('ollama-models');
+                if (container) {
+                    container.innerHTML = `<div class=\"model-item\"><span class=\"model-name\">Unable to load models</span><span class=\"model-status unavailable\">${(e && e.message) || 'Error'}</span></div>`;
+                }
+            }
+        }
+
+        async function fetchJsonWithRetry(url, retries = 3, backoffMs = 500) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    return await resp.json();
+                } catch (e) {
+                    console.warn(`[admin] fetchJsonWithRetry(${url}) attempt ${i+1} failed:`, e);
+                    if (i === retries - 1) throw e;
+                    await new Promise(r => setTimeout(r, backoffMs * (i + 1)));
+                }
             }
         }
 
@@ -3023,6 +3055,13 @@
         checkServiceStatus();
         checkModelAvailability();
         renderModelManagement();
+        // Refresh model list periodically when Admin tab is visible
+        setInterval(() => {
+            const adminTab = document.getElementById('admin-tab');
+            if (adminTab && adminTab.classList.contains('active')) {
+                renderModelManagement();
+            }
+        }, 10000);
     </script>
 </body>
 </html>
