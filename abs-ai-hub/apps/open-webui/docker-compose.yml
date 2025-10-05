@@ -38,7 +38,7 @@ services:
     volumes:
       - open-webui-data:/app/backend/data
     ports:
-      - "8080:8080"  # Can be removed if only accessed via Hub UI
+      - "3200:8080"  # Dedicated port for Open WebUI
     networks: [abs-net]
     depends_on:
       wait-core:
