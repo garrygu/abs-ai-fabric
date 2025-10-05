@@ -622,6 +622,94 @@ async def get_asset(asset_id: str):
             return a
     raise HTTPException(404, f"Asset not found: {asset_id}")
 
+# ---- Asset Management Endpoints ----
+@app.post("/admin/assets")
+async def create_asset(asset: dict):
+    """Add a new asset to the catalog"""
+    try:
+        # Validate required fields
+        if not asset.get("id") or not asset.get("class") or not asset.get("name"):
+            raise HTTPException(400, "Missing required fields: id, class, name")
+        
+        # Check if asset already exists
+        existing_ids = {a.get("id") for a in CATALOG.get("assets", [])}
+        if asset.get("id") in existing_ids:
+            raise HTTPException(409, f"Asset with id '{asset['id']}' already exists")
+        
+        # Add to catalog
+        CATALOG["assets"].append(asset)
+        
+        # Write back to file
+        with open(CATALOG_PATH, "w", encoding="utf-8") as f:
+            json.dump(CATALOG, f, indent=2)
+        
+        return {"status": "created", "asset": asset}
+    except Exception as e:
+        raise HTTPException(500, f"Error creating asset: {str(e)}")
+
+@app.put("/admin/assets/{asset_id}")
+async def update_asset(asset_id: str, asset_update: dict):
+    """Update an existing asset in the catalog"""
+    try:
+        # Find and update asset
+        for i, asset in enumerate(CATALOG.get("assets", [])):
+            if asset.get("id") == asset_id:
+                CATALOG["assets"][i] = {**asset, **asset_update}
+                
+                # Write back to file
+                with open(CATALOG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(CATALOG, f, indent=2)
+                
+                return {"status": "updated", "asset": CATALOG["assets"][i]}
+        
+        raise HTTPException(404, f"Asset not found: {asset_id}")
+    except Exception as e:
+        raise HTTPException(500, f"Error updating asset: {str(e)}")
+
+@app.delete("/admin/assets/{asset_id}")
+async def delete_asset(asset_id: str):
+    """Delete an asset from the catalog"""
+    try:
+        # Find and remove asset
+        for i, asset in enumerate(CATALOG.get("assets", [])):
+            if asset.get("id") == asset_id:
+                deleted_asset = CATALOG["assets"].pop(i)
+                
+                # Write back to file
+                with open(CATALOG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(CATALOG, f, indent=2)
+                
+                return {"status": "deleted", "asset": deleted_asset}
+        
+        raise HTTPException(404, f"Asset not found: {asset_id}")
+    except Exception as e:
+        raise HTTPException(500, f"Error deleting asset: {str(e)}")
+
+@app.post("/admin/assets/{asset_id}/lifecycle")
+async def set_asset_lifecycle(asset_id: str, lifecycle: dict):
+    """Set desired lifecycle state for an asset"""
+    try:
+        desired_state = lifecycle.get("desired")
+        if desired_state not in ["running", "stopped", "paused"]:
+            raise HTTPException(400, "Invalid desired state. Must be: running, stopped, or paused")
+        
+        # Find and update asset lifecycle
+        for i, asset in enumerate(CATALOG.get("assets", [])):
+            if asset.get("id") == asset_id:
+                if "lifecycle" not in CATALOG["assets"][i]:
+                    CATALOG["assets"][i]["lifecycle"] = {}
+                CATALOG["assets"][i]["lifecycle"]["desired"] = desired_state
+                
+                # Write back to file
+                with open(CATALOG_PATH, "w", encoding="utf-8") as f:
+                    json.dump(CATALOG, f, indent=2)
+                
+                return {"status": "updated", "asset": CATALOG["assets"][i]}
+        
+        raise HTTPException(404, f"Asset not found: {asset_id}")
+    except Exception as e:
+        raise HTTPException(500, f"Error updating lifecycle: {str(e)}")
+
 # ---- Chat ----
 @app.post("/v1/chat/completions")
 async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
