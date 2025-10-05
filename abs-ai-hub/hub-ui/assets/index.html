@@ -1503,7 +1503,11 @@
                         </div>
                         <div class="service-details" id="ollama-details">
                             <div class="model-management">
-                                <h4>Model Management</h4>
+                                <h4>Model Management
+                                    <span
+                                        title="Status:\n- Running: model is in memory (recently used)\n- Available: model files are on disk (loads on first use)\n- Not Loaded: pull it via Load.\n\nActions:\n- Load: Pull model into Ollama if needed (does not force VRAM load).\n- Unload: Remove model files from disk and release memory."
+                                        style="cursor: help; margin-left: 6px; font-weight: 500;">ⓘ</span>
+                                </h4>
                                 <div class="models-list" id="ollama-models"></div>
                             </div>
                         </div>
@@ -3017,14 +3021,23 @@
                     if (countEl) countEl.textContent = '0 models';
                 }
 
+                function getModelStatusTip(av, run) {
+                    if (run) return 'Running: model is currently loaded in memory due to recent use. It will be released after idle or when Unload is used.';
+                    if (av) return 'Available: model files are present on disk. It will be loaded into memory on first use.';
+                    return 'Not Loaded: model is not present locally. Use Load to pull it.';
+                }
+
                 models.forEach(m => {
                     const row = document.createElement('div');
                     row.className = 'model-item';
+                    const statusText = m.running ? 'Running' : (m.available ? 'Available' : 'Not Loaded');
+                    const statusClass = m.running || m.available ? 'available' : 'unavailable';
+                    const tip = getModelStatusTip(m.available, m.running);
                     row.innerHTML = `
                         <span class="model-name">${m.name}</span>
-                        <span class="model-status ${m.running || m.available ? 'available' : 'unavailable'}">${m.running ? 'Running' : (m.available ? 'Available' : 'Not Loaded')}</span>
-                        <button class="model-btn load-btn">Load</button>
-                        <button class="model-btn unload-btn">Unload</button>
+                        <span class="model-status ${statusClass}" title="${tip}">${statusText}</span>
+                        <button class="model-btn load-btn" title="Pull model into Ollama if needed (does not force VRAM load).">Load</button>
+                        <button class="model-btn unload-btn" title="Remove model files from disk and release memory.">Unload</button>
                     `;
                     const [nameEl, statusEl, loadBtn, unloadBtn] = row.children;
                     loadBtn.addEventListener('click', async () => {
