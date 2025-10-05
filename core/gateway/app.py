@@ -199,9 +199,22 @@ def logical_to_provider_id(logical: str, provider: str) -> str:
     return REG.get("aliases", {}).get(logical, {}).get(provider, logical)
 
 def pick_app_cfg(app_id: Optional[str]):
-    dfl = REG.get("defaults", {})
-    app_cfg = REG.get("apps", {}).get(app_id or "", {})
-    return {**dfl, **app_cfg}
+    """Get app configuration from catalog first, then fallback to registry defaults"""
+    # First try to get from catalog
+    for asset in CATALOG.get("assets", []):
+        if asset.get("class") == "app" and asset.get("id") == (app_id or ""):
+            policy = asset.get("policy", {})
+            defaults = policy.get("defaults", {})
+            if defaults:
+                return defaults
+    
+    # Fallback to global catalog defaults
+    catalog_defaults = CATALOG.get("defaults", {})
+    if catalog_defaults:
+        return catalog_defaults
+    
+    # Last resort: registry defaults (for backward compatibility)
+    return REG.get("defaults", {})
 
 # ---- Auto-Wake Helpers ----
 async def check_service_status(service_name: str) -> str:
@@ -598,8 +611,7 @@ def build_unified_catalog() -> Dict[str, Any]:
 
     return {
         "version": CATALOG.get("version", "1.0"),
-        "defaults": REG.get("defaults", {}),
-        "apps": REG.get("apps", {}),
+        "defaults": CATALOG.get("defaults", {}),
         "aliases": REG.get("aliases", {}),
         "assets": assets,
         "tools": CATALOG.get("tools", []),

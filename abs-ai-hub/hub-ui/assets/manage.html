@@ -402,6 +402,28 @@
                     <label class="form-label" for="allowedEmbeddings">Allowed Embeddings (comma-separated)</label>
                     <input type="text" id="allowedEmbeddings" class="form-input" placeholder="bge-small-en-v1.5, legal-bert">
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="defaultChatModel">Default Chat Model</label>
+                    <input type="text" id="defaultChatModel" class="form-input" placeholder="llama3.2:latest">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="defaultEmbedModel">Default Embedding Model</label>
+                    <input type="text" id="defaultEmbedModel" class="form-input" placeholder="legal-bert">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="defaultProvider">Default Provider</label>
+                    <select id="defaultProvider" class="form-select">
+                        <option value="">Select provider...</option>
+                        <option value="auto">Auto</option>
+                        <option value="ollama">Ollama</option>
+                        <option value="openai">OpenAI/vLLM</option>
+                        <option value="huggingface">Hugging Face</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="embeddingDim">Embedding Dimension</label>
+                    <input type="number" id="embeddingDim" class="form-input" placeholder="384">
+                </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn">Save Asset</button>
@@ -566,6 +588,10 @@
             document.getElementById('assetUrl').value = asset.metadata?.url || '';
             document.getElementById('allowedModels').value = asset.policy?.allowed_models?.join(', ') || '';
             document.getElementById('allowedEmbeddings').value = asset.policy?.allowed_embeddings?.join(', ') || '';
+            document.getElementById('defaultChatModel').value = asset.policy?.defaults?.chat_model || '';
+            document.getElementById('defaultEmbedModel').value = asset.policy?.defaults?.embed_model || '';
+            document.getElementById('defaultProvider').value = asset.policy?.defaults?.provider || '';
+            document.getElementById('embeddingDim').value = asset.policy?.defaults?.dim || '';
             document.getElementById('assetModal').style.display = 'block';
         }
 
@@ -596,6 +622,22 @@
 
             if (allowedModels.length > 0) formData.policy.allowed_models = allowedModels;
             if (allowedEmbeddings.length > 0) formData.policy.allowed_embeddings = allowedEmbeddings;
+
+            // Add defaults if provided
+            const defaults = {};
+            const defaultChatModel = document.getElementById('defaultChatModel').value.trim();
+            const defaultEmbedModel = document.getElementById('defaultEmbedModel').value.trim();
+            const defaultProvider = document.getElementById('defaultProvider').value.trim();
+            const embeddingDim = document.getElementById('embeddingDim').value.trim();
+
+            if (defaultChatModel) defaults.chat_model = defaultChatModel;
+            if (defaultEmbedModel) defaults.embed_model = defaultEmbedModel;
+            if (defaultProvider) defaults.provider = defaultProvider;
+            if (embeddingDim) defaults.dim = parseInt(embeddingDim);
+
+            if (Object.keys(defaults).length > 0) {
+                formData.policy.defaults = defaults;
+            }
 
             try {
                 let response;
