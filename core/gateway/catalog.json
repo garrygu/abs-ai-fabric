@@ -1,0 +1,170 @@
+{
+  "version": "1.0",
+  "assets": [
+    {
+      "id": "contract-reviewer",
+      "class": "app",
+      "name": "Contract Reviewer",
+      "description": "Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports",
+      "policy": {
+        "allowed_models": ["llama3.2:latest", "llama3.2:7b"],
+        "allowed_embeddings": ["legal-bert", "bge-small-en-v1.5"]
+      },
+      "metadata": {
+        "url": "http://localhost:7860"
+      }
+    },
+    {
+      "id": "onyx-assistant",
+      "class": "app",
+      "name": "Onyx AI Assistant",
+      "description": "AI assistant with chat interface, RAG capabilities, and agent management",
+      "policy": {
+        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest"],
+        "allowed_embeddings": ["bge-small-en-v1.5", "all-minilm"]
+      },
+      "metadata": {
+        "url": "http://localhost:8000"
+      }
+    },
+    {
+      "id": "open-webui",
+      "class": "app",
+      "name": "Open WebUI",
+      "description": "Open-source web interface for LLM chat and model management",
+      "policy": {
+        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest"],
+        "allowed_embeddings": ["bge-small-en-v1.5"]
+      },
+      "metadata": {
+        "url": "http://localhost:3200"
+      }
+    },
+    {
+      "id": "rag-pdf-voice",
+      "class": "app",
+      "name": "RAG PDF Voice",
+      "description": "Document analysis with voice interaction capabilities",
+      "policy": {
+        "allowed_models": ["llama3.2:3b", "llama3.2:latest"],
+        "allowed_embeddings": ["bge-small-en-v1.5", "all-minilm"]
+      },
+      "metadata": {
+        "url": "http://localhost:8080"
+      }
+    },
+    {
+      "id": "whisper-server",
+      "class": "service",
+      "type": "asr",
+      "name": "Whisper Server",
+      "description": "Standalone speech-to-text transcription service",
+      "metadata": {
+        "url": "http://localhost:8001",
+        "health": "http://localhost:8001/healthz"
+      }
+    },
+    {
+      "id": "ollama",
+      "class": "service",
+      "type": "llm-backend",
+      "name": "Ollama",
+      "description": "Local LLM inference server supporting multiple models",
+      "metadata": {
+        "container": "abs-ollama",
+        "health": "http://ollama:11434/api/tags"
+      }
+    },
+    {
+      "id": "qdrant",
+      "class": "service",
+      "type": "vector-db",
+      "name": "Qdrant",
+      "description": "Vector database for similarity search and RAG applications",
+      "metadata": {
+        "container": "abs-qdrant",
+        "health": "http://qdrant:6333/collections"
+      }
+    },
+    {
+      "id": "redis",
+      "class": "service",
+      "type": "cache",
+      "name": "Redis",
+      "description": "In-memory cache and message broker for high-performance applications",
+      "metadata": {
+        "container": "abs-redis",
+        "health": "redis://redis:6379"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "id": "ocr-service",
+      "name": "OCR Service",
+      "type": "ocr",
+      "endpoint": "http://ocr:9000/ocr",
+      "policy": { "scopes": ["tools.ocr.use"] },
+      "metadata": { "container": "abs-ocr" }
+    },
+    {
+      "id": "pdf-parser",
+      "name": "PDF Parser",
+      "type": "parser",
+      "endpoint": "http://parser:9100/parse/pdf",
+      "policy": { "scopes": ["tools.parse.pdf"] },
+      "metadata": { "container": "abs-parser" }
+    },
+    {
+      "id": "text-chunker",
+      "name": "Text Chunker",
+      "type": "chunker",
+      "endpoint": "http://chunker:9200/chunk",
+      "policy": { "scopes": ["tools.chunk.use"] }
+    },
+    {
+      "id": "bge-reranker",
+      "name": "BGE Reranker",
+      "type": "reranker",
+      "endpoint": "http://reranker:9300/rerank",
+      "policy": { "scopes": ["tools.rerank.use"] }
+    }
+  ],
+  "datasets": [
+    {
+      "id": "contracts-corpus",
+      "name": "Contracts Corpus",
+      "type": "rag-dataset",
+      "storage": { "vector_db": "qdrant", "collection": "contracts_vectors" },
+      "owner": "legal-platform",
+      "policy": { "scopes": ["datasets.contracts.read"] },
+      "metadata": { "embedding_dim": 384, "embed_model": "bge-small-en-v1.5" }
+    },
+    {
+      "id": "ndas-sample",
+      "name": "NDAs Sample",
+      "type": "files",
+      "storage": { "path": "/data/ndas" },
+      "owner": "legal-platform",
+      "policy": { "scopes": ["datasets.ndas.read"] }
+    }
+  ],
+  "secrets": [
+    {
+      "id": "openai-api-key",
+      "name": "OpenAI API Key",
+      "ref": { "type": "env", "key": "OPENAI_API_KEY" },
+      "owner": "platform",
+      "policy": { "scopes": ["secrets.openai.read"] }
+    },
+    {
+      "id": "qdrant-api-key",
+      "name": "Qdrant API Key",
+      "ref": { "type": "vault", "path": "kv/qdrant/api_key" },
+      "owner": "platform",
+      "policy": { "scopes": ["secrets.qdrant.read"] }
+    }
+  ]
+}
+
+

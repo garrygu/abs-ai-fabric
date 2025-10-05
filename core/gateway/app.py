@@ -18,6 +18,8 @@ OPENAI_BASE = os.getenv("OPENAI_BASE_URL", "http://vllm:8000/v1")
 OPENAI_KEY  = os.getenv("OPENAI_API_KEY", "abs-local")
 ONYX_BASE = os.getenv("ONYX_BASE_URL", "http://onyx:8000")
 REGISTRY_PATH = os.getenv("REGISTRY_PATH", "registry.json")
+APPS_REGISTRY_PATH = os.getenv("APPS_REGISTRY_PATH", os.path.join("..", "abs-ai-hub", "apps-registry.json"))
+CATALOG_PATH = os.getenv("CATALOG_PATH", os.path.join("catalog.json"))
 
 # Redis cache (optional but recommended)
 rds = None
@@ -29,6 +31,23 @@ except Exception:
 
 with open(REGISTRY_PATH, "r", encoding="utf-8") as f:
     REG = json.load(f)
+
+# Best-effort load of Apps registry (for unified catalog)
+APPS_REG: Dict[str, Any] = {}
+try:
+    with open(APPS_REGISTRY_PATH, "r", encoding="utf-8") as f:
+        APPS_REG = json.load(f)
+except Exception as e:
+    # Not fatal; unified catalog will omit apps if missing
+    APPS_REG = {}
+
+# Load Catalog file (policies & broader assets)
+CATALOG: Dict[str, Any] = {}
+try:
+    with open(CATALOG_PATH, "r", encoding="utf-8") as f:
+        CATALOG = json.load(f)
+except Exception:
+    CATALOG = {"version": "1.0", "assets": [], "tools": [], "datasets": [], "secrets": []}
 
 app = FastAPI(title="ABS Hub Gateway")
 
@@ -519,9 +538,89 @@ async def services():
         "catalog": "/catalog"
     }
 
+def build_unified_catalog() -> Dict[str, Any]:
+    """Aggregate models (REG) and applications (APPS_REG) into a unified catalog."""
+    # Start from catalog file (authoritative for assets and policy)
+    assets: List[Dict[str, Any]] = list((CATALOG or {}).get("assets", []))
+
+    # Merge in Apps registry entries that are not present in catalog
+    existing_ids = {a.get("id") for a in assets}
+    apps = (APPS_REG or {}).get("applications", [])
+    for app in apps:
+        if app.get("id") not in existing_ids:
+            assets.append({
+                "id": app.get("id"),
+                "class": "app",
+                "name": app.get("name"),
+                "version": None,
+                "owner": None,
+                "lifecycle": {"desired": "running", "actual": None},
+                "policy": {},
+                "health": {"url": (app.get("healthcheck") or {}).get("url")},
+                "metadata": {
+                    "category": app.get("category"),
+                    "icon": app.get("icon"),
+                    "path": app.get("path"),
+                    "port": app.get("port"),
+                }
+            })
+
+    # Models (logical aliases and defaults)
+    aliases = (REG or {}).get("aliases", {})
+    for logical, providers in aliases.items():
+        assets.append({
+            "id": logical,
+            "class": "model",
+            "name": logical,
+            "version": None,
+            "owner": None,
+            "policy": {},
+            "health": {"status": "unknown"},
+            "metadata": {"providers": providers}
+        })
+
+    # Services (from hardcoded registry map)
+    for svc in SERVICE_REGISTRY.keys():
+        assets.append({
+            "id": svc,
+            "class": "service",
+            "name": svc,
+            "version": None,
+            "owner": None,
+            "lifecycle": {
+                "desired": SERVICE_REGISTRY[svc].get("desired"),
+                "actual": SERVICE_REGISTRY[svc].get("actual")
+            },
+            "policy": {},
+            "health": {"status": SERVICE_REGISTRY[svc].get("actual")},
+            "metadata": {"container": CONTAINER_MAP.get(svc)}
+        })
+
+    return {
+        "version": CATALOG.get("version", "1.0"),
+        "defaults": REG.get("defaults", {}),
+        "apps": REG.get("apps", {}),
+        "aliases": REG.get("aliases", {}),
+        "assets": assets,
+        "tools": CATALOG.get("tools", []),
+        "datasets": CATALOG.get("datasets", []),
+        "secrets": CATALOG.get("secrets", [])
+    }
+
 @app.get("/catalog")
 async def catalog():
-    return REG
+    return build_unified_catalog()
+
+@app.get("/assets")
+async def list_assets():
+    return build_unified_catalog().get("assets", [])
+
+@app.get("/assets/{asset_id}")
+async def get_asset(asset_id: str):
+    for a in build_unified_catalog().get("assets", []):
+        if a.get("id") == asset_id:
+            return a
+    raise HTTPException(404, f"Asset not found: {asset_id}")
 
 # ---- Chat ----
 @app.post("/v1/chat/completions")
@@ -533,6 +632,18 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
         provider = await detect_provider()
 
     model_logical = req.model or cfg.get("chat_model", "contract-default")
+
+    # Policy enforcement via Catalog (preferred), fallback to per-app cfg
+    allowed_models: Optional[List[str]] = None
+    for a in CATALOG.get("assets", []):
+        if a.get("class") == "app" and a.get("id") == (app_id or ""):
+            allowed_models = ((a.get("policy") or {}).get("allowed_models"))
+            break
+    if allowed_models is None:
+        allowed_models = cfg.get("allowed_models")
+    if allowed_models is not None and model_logical not in allowed_models:
+        raise HTTPException(403, f"Model '{model_logical}' is not allowed for this app")
+
     model = logical_to_provider_id(model_logical, provider)
     
     # Auto-wake: Ensure required services are running
@@ -597,6 +708,18 @@ async def embeddings(req: EmbedReq, request: Request, app_id: Optional[str] = He
         provider = await detect_provider()
 
     logical = req.override_model or cfg.get("embed_model") or REG.get("defaults", {}).get("embed_model")
+
+    # Policy enforcement via Catalog (preferred), fallback to per-app cfg
+    allowed_embeddings: Optional[List[str]] = None
+    for a in CATALOG.get("assets", []):
+        if a.get("class") == "app" and a.get("id") == (app_id or ""):
+            allowed_embeddings = ((a.get("policy") or {}).get("allowed_embeddings"))
+            break
+    if allowed_embeddings is None:
+        allowed_embeddings = cfg.get("allowed_embeddings")
+    if allowed_embeddings is not None and logical not in allowed_embeddings:
+        raise HTTPException(403, f"Embedding model '{logical}' is not allowed for this app")
+
     model = logical_to_provider_id(logical, provider)
     
     # Auto-wake: Ensure required services are running
