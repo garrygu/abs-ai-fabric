@@ -2309,7 +2309,81 @@ def create_modern_ui():
 
 if __name__ == "__main__":
     ui = create_modern_ui()
-    # Mount Gradio Blocks on the FastAPI app root path
+    
+    # Mount Gradio on FastAPI app with proper configuration
     app = gr.mount_gradio_app(app, ui, path="/")
-    # Run a single uvicorn server to serve FastAPI (including mounted Gradio UI)
+    
+    # Add health check endpoint to the main FastAPI app
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+    
+    @app.get("/api/history")
+    def get_history():
+        """Get review history"""
+        return {"history": review_history[-50:]}  # Last 50 reviews
+    
+    @app.get("/api/reports/{report_id}")
+    def get_report(report_id: str):
+        """Get a specific report by ID"""
+        report_file = REPORTS_DIR / f"report-{report_id}.json"
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        return json.loads(report_file.read_text())
+    
+    @app.delete("/api/reports/{report_id}")
+    def delete_report(report_id: str):
+        """Delete a specific report"""
+        report_file = REPORTS_DIR / f"report-{report_id}.json"
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        report_file.unlink()
+        return {"message": "Report deleted successfully"}
+    
+    @app.post("/api/review")
+    async def api_review(file: UploadFile = File(...)):
+        try:
+            raw = await file.read()
+            # Save uploaded file
+            file_hash = hashlib.sha256(raw).hexdigest()
+            file_path = UPLOADS_DIR / f"{file_hash}_{file.filename}"
+            file_path.write_bytes(raw)
+            
+            # Process the document
+            text, file_type = read_any_text(file_path)
+            
+            # Get embeddings and store in vector DB
+            chunks = chunk_text(text)
+            upsert_chunks(chunks, file_hash)
+            
+            # Generate analysis using Onyx
+            analysis_result = await analyze_with_onyx(text, file_hash)
+            
+            # Store the result
+            report_id = str(uuid.uuid4())
+            report_data = {
+                "report_id": report_id,
+                "file_name": file.filename,
+                "file_hash": file_hash,
+                "timestamp": datetime.now().isoformat(),
+                "analysis": analysis_result
+            }
+            
+            report_file = REPORTS_DIR / f"report-{report_id}.json"
+            report_file.write_text(json.dumps(report_data, indent=2))
+            
+            # Add to history
+            review_history.append({
+                "report_id": report_id,
+                "file_name": file.filename,
+                "timestamp": report_data["timestamp"],
+                "summary": analysis_result.get("summary", "No summary available")
+            })
+            
+            return report_data
+            
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    # Run the FastAPI app with uvicorn
     uvicorn.run(app, host="0.0.0.0", port=APP_PORT)
