@@ -2943,27 +2943,31 @@
 
         async function checkModelAvailability() {
             try {
-                const response = await fetch('http://localhost:11434/api/tags');
+                // Use Hub Gateway as the single source of truth
+                const response = await fetch('http://localhost:8081/admin/models');
                 const data = await response.json();
-                const availableModels = data.models ? data.models.map(m => m.name) : [];
+                const models = data.models || [];
 
-                // Update LLM model status
-                const llmModels = ['llama3.2:3b', 'llama3.2:latest', 'llama3-8b-instruct'];
+                // Build a quick lookup
+                const map = {};
+                models.forEach(m => { map[m.name] = m; });
+
+                // Known LLMs to display in the dashboard
+                const llmModels = ['llama3.2:3b', 'llama3.2:latest', 'llama3:8b'];
                 llmModels.forEach(modelName => {
                     const statusElement = document.querySelector(`[data-model="${modelName}"]`);
-                    if (statusElement) {
-                        if (availableModels.includes(modelName)) {
-                            statusElement.textContent = 'Available';
-                            statusElement.className = 'model-status available';
-                        } else {
-                            statusElement.textContent = 'Not Loaded';
-                            statusElement.className = 'model-status unavailable';
-                        }
+                    if (!statusElement) return;
+                    const info = map[modelName];
+                    if (info && (info.available || info.running)) {
+                        statusElement.textContent = info.running ? 'Running' : 'Available';
+                        statusElement.className = 'model-status available';
+                    } else {
+                        statusElement.textContent = 'Not Loaded';
+                        statusElement.className = 'model-status unavailable';
                     }
                 });
 
-                // For embedding models, we'll assume they're available if Ollama is running
-                // In a real implementation, you'd check the Hub Gateway for embedding model status
+                // Embedding models – TODO: unify via gateway when available
                 const embedModels = ['legal-bert', 'bge-small-en-v1.5', 'all-minilm'];
                 embedModels.forEach(modelName => {
                     const statusElement = document.querySelector(`[data-model="${modelName}"]`);
@@ -2975,7 +2979,6 @@
 
             } catch (error) {
                 console.log('Could not check model availability:', error);
-                // Set all models to unavailable if we can't check
                 document.querySelectorAll('.model-status').forEach(element => {
                     element.textContent = 'Unavailable';
                     element.className = 'model-status unavailable';

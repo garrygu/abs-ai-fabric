@@ -120,6 +120,13 @@ CONTAINER_MAP = {
     "hub-gateway": "abs-hub-gateway",
     "onyx": "abs-onyx"
 }
+ 
+# Supported default LLM models (logical names as seen by Ollama)
+SUPPORTED_DEFAULT_MODELS = [
+    "llama3.2:3b",
+    "llama3.2:latest",
+    "llama3:8b",
+]
 
 # Service dependencies - defines what services must be running before starting a service
 SERVICE_DEPENDENCIES = {
@@ -846,6 +853,45 @@ async def get_services_status():
         services["redis"] = {"status": "offline", "error": str(e)}
     
     return services
+
+@app.get("/admin/models")
+async def get_models():
+    """Unified model catalog for Hub UI: availability (pulled) and running (in VRAM)."""
+    try:
+        # Pulled models (available)
+        available: List[str] = []
+        try:
+            r_tags = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
+            if r_tags.is_success:
+                available = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
+        except Exception:
+            available = []
+
+        # Running models
+        running: List[str] = []
+        try:
+            r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+            if r_ps.is_success:
+                running = [m.get("name") for m in r_ps.json().get("models", []) if m.get("name")]
+        except Exception:
+            running = []
+
+        union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
+        models = []
+        for name in sorted(union_names):
+            models.append({
+                "name": name,
+                "available": name in available,
+                "running": name in running,
+            })
+        # Also include running models that might not be in tags
+        for name in running:
+            if name not in union_names:
+                models.append({"name": name, "available": False, "running": True})
+
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(500, f"Error listing models: {str(e)}")
 
 @app.post("/admin/services/{service_name}/control")
 async def control_service(service_name: str, action: str):
