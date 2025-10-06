@@ -1115,15 +1115,28 @@
         }
         .dependency-visualization {
             flex: 1;
-            position: relative;
             background: rgba(255, 255, 255, 0.7);
             border-radius: 12px;
-            padding: 30px;
-            min-height: 500px;
+            padding: 20px;
             border: 1px solid rgba(0, 0, 0, 0.1);
         }
+        
+        .dependency-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .service-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
         .service-node {
-            position: absolute;
             background: white;
             border-radius: 12px;
             padding: 16px;
@@ -1133,38 +1146,17 @@
             border: 2px solid transparent;
             transition: all 0.3s ease;
         }
+        
         .service-node:hover {
             transform: scale(1.05);
             border-color: #667eea;
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
         }
         
-        /* Better positioning for cleaner layout */
-        .service-node.hub-gateway { 
-            top: 30px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-        }
-        .service-node.ollama { 
-            top: 150px; 
-            left: 10%; 
-        }
-        .service-node.qdrant { 
-            top: 150px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-        }
-        .service-node.redis { 
-            top: 150px; 
-            right: 10%; 
-        }
-        .service-node.onyx { 
-            top: 280px; 
-            left: 25%; 
-        }
-        .service-node.contract-reviewer { 
-            top: 280px; 
-            right: 25%; 
+        .flow-arrow {
+            font-size: 24px;
+            color: #667eea;
+            margin: 10px 0;
         }
 
         .node-icon {
@@ -1185,128 +1177,6 @@
         .node-status.online {
             background: #e8f5e8;
             color: #2e7d32;
-        }
-        
-        /* Dependency arrows styling */
-        .dependency-arrow {
-            position: absolute;
-            pointer-events: none;
-            z-index: 1;
-        }
-        
-        .dependency-arrow::before {
-            content: '';
-            position: absolute;
-            background: #667eea;
-            height: 2px;
-            border-radius: 1px;
-        }
-        
-        .dependency-arrow::after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 8px solid #667eea;
-        }
-        
-        /* Specific arrow positioning */
-        .dependency-arrow[data-from="contract-reviewer"][data-to="hub-gateway"]::before {
-            width: 200px;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%) rotate(-90deg);
-        }
-        .dependency-arrow[data-from="contract-reviewer"][data-to="hub-gateway"]::after {
-            top: -28px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        
-        .dependency-arrow[data-from="hub-gateway"][data-to="ollama"]::before {
-            width: 180px;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%) rotate(-45deg);
-        }
-        .dependency-arrow[data-from="hub-gateway"][data-to="ollama"]::after {
-            top: 72px;
-            left: 25%;
-            transform: rotate(-45deg);
-        }
-        
-        .dependency-arrow[data-from="hub-gateway"][data-to="qdrant"]::before {
-            width: 100px;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        .dependency-arrow[data-from="hub-gateway"][data-to="qdrant"]::after {
-            top: 72px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        
-        .dependency-arrow[data-from="hub-gateway"][data-to="redis"]::before {
-            width: 180px;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%) rotate(45deg);
-        }
-        .dependency-arrow[data-from="hub-gateway"][data-to="redis"]::after {
-            top: 72px;
-            right: 25%;
-            transform: rotate(45deg);
-        }
-        
-        .dependency-arrow[data-from="hub-gateway"][data-to="onyx"]::before {
-            width: 200px;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%) rotate(-30deg);
-        }
-        .dependency-arrow[data-from="hub-gateway"][data-to="onyx"]::after {
-            top: 72px;
-            left: 40%;
-            transform: rotate(-30deg);
-        }
-        
-        .dependency-arrow[data-from="onyx"][data-to="ollama"]::before {
-            width: 120px;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%) rotate(-45deg);
-        }
-        .dependency-arrow[data-from="onyx"][data-to="ollama"]::after {
-            top: -28px;
-            left: 25%;
-            transform: rotate(-45deg);
-        }
-        
-        .dependency-arrow[data-from="onyx"][data-to="qdrant"]::before {
-            width: 100px;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        .dependency-arrow[data-from="onyx"][data-to="qdrant"]::after {
-            top: -28px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-        
-        .dependency-arrow[data-from="onyx"][data-to="redis"]::before {
-            width: 120px;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%) rotate(45deg);
-        }
-        .dependency-arrow[data-from="onyx"][data-to="redis"]::after {
-            top: -28px;
-            right: 25%;
-            transform: rotate(45deg);
         }
         .node-status.offline {
             background: #ffebee;
@@ -1976,50 +1846,64 @@
 
                     <!-- Dependencies Sub-Tab -->
                     <div id="dependencies-sub" class="admin-sub-content">
-                <h2>🔗 Service Dependencies</h2>
+                        <h2>🔗 Service Dependencies</h2>
                         <div class="dependency-graph">
                             <div class="dependency-visualization">
-                        <div class="service-node hub-gateway">
-                            <div class="node-icon">🌐</div>
-                            <div class="node-label">Hub Gateway</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        <div class="service-node ollama">
-                            <div class="node-icon">🤖</div>
-                            <div class="node-label">Ollama</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        <div class="service-node qdrant">
-                            <div class="node-icon">🗄️</div>
-                            <div class="node-label">Qdrant</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        <div class="service-node redis">
-                            <div class="node-icon">⚡</div>
-                            <div class="node-label">Redis</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        <div class="service-node onyx">
-                            <div class="node-icon">🤖</div>
-                            <div class="node-label">Onyx</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        <div class="service-node contract-reviewer">
-                            <div class="node-icon">📄</div>
-                            <div class="node-label">Contract Reviewer</div>
-                            <div class="node-status online">Online</div>
-                        </div>
-                        
-                        <!-- Dependency arrows -->
-                        <div class="dependency-arrow" data-from="contract-reviewer" data-to="hub-gateway"></div>
-                        <div class="dependency-arrow" data-from="hub-gateway" data-to="ollama"></div>
-                        <div class="dependency-arrow" data-from="hub-gateway" data-to="qdrant"></div>
-                        <div class="dependency-arrow" data-from="hub-gateway" data-to="redis"></div>
-                        <div class="dependency-arrow" data-from="hub-gateway" data-to="onyx"></div>
-                        <div class="dependency-arrow" data-from="onyx" data-to="ollama"></div>
-                        <div class="dependency-arrow" data-from="onyx" data-to="qdrant"></div>
-                        <div class="dependency-arrow" data-from="onyx" data-to="redis"></div>
-                    </div>
+                                <div class="dependency-flow">
+                                    <!-- Core Services Row -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">🦙</div>
+                                            <div class="node-label">Ollama</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">🗄️</div>
+                                            <div class="node-label">Qdrant</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">⚡</div>
+                                            <div class="node-label">Redis</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Flow Arrow -->
+                                    <div class="flow-arrow">⬆️</div>
+                                    
+                                    <!-- Hub Gateway -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">🌐</div>
+                                            <div class="node-label">Hub Gateway</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Flow Arrow -->
+                                    <div class="flow-arrow">⬇️</div>
+                                    
+                                    <!-- Applications Row -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">🤖</div>
+                                            <div class="node-label">Onyx</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">📄</div>
+                                            <div class="node-label">Contract Reviewer</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">🎤</div>
+                                            <div class="node-label">RAG PDF Voice</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     <div class="dependency-info">
                         <h4>Dependency Status</h4>
                         <div class="dependency-list" id="dependency-list">
