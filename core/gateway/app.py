@@ -1157,6 +1157,99 @@ async def get_models(app_id: Optional[str] = None):
     except Exception as e:
         raise HTTPException(500, f"Error listing models: {str(e)}")
 
+@app.get("/admin/models/catalog")
+async def get_catalog_models():
+    """Get comprehensive model information from catalog with usage tracking and status."""
+    try:
+        # Get Ollama status
+        available: List[str] = []
+        running: List[str] = []
+        try:
+            r_tags = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
+            if r_tags.is_success:
+                available = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
+        except Exception:
+            pass
+
+        try:
+            r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+            if r_ps.is_success:
+                running = [m.get("name") for m in r_ps.json().get("models", []) if m.get("name")]
+        except Exception:
+            pass
+
+        # Collect all models from catalog
+        all_models = set()
+        
+        # From app policies
+        for asset in CATALOG.get("assets", []):
+            if asset.get("class") == "app":
+                policy = asset.get("policy", {})
+                allowed_models = policy.get("allowed_models", [])
+                allowed_embeddings = policy.get("allowed_embeddings", [])
+                all_models.update(allowed_models)
+                all_models.update(allowed_embeddings)
+        
+        # From registry aliases
+        aliases = (REG or {}).get("aliases", {})
+        all_models.update(aliases.keys())
+        
+        # From defaults
+        defaults = CATALOG.get("defaults", {})
+        if defaults.get("chat_model"):
+            all_models.add(defaults["chat_model"])
+        if defaults.get("embed_model"):
+            all_models.add(defaults["embed_model"])
+
+        # Build comprehensive model information
+        models = []
+        for model_name in sorted(all_models):
+            # Determine model type
+            is_embedding = any(keyword in model_name.lower() for keyword in 
+                              ['embedding', 'bert', 'bge', 'minilm', 'sentence', 'all-mini'])
+            
+            # Find usage by apps
+            used_by = []
+            for asset in CATALOG.get("assets", []):
+                if asset.get("class") == "app":
+                    policy = asset.get("policy", {})
+                    if model_name in policy.get("allowed_models", []) or model_name in policy.get("allowed_embeddings", []):
+                        used_by.append({
+                            "id": asset.get("id"),
+                            "name": asset.get("name"),
+                            "type": "chat" if model_name in policy.get("allowed_models", []) else "embedding"
+                        })
+            
+            # Check if it's a default model
+            is_default_chat = defaults.get("chat_model") == model_name
+            is_default_embed = defaults.get("embed_model") == model_name
+            
+            models.append({
+                "name": model_name,
+                "type": "embedding" if is_embedding else "llm",
+                "available": model_name in available,
+                "running": model_name in running,
+                "used_by": used_by,
+                "is_default_chat": is_default_chat,
+                "is_default_embed": is_default_embed,
+                "aliases": aliases.get(model_name, {}),
+                "status": "running" if model_name in running else ("available" if model_name in available else "unavailable")
+            })
+
+        return {
+            "models": models,
+            "summary": {
+                "total": len(models),
+                "llm_models": len([m for m in models if m["type"] == "llm"]),
+                "embedding_models": len([m for m in models if m["type"] == "embedding"]),
+                "running": len([m for m in models if m["running"]]),
+                "available": len([m for m in models if m["available"]]),
+                "unavailable": len([m for m in models if not m["available"]])
+            }
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Error getting catalog models: {str(e)}")
+
 @app.post("/admin/services/{service_name}/control")
 async def control_service(service_name: str, action: str):
     """Start/stop services"""
@@ -1339,16 +1432,33 @@ async def get_idle_status():
     except Exception as e:
         raise HTTPException(500, f"Error getting idle status: {str(e)}")
 
-@app.post("/admin/models/{model_name}/load")
-async def load_model(model_name: str):
-    """Load a model in Ollama"""
+@app.post("/admin/models/{model_name}/pull")
+async def pull_model(model_name: str):
+    """Pull a model from Ollama registry"""
     try:
         payload = {"name": model_name, "stream": False}
-        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/pull", json=payload)
+        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/pull", json=payload, timeout=300)
         if not r.is_success:
             raise HTTPException(r.status_code, r.text)
         
-        return {"status": "loading", "model": model_name}
+        return {"status": "pulling", "model": model_name}
+    except Exception as e:
+        raise HTTPException(500, f"Error pulling model: {str(e)}")
+
+@app.post("/admin/models/{model_name}/load")
+async def load_model(model_name: str):
+    """Load a model into VRAM in Ollama"""
+    try:
+        # First ensure model is available (pull if needed)
+        await preload_model_if_needed(model_name, "ollama")
+        
+        # Then load it into VRAM
+        payload = {"model": model_name, "prompt": "test", "stream": False}
+        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=30)
+        if not r.is_success:
+            raise HTTPException(r.status_code, r.text)
+        
+        return {"status": "loaded", "model": model_name}
     except Exception as e:
         raise HTTPException(500, f"Error loading model: {str(e)}")
 
