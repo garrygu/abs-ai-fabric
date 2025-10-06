@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ABS AI Hub - Legal Workstation</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Nunito+Sans:wght@300;400;600;700&display=swap');
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             margin: 0;
             padding: 20px;
             background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%);
@@ -543,45 +545,223 @@
             font-style: italic;
         }
 
-        /* Service Management */
+        /* Premium Service Management */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+        
         .service-control-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 0;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            position: relative;
+            font-family: 'Inter', sans-serif;
         }
-        .service-control-card h3 {
-            margin-top: 0;
-            color: #2c3e50;
+        
+        .service-control-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
-        .service-control-card p {
-            color: #666;
-            margin-bottom: 15px;
+        
+        .service-control-card.critical {
+            border-left: 4px solid #ef4444;
         }
-        .control-btn {
-            padding: 8px 16px;
+        
+        .service-control-card.critical::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #ef4444, #f97316);
+        }
+        
+        .service-header {
+            padding: 24px 24px 16px 24px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .service-info h3 {
+            margin: 0 0 8px 0;
+            color: #1e293b;
+            font-size: 18px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .service-info p {
+            color: #64748b;
+            margin: 0 0 16px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .service-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .status-indicator {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .status-indicator.online {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .status-indicator.offline {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .status-indicator.error {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        
+        .service-controls {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .icon-btn {
+            width: 36px;
+            height: 36px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        
+        .icon-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .icon-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .icon-btn.start {
+            background: #10b981;
+            color: white;
+        }
+        
+        .icon-btn.start:hover {
+            background: #059669;
+        }
+        
+        .icon-btn.stop {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .icon-btn.stop:hover {
+            background: #dc2626;
+        }
+        
+        .icon-btn.restart {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .icon-btn.restart:hover {
+            background: #d97706;
+        }
+        
+        .icon-btn[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: -32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .service-details {
+            padding: 16px 24px 24px 24px;
+            background: #f8fafc;
+            border-top: 1px solid #f1f5f9;
+            display: none;
+        }
+        
+        .service-details.expanded {
+            display: block;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+        }
+        
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .detail-label {
+            font-size: 12px;
             font-weight: 500;
-            margin-right: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .detail-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .expand-btn {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #64748b;
             transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
         }
-        .start-btn {
-            background: #4CAF50;
-            color: white;
-        }
-        .start-btn:hover {
-            background: #45a049;
-        }
-        .stop-btn {
-            background: #f44336;
-            color: white;
-        }
-        .stop-btn:hover {
-            background: #da190b;
+        
+        .expand-btn:hover {
+            background: #f1f5f9;
+            color: #1e293b;
         }
         .status-indicator {
             font-size: 12px;
@@ -1133,203 +1313,207 @@
                     <div id="services-sub" class="admin-sub-content">
                         <h2>⚙️ Service Management</h2>
                 <div class="services-grid">
-                    <div class="service-control-card" id="ollama-control">
+                    <div class="service-control-card critical" id="ollama-control">
                         <div class="service-header">
                             <div class="service-info">
-                                <h3>Ollama (LLM Server)</h3>
+                                <h3>🦙 Ollama (LLM Server)</h3>
                                 <p>Large Language Model serving with lazy-loaded models</p>
                             </div>
                             <div class="service-status">
                                 <span class="status-indicator" id="ollama-status">Checking...</span>
                                 <div class="service-controls">
-                                    <button class="control-btn start-btn" onclick="toggleService('ollama', true)">Start</button>
-                                    <button class="control-btn stop-btn" onclick="toggleService('ollama', false)">Stop</button>
+                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('ollama', true)">▶️</button>
+                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('ollama', false)">⏹️</button>
+                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('ollama')">♻️</button>
                                 </div>
                             </div>
                         </div>
                         <div class="service-details" id="ollama-details">
-                                    <div class="detail-grid">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Status:</span>
-                                            <span class="detail-value" id="ollama-status-text">Checking...</span>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Status</span>
+                                    <span class="detail-value" id="ollama-status-text">Checking...</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Models</span>
+                                    <span class="detail-value" id="ollama-models">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Memory</span>
+                                    <span class="detail-value" id="ollama-memory">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Version</span>
+                                    <span class="detail-value" id="ollama-version">-</span>
+                                </div>
                             </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Models:</span>
-                                            <span class="detail-value" id="ollama-models">-</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Memory:</span>
-                                            <span class="detail-value" id="ollama-memory">-</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Version:</span>
-                                            <span class="detail-value" id="ollama-version">-</span>
-                                        </div>
-                                    </div>
                         </div>
+                        <button class="expand-btn" onclick="toggleServiceDetails('ollama')">View Details</button>
                     </div>
 
-                    <div class="service-control-card" id="qdrant-control">
+                    <div class="service-control-card critical" id="qdrant-control">
                         <div class="service-header">
                             <div class="service-info">
-                                <h3>Qdrant (Vector Database)</h3>
+                                <h3>🗄️ Qdrant (Vector Database)</h3>
                                 <p>Vector database for embeddings and similarity search</p>
                             </div>
                             <div class="service-status">
                                 <span class="status-indicator" id="qdrant-status">Checking...</span>
                                 <div class="service-controls">
-                                    <button class="control-btn start-btn" onclick="toggleService('qdrant', true)">Start</button>
-                                    <button class="control-btn stop-btn" onclick="toggleService('qdrant', false)">Stop</button>
+                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('qdrant', true)">▶️</button>
+                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('qdrant', false)">⏹️</button>
+                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('qdrant')">♻️</button>
                                 </div>
                             </div>
                         </div>
                         <div class="service-details" id="qdrant-details">
-                                    <div class="detail-grid">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Status:</span>
-                                            <span class="detail-value" id="qdrant-status-text">Checking...</span>
-                                    </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Collections:</span>
-                                            <span class="detail-value" id="qdrant-collections">-</span>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Status</span>
+                                    <span class="detail-value" id="qdrant-status-text">Checking...</span>
                                 </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Vectors:</span>
-                                            <span class="detail-value" id="qdrant-vectors">-</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Version:</span>
-                                            <span class="detail-value" id="qdrant-version">-</span>
-                                        </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Collections</span>
+                                    <span class="detail-value" id="qdrant-collections">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Vectors</span>
+                                    <span class="detail-value" id="qdrant-vectors">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Version</span>
+                                    <span class="detail-value" id="qdrant-version">-</span>
+                                </div>
                             </div>
                         </div>
+                        <button class="expand-btn" onclick="toggleServiceDetails('qdrant')">View Details</button>
                     </div>
 
                     <div class="service-control-card" id="redis-control">
                         <div class="service-header">
                             <div class="service-info">
-                                <h3>Redis (Cache)</h3>
+                                <h3>⚡ Redis (Cache)</h3>
                                 <p>In-memory cache for performance optimization</p>
                             </div>
                             <div class="service-status">
                                 <span class="status-indicator" id="redis-status">Checking...</span>
                                 <div class="service-controls">
-                                    <button class="control-btn start-btn" onclick="toggleService('redis', true)">Start</button>
-                                    <button class="control-btn stop-btn" onclick="toggleService('redis', false)">Stop</button>
+                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('redis', true)">▶️</button>
+                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('redis', false)">⏹️</button>
+                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('redis')">♻️</button>
                                 </div>
                             </div>
                         </div>
-                                <div class="service-details" id="redis-details">
-                                    <div class="detail-grid">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Status:</span>
-                                            <span class="detail-value" id="redis-status-text">Checking...</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Keys:</span>
-                                            <span class="detail-value" id="redis-keys">-</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Memory:</span>
-                                            <span class="detail-value" id="redis-memory">-</span>
-                                        </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Version:</span>
-                                            <span class="detail-value" id="redis-version">-</span>
-                                        </div>
-                                    </div>
+                        <div class="service-details" id="redis-details">
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Status</span>
+                                    <span class="detail-value" id="redis-status-text">Checking...</span>
                                 </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Keys</span>
+                                    <span class="detail-value" id="redis-keys">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Memory</span>
+                                    <span class="detail-value" id="redis-memory">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Version</span>
+                                    <span class="detail-value" id="redis-version">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
                     </div>
 
-                            <div class="service-control-card" id="gateway-control">
+                    <div class="service-control-card" id="gateway-control">
                         <div class="service-header">
                             <div class="service-info">
-                                <h3>Hub Gateway</h3>
+                                <h3>🌐 Hub Gateway</h3>
                                 <p>Central API gateway and service orchestrator</p>
                             </div>
                             <div class="service-status">
-                                        <span class="status-indicator" id="gateway-status">Checking...</span>
+                                <span class="status-indicator" id="gateway-status">Checking...</span>
                                 <div class="service-controls">
-                                            <button class="control-btn start-btn" onclick="toggleService('gateway', true)">Start</button>
-                                            <button class="control-btn stop-btn" onclick="toggleService('gateway', false)">Stop</button>
+                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('gateway', true)">▶️</button>
+                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('gateway', false)">⏹️</button>
+                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('gateway')">♻️</button>
                                 </div>
                             </div>
                         </div>
-                                <div class="service-details" id="gateway-details">
-                                    <div class="detail-grid">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Status:</span>
-                                            <span class="detail-value" id="gateway-status-text">Checking...</span>
-                    </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Requests:</span>
-                                            <span class="detail-value" id="gateway-requests">-</span>
-                </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Routes:</span>
-                                            <span class="detail-value" id="gateway-routes">-</span>
-            </div>
-                                        <div class="detail-item">
-                                            <span class="detail-label">Version:</span>
-                                            <span class="detail-value" id="gateway-version">-</span>
-                    </div>
-                    </div>
+                        <div class="service-details" id="gateway-details">
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Status</span>
+                                    <span class="detail-value" id="gateway-status-text">Checking...</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Version</span>
+                                    <span class="detail-value" id="gateway-version">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Uptime</span>
+                                    <span class="detail-value" id="gateway-uptime">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="expand-btn" onclick="toggleServiceDetails('gateway')">View Details</button>
                     </div>
                 </div>
-            </div>
-
-                        <!-- Service Operation History -->
-                        <div class="operation-history">
-                            <h3>📋 Recent Service Operations</h3>
-                            <div id="service-operations">
-                                <div class="operation-item success">
-                                    <div class="operation-details">
-                                        <div class="operation-service">Hub Gateway</div>
-                                        <div class="operation-action">Service started successfully</div>
-                                        <div class="operation-timestamp">Just now</div>
+                
+                <!-- Service Operation History -->
+                <div class="operation-history">
+                    <h3>📋 Recent Service Operations</h3>
+                    <div id="service-operations">
+                        <div class="operation-item success">
+                            <div class="operation-details">
+                                <div class="operation-service">Hub Gateway</div>
+                                <div class="operation-action">Service started successfully</div>
+                                <div class="operation-timestamp">Just now</div>
+                            </div>
+                            <span class="operation-status success">Success</span>
                         </div>
-                                    <span class="operation-status success">Success</span>
+                        <div class="operation-item success">
+                            <div class="operation-details">
+                                <div class="operation-service">Ollama</div>
+                                <div class="operation-action">Model loaded: llama3.2:latest</div>
+                                <div class="operation-timestamp">2 minutes ago</div>
+                            </div>
+                            <span class="operation-status success">Success</span>
                         </div>
-                                <div class="operation-item success">
-                                    <div class="operation-details">
-                                        <div class="operation-service">Ollama</div>
-                                        <div class="operation-action">Model loaded: llama3.2:latest</div>
-                                        <div class="operation-timestamp">2 minutes ago</div>
-                        </div>
-                                    <span class="operation-status success">Success</span>
-                    </div>
-                                <div class="operation-item warning">
-                                    <div class="operation-details">
-                                        <div class="operation-service">Qdrant</div>
-                                        <div class="operation-action">High memory usage detected</div>
-                                        <div class="operation-timestamp">5 minutes ago</div>
-                        </div>
-                                    <span class="operation-status warning">Warning</span>
-                        </div>
+                        <div class="operation-item warning">
+                            <div class="operation-details">
+                                <div class="operation-service">Qdrant</div>
+                                <div class="operation-action">High memory usage detected</div>
+                                <div class="operation-timestamp">5 minutes ago</div>
+                            </div>
+                            <span class="operation-status warning">Warning</span>
                         </div>
                     </div>
+                </div>
 
-                        <!-- Service Logs -->
-                        <div class="logs-section">
+                <!-- Service Logs -->
+                <div class="logs-section">
                     <div class="logs-header">
-                                <h4>📋 Service Logs</h4>
-                                <div class="logs-controls">
-                                    <select id="service-log-selector" onchange="loadServiceLogs()">
-                            <option value="ollama">Ollama</option>
-                            <option value="qdrant">Qdrant</option>
-                            <option value="redis">Redis</option>
-                                        <option value="gateway">Hub Gateway</option>
-                        </select>
-                                    <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
-                                    <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
-                    </div>
+                        <h4>📋 Service Logs</h4>
+                        <div class="logs-controls">
+                            <select id="service-log-selector" onchange="loadServiceLogs()">
+                                <option value="ollama">Ollama</option>
+                                <option value="qdrant">Qdrant</option>
+                                <option value="redis">Redis</option>
+                                <option value="gateway">Hub Gateway</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
+                            <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
                         </div>
-                            <div class="logs-container" id="service-logs">
+                    </div>
+                    <div class="logs-container" id="service-logs">
                         <div class="log-entry">
-                                    <span class="log-timestamp">[Loading...]</span>
+                            <span class="log-timestamp">[Loading...]</span>
                             <span class="log-level info">INFO</span>
-                                    <span class="log-service">SYSTEM</span>
-                                    <span class="log-message">Select a service to view logs...</span>
+                            <span class="log-service">SYSTEM</span>
+                            <span class="log-message">Select a service to view logs...</span>
                         </div>
                     </div>
                 </div>
@@ -1963,6 +2147,32 @@
                 }
             } catch (error) {
                 console.error(`Error ${start ? 'starting' : 'stopping'} service ${serviceName}:`, error);
+            }
+        }
+        
+        async function restartService(serviceName) {
+            try {
+                // First stop the service
+                await toggleService(serviceName, false);
+                // Wait a bit, then start it
+                setTimeout(async () => {
+                    await toggleService(serviceName, true);
+                }, 3000);
+            } catch (error) {
+                console.error(`Error restarting service ${serviceName}:`, error);
+            }
+        }
+        
+        function toggleServiceDetails(serviceName) {
+            const detailsElement = document.getElementById(`${serviceName}-details`);
+            const expandBtn = detailsElement.parentElement.querySelector('.expand-btn');
+            
+            if (detailsElement.classList.contains('expanded')) {
+                detailsElement.classList.remove('expanded');
+                expandBtn.textContent = 'View Details';
+            } else {
+                detailsElement.classList.add('expanded');
+                expandBtn.textContent = 'Hide Details';
             }
         }
 
