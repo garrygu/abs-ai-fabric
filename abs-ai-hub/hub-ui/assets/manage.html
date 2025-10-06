@@ -287,6 +287,160 @@
             min-height: 100px;
             resize: vertical;
         }
+
+        /* Enhanced Form Styles */
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .form-section h3 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 18px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            margin-left: 5px;
+            cursor: help;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            white-space: normal;
+            z-index: 1000;
+            min-width: 250px;
+            max-width: 400px;
+            text-align: left;
+            line-height: 1.4;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .tooltip:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 115%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #333;
+            z-index: 1000;
+        }
+
+        .input-with-button {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-with-button .form-input {
+            flex: 1;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 12px;
+            min-width: auto;
+        }
+
+        .url-status {
+            margin-top: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .url-status.success {
+            color: #28a745;
+        }
+
+        .url-status.error {
+            color: #dc3545;
+        }
+
+        .url-status.loading {
+            color: #ffc107;
+        }
+
+        .input-with-suggestions {
+            position: relative;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 100;
+            display: none;
+        }
+
+        .suggestions.show {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+
+        .suggestion-item:hover {
+            background: #f8f9fa;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-loading {
+            padding: 12px;
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .suggestion-group-title {
+            padding: 8px 12px;
+            background: #f8f9fa;
+            font-weight: bold;
+            font-size: 11px;
+            color: #495057;
+            border-bottom: 1px solid #dee2e6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
         .form-select {
             width: 100%;
             padding: 12px;
@@ -366,65 +520,160 @@
                 <span class="close" onclick="closeModal()">&times;</span>
             </div>
             <form id="assetForm">
-                <div class="form-group">
-                    <label class="form-label" for="assetId">Asset ID *</label>
-                    <input type="text" id="assetId" class="form-input" required>
+                <!-- Basic Information -->
+                <div class="form-section">
+                    <h3>Basic Information</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="assetId">
+                            Asset ID *
+                            <span class="tooltip" data-tooltip="Unique identifier for the asset. Use lowercase with hyphens (e.g., 'contract-reviewer', 'my-app'). This cannot be changed after creation.">ℹ️</span>
+                        </label>
+                        <input type="text" id="assetId" class="form-input" required pattern="[a-z0-9-]+" title="Use lowercase letters, numbers, and hyphens only">
+                        <div class="form-help">Use lowercase letters, numbers, and hyphens only. Example: contract-reviewer</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="assetName">
+                            Name *
+                            <span class="tooltip" data-tooltip="Human-readable display name for the asset. This appears in the UI and can be changed anytime.">ℹ️</span>
+                        </label>
+                        <input type="text" id="assetName" class="form-input" required>
+                        <div class="form-help">Display name shown in the UI. Example: Contract Reviewer</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="assetClass">
+                            Class *
+                            <span class="tooltip" data-tooltip="Type of asset. Apps are user-facing applications, Services are backend infrastructure, Models are AI models, Tools are utilities, Datasets are data collections, Secrets are credentials.">ℹ️</span>
+                        </label>
+                        <select id="assetClass" class="form-select" required>
+                            <option value="">Select class...</option>
+                            <option value="app">App - User-facing applications</option>
+                            <option value="service">Service - Backend infrastructure</option>
+                            <option value="model">Model - AI/ML models</option>
+                            <option value="tool">Tool - Utility services</option>
+                            <option value="dataset">Dataset - Data collections</option>
+                            <option value="secret">Secret - Credentials & keys</option>
+                        </select>
+                        <div class="form-help">Choose the type of asset you're creating</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="assetDescription">
+                            Description
+                            <span class="tooltip" data-tooltip="Detailed description of what this asset does and its purpose. Helps users understand what the asset is for.">ℹ️</span>
+                        </label>
+                        <textarea id="assetDescription" class="form-input form-textarea" rows="3"></textarea>
+                        <div class="form-help">Describe what this asset does and its purpose</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="assetUrl">
+                            URL
+                            <span class="tooltip" data-tooltip="Web URL where this asset can be accessed. For apps, this is usually the main interface URL. For services, this might be an API endpoint.">ℹ️</span>
+                        </label>
+                        <div class="input-with-button">
+                            <input type="url" id="assetUrl" class="form-input" placeholder="http://localhost:8080">
+                            <button type="button" class="btn btn-small" onclick="verifyUrl()">Verify</button>
+                        </div>
+                        <div class="form-help">Web URL where this asset can be accessed. Click Verify to test if the URL is reachable.</div>
+                        <div id="urlStatus" class="url-status"></div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label" for="assetName">Name *</label>
-                    <input type="text" id="assetName" class="form-input" required>
+
+                <!-- Policy Configuration -->
+                <div class="form-section">
+                    <h3>Policy Configuration</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="allowedModels">
+                            Allowed Models
+                            <span class="tooltip" data-tooltip="List of AI models this asset is allowed to use. Separate multiple models with commas. Use standard model names like 'llama3.2:latest', 'llama3:8b', etc.">ℹ️</span>
+                        </label>
+                        <div class="input-with-suggestions">
+                            <input type="text" id="allowedModels" class="form-input" placeholder="llama3.2:latest, llama3.2:7b, llama3:8b">
+                            <div class="suggestions" id="modelSuggestions">
+                                <div class="suggestion-loading">Loading available models...</div>
+                            </div>
+                        </div>
+                        <div class="form-help">Comma-separated list of allowed AI models. Click suggestions to add them.</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="allowedEmbeddings">
+                            Allowed Embeddings
+                            <span class="tooltip" data-tooltip="List of embedding models this asset is allowed to use for vector operations. These are used for RAG, similarity search, and document processing.">ℹ️</span>
+                        </label>
+                        <div class="input-with-suggestions">
+                            <input type="text" id="allowedEmbeddings" class="form-input" placeholder="bge-small-en-v1.5, legal-bert, all-minilm">
+                            <div class="suggestions" id="embeddingSuggestions">
+                                <div class="suggestion-item" onclick="addEmbeddingSuggestion('bge-small-en-v1.5')">bge-small-en-v1.5</div>
+                                <div class="suggestion-item" onclick="addEmbeddingSuggestion('legal-bert')">legal-bert</div>
+                                <div class="suggestion-item" onclick="addEmbeddingSuggestion('all-minilm')">all-minilm</div>
+                                <div class="suggestion-item" onclick="addEmbeddingSuggestion('sentence-transformers')">sentence-transformers</div>
+                            </div>
+                        </div>
+                        <div class="form-help">Comma-separated list of allowed embedding models for vector operations.</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label" for="assetClass">Class *</label>
-                    <select id="assetClass" class="form-select" required>
-                        <option value="">Select class...</option>
-                        <option value="app">App</option>
-                        <option value="service">Service</option>
-                        <option value="model">Model</option>
-                        <option value="tool">Tool</option>
-                        <option value="dataset">Dataset</option>
-                        <option value="secret">Secret</option>
-                    </select>
+
+                <!-- Default Configuration -->
+                <div class="form-section">
+                    <h3>Default Configuration</h3>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="defaultChatModel">
+                            Default Chat Model
+                            <span class="tooltip" data-tooltip="Default AI model to use for chat/conversation tasks. Must be one of the allowed models listed above.">ℹ️</span>
+                        </label>
+                        <input type="text" id="defaultChatModel" class="form-input" placeholder="llama3.2:latest">
+                        <div class="form-help">Default model for chat and conversation tasks</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="defaultEmbedModel">
+                            Default Embedding Model
+                            <span class="tooltip" data-tooltip="Default embedding model to use for vector operations. Must be one of the allowed embeddings listed above.">ℹ️</span>
+                        </label>
+                        <input type="text" id="defaultEmbedModel" class="form-input" placeholder="bge-small-en-v1.5">
+                        <div class="form-help">Default model for embedding and vector operations</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="defaultProvider">
+                            Default Provider
+                            <span class="tooltip" data-tooltip="Default AI provider to use. 'Auto' lets the system choose the best available provider. 'Ollama' uses local models, 'OpenAI/vLLM' uses OpenAI-compatible APIs, 'Hugging Face' uses HF models.">ℹ️</span>
+                        </label>
+                        <select id="defaultProvider" class="form-select">
+                            <option value="">Select provider...</option>
+                            <option value="auto">Auto - Let system choose</option>
+                            <option value="ollama">Ollama - Local models</option>
+                            <option value="openai">OpenAI/vLLM - OpenAI-compatible APIs</option>
+                            <option value="huggingface">Hugging Face - HF models</option>
+                        </select>
+                        <div class="form-help">Default AI provider for this asset</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="embeddingDim">
+                            Embedding Dimension
+                            <span class="tooltip" data-tooltip="Number of dimensions in the embedding vectors. Common values: 384 (small models), 768 (medium models), 1024+ (large models). Must match the actual model's output dimensions.">ℹ️</span>
+                        </label>
+                        <div class="input-with-suggestions">
+                            <input type="number" id="embeddingDim" class="form-input" placeholder="384" min="128" max="4096">
+                            <div class="suggestions" id="dimSuggestions">
+                                <div class="suggestion-item" onclick="setEmbeddingDim(384)">384 (Small models)</div>
+                                <div class="suggestion-item" onclick="setEmbeddingDim(768)">768 (Medium models)</div>
+                                <div class="suggestion-item" onclick="setEmbeddingDim(1024)">1024 (Large models)</div>
+                                <div class="suggestion-item" onclick="setEmbeddingDim(1536)">1536 (OpenAI ada-002)</div>
+                            </div>
+                        </div>
+                        <div class="form-help">Number of dimensions in embedding vectors. Click suggestions for common values.</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label" for="assetDescription">Description</label>
-                    <textarea id="assetDescription" class="form-input form-textarea"></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="assetUrl">URL</label>
-                    <input type="url" id="assetUrl" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="allowedModels">Allowed Models (comma-separated)</label>
-                    <input type="text" id="allowedModels" class="form-input" placeholder="llama3.2:latest, llama3.2:7b">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="allowedEmbeddings">Allowed Embeddings (comma-separated)</label>
-                    <input type="text" id="allowedEmbeddings" class="form-input" placeholder="bge-small-en-v1.5, legal-bert">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="defaultChatModel">Default Chat Model</label>
-                    <input type="text" id="defaultChatModel" class="form-input" placeholder="llama3.2:latest">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="defaultEmbedModel">Default Embedding Model</label>
-                    <input type="text" id="defaultEmbedModel" class="form-input" placeholder="legal-bert">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="defaultProvider">Default Provider</label>
-                    <select id="defaultProvider" class="form-select">
-                        <option value="">Select provider...</option>
-                        <option value="auto">Auto</option>
-                        <option value="ollama">Ollama</option>
-                        <option value="openai">OpenAI/vLLM</option>
-                        <option value="huggingface">Hugging Face</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="embeddingDim">Embedding Dimension</label>
-                    <input type="number" id="embeddingDim" class="form-input" placeholder="384">
-                </div>
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn">Save Asset</button>
                 </div>
@@ -437,8 +686,11 @@
         let currentAssets = [];
         let editingAsset = null;
 
-        // Load assets on page load
-        document.addEventListener('DOMContentLoaded', loadAssets);
+        // Load assets and model suggestions on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAssets();
+            loadModelSuggestions();
+        });
 
         async function loadAssets() {
             try {
@@ -452,6 +704,63 @@
             } catch (error) {
                 showError(`Failed to load assets: ${error.message}`);
                 document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        async function loadModelSuggestions() {
+            try {
+                const response = await fetch(`${GATEWAY_URL}/admin/models`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                const models = data.models || [];
+                
+                const suggestionsContainer = document.getElementById('modelSuggestions');
+                
+                if (models.length === 0) {
+                    suggestionsContainer.innerHTML = '<div class="suggestion-loading">No models available</div>';
+                    return;
+                }
+                
+                // Group models by availability status
+                const availableModels = models.filter(m => m.available).map(m => m.name);
+                const runningModels = models.filter(m => m.running).map(m => m.name);
+                
+                let html = '';
+                
+                if (runningModels.length > 0) {
+                    html += '<div class="suggestion-group-title">🟢 Running Models</div>';
+                    runningModels.forEach(model => {
+                        html += `<div class="suggestion-item" onclick="addModelSuggestion('${model}')">${model}</div>`;
+                    });
+                }
+                
+                if (availableModels.length > 0) {
+                    html += '<div class="suggestion-group-title">📦 Available Models</div>';
+                    availableModels.forEach(model => {
+                        if (!runningModels.includes(model)) {
+                            html += `<div class="suggestion-item" onclick="addModelSuggestion('${model}')">${model}</div>`;
+                        }
+                    });
+                }
+                
+                // Add common model names that might not be available yet
+                const commonModels = ['llama3.2:latest', 'llama3.2:7b', 'llama3.2:3b', 'llama3:8b', 'llama3:70b'];
+                const missingCommon = commonModels.filter(m => !models.some(model => model.name === m));
+                
+                if (missingCommon.length > 0) {
+                    html += '<div class="suggestion-group-title">💡 Common Models (Auto-pull)</div>';
+                    missingCommon.forEach(model => {
+                        html += `<div class="suggestion-item" onclick="addModelSuggestion('${model}')">${model}</div>`;
+                    });
+                }
+                
+                suggestionsContainer.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading model suggestions:', error);
+                const suggestionsContainer = document.getElementById('modelSuggestions');
+                suggestionsContainer.innerHTML = '<div class="suggestion-loading">Error loading models</div>';
             }
         }
 
@@ -721,6 +1030,109 @@
             successDiv.style.display = 'block';
             setTimeout(() => successDiv.style.display = 'none', 3000);
         }
+
+        // Enhanced functionality functions
+        async function verifyUrl() {
+            const urlInput = document.getElementById('assetUrl');
+            const urlStatus = document.getElementById('urlStatus');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                urlStatus.textContent = 'Please enter a URL first';
+                urlStatus.className = 'url-status error';
+                return;
+            }
+            
+            urlStatus.textContent = 'Verifying...';
+            urlStatus.className = 'url-status loading';
+            
+            try {
+                const response = await fetch(url, { 
+                    method: 'HEAD',
+                    mode: 'no-cors',
+                    timeout: 5000
+                });
+                
+                urlStatus.textContent = '✅ URL is reachable';
+                urlStatus.className = 'url-status success';
+            } catch (error) {
+                urlStatus.textContent = '❌ URL is not reachable';
+                urlStatus.className = 'url-status error';
+            }
+        }
+
+        function addModelSuggestion(model) {
+            const input = document.getElementById('allowedModels');
+            const currentValue = input.value.trim();
+            
+            if (currentValue === '') {
+                input.value = model;
+            } else if (!currentValue.includes(model)) {
+                input.value = currentValue + ', ' + model;
+            }
+            
+            input.focus();
+        }
+
+        function addEmbeddingSuggestion(embedding) {
+            const input = document.getElementById('allowedEmbeddings');
+            const currentValue = input.value.trim();
+            
+            if (currentValue === '') {
+                input.value = embedding;
+            } else if (!currentValue.includes(embedding)) {
+                input.value = currentValue + ', ' + embedding;
+            }
+            
+            input.focus();
+        }
+
+        function setEmbeddingDim(dim) {
+            document.getElementById('embeddingDim').value = dim;
+        }
+
+        // Show/hide suggestions on focus
+        document.addEventListener('DOMContentLoaded', function() {
+            const modelInput = document.getElementById('allowedModels');
+            const embeddingInput = document.getElementById('allowedEmbeddings');
+            const dimInput = document.getElementById('embeddingDim');
+            
+            if (modelInput) {
+                modelInput.addEventListener('focus', function() {
+                    document.getElementById('modelSuggestions').classList.add('show');
+                });
+                
+                modelInput.addEventListener('blur', function() {
+                    setTimeout(() => {
+                        document.getElementById('modelSuggestions').classList.remove('show');
+                    }, 200);
+                });
+            }
+            
+            if (embeddingInput) {
+                embeddingInput.addEventListener('focus', function() {
+                    document.getElementById('embeddingSuggestions').classList.add('show');
+                });
+                
+                embeddingInput.addEventListener('blur', function() {
+                    setTimeout(() => {
+                        document.getElementById('embeddingSuggestions').classList.remove('show');
+                    }, 200);
+                });
+            }
+            
+            if (dimInput) {
+                dimInput.addEventListener('focus', function() {
+                    document.getElementById('dimSuggestions').classList.add('show');
+                });
+                
+                dimInput.addEventListener('blur', function() {
+                    setTimeout(() => {
+                        document.getElementById('dimSuggestions').classList.remove('show');
+                    }, 200);
+                });
+            }
+        });
 
         // Close modal when clicking outside
         window.onclick = function(event) {
