@@ -621,6 +621,41 @@
                         <input type="text" id="containerName" class="form-input" placeholder="abs-whisper-server">
                         <div class="form-help">Docker container name for lifecycle management</div>
                     </div>
+
+                    <!-- Model-specific fields -->
+                    <div id="modelFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="modelProvider">
+                            Model Provider
+                            <span class="tooltip" data-tooltip="Provider of this model: ollama (local), openai (OpenAI API), huggingface (HF Hub), etc.">ℹ️</span>
+                        </label>
+                        <select id="modelProvider" class="form-select">
+                            <option value="">Select provider...</option>
+                            <option value="ollama">Ollama - Local models</option>
+                            <option value="openai">OpenAI - OpenAI API</option>
+                            <option value="huggingface">Hugging Face - HF Hub</option>
+                            <option value="anthropic">Anthropic - Claude</option>
+                            <option value="google">Google - Gemini</option>
+                        </select>
+                        <div class="form-help">Provider/source of this model</div>
+                    </div>
+
+                    <div id="modelSizeFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="modelSize">
+                            Model Size
+                            <span class="tooltip" data-tooltip="Size of the model in parameters (e.g., 3B, 7B, 70B) or file size (e.g., 2GB, 8GB)">ℹ️</span>
+                        </label>
+                        <input type="text" id="modelSize" class="form-input" placeholder="7B or 8GB">
+                        <div class="form-help">Model size in parameters or file size</div>
+                    </div>
+
+                    <div id="modelFormatFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="modelFormat">
+                            Model Format
+                            <span class="tooltip" data-tooltip="Model format/quantization: GGUF, FP16, INT4, etc.">ℹ️</span>
+                        </label>
+                        <input type="text" id="modelFormat" class="form-input" placeholder="GGUF, FP16, INT4">
+                        <div class="form-help">Model format and quantization type</div>
+                    </div>
                 </div>
 
                 <!-- Policy Configuration (Apps only) -->
@@ -659,8 +694,8 @@
                     </div>
                 </div>
 
-                <!-- Default Configuration -->
-                <div class="form-section">
+                <!-- Default Configuration (Apps only) -->
+                <div id="defaultSection" class="form-section" style="display: none;">
                     <h3>Default Configuration</h3>
                     
                     <div class="form-group">
@@ -1016,6 +1051,16 @@
                     break;
 
                 case 'model':
+                    // Models need provider, size, and format info
+                    const modelProvider = document.getElementById('modelProvider').value.trim();
+                    const modelSize = document.getElementById('modelSize').value.trim();
+                    const modelFormat = document.getElementById('modelFormat').value.trim();
+
+                    if (modelProvider) formData.metadata.provider = modelProvider;
+                    if (modelSize) formData.metadata.size = modelSize;
+                    if (modelFormat) formData.metadata.format = modelFormat;
+                    break;
+
                 case 'tool':
                 case 'dataset':
                 case 'secret':
@@ -1112,20 +1157,29 @@
             
             // Get all conditional sections
             const policySection = document.getElementById('policySection');
+            const defaultSection = document.getElementById('defaultSection');
             const serviceFields = document.getElementById('serviceFields');
             const lifecycleFields = document.getElementById('lifecycleFields');
             const containerFields = document.getElementById('containerFields');
+            const modelFields = document.getElementById('modelFields');
+            const modelSizeFields = document.getElementById('modelSizeFields');
+            const modelFormatFields = document.getElementById('modelFormatFields');
             
             // Hide all conditional sections first
             policySection.style.display = 'none';
+            defaultSection.style.display = 'none';
             serviceFields.style.display = 'none';
             lifecycleFields.style.display = 'none';
             containerFields.style.display = 'none';
+            modelFields.style.display = 'none';
+            modelSizeFields.style.display = 'none';
+            modelFormatFields.style.display = 'none';
             
             // Show relevant sections based on asset class
             switch(assetClass) {
                 case 'app':
                     policySection.style.display = 'block';
+                    defaultSection.style.display = 'block';
                     break;
                 case 'service':
                     serviceFields.style.display = 'block';
@@ -1133,10 +1187,14 @@
                     containerFields.style.display = 'block';
                     break;
                 case 'model':
+                    modelFields.style.display = 'block';
+                    modelSizeFields.style.display = 'block';
+                    modelFormatFields.style.display = 'block';
+                    break;
                 case 'tool':
                 case 'dataset':
                 case 'secret':
-                    // These types don't need additional fields for now
+                    // These types only need basic fields (ID, Name, Description, URL)
                     break;
             }
         }
