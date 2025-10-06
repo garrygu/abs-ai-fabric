@@ -1116,26 +1116,56 @@
         .dependency-visualization {
             flex: 1;
             position: relative;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            min-height: 400px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 12px;
+            padding: 30px;
+            min-height: 500px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
         }
         .service-node {
             position: absolute;
             background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             text-align: center;
-            min-width: 120px;
+            min-width: 140px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
         }
-        .service-node.hub-gateway { top: 20px; left: 50%; transform: translateX(-50%); }
-        .service-node.ollama { top: 120px; left: 20px; }
-        .service-node.qdrant { top: 120px; left: 50%; transform: translateX(-50%); }
-        .service-node.redis { top: 120px; right: 20px; }
-        .service-node.onyx { top: 220px; left: 30%; }
-        .service-node.contract-reviewer { top: 220px; right: 30%; }
+        .service-node:hover {
+            transform: scale(1.05);
+            border-color: #667eea;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+        }
+        
+        /* Better positioning for cleaner layout */
+        .service-node.hub-gateway { 
+            top: 30px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+        }
+        .service-node.ollama { 
+            top: 150px; 
+            left: 10%; 
+        }
+        .service-node.qdrant { 
+            top: 150px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+        }
+        .service-node.redis { 
+            top: 150px; 
+            right: 10%; 
+        }
+        .service-node.onyx { 
+            top: 280px; 
+            left: 25%; 
+        }
+        .service-node.contract-reviewer { 
+            top: 280px; 
+            right: 25%; 
+        }
 
         .node-icon {
             font-size: 24px;
@@ -1155,6 +1185,128 @@
         .node-status.online {
             background: #e8f5e8;
             color: #2e7d32;
+        }
+        
+        /* Dependency arrows styling */
+        .dependency-arrow {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .dependency-arrow::before {
+            content: '';
+            position: absolute;
+            background: #667eea;
+            height: 2px;
+            border-radius: 1px;
+        }
+        
+        .dependency-arrow::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid #667eea;
+        }
+        
+        /* Specific arrow positioning */
+        .dependency-arrow[data-from="contract-reviewer"][data-to="hub-gateway"]::before {
+            width: 200px;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-90deg);
+        }
+        .dependency-arrow[data-from="contract-reviewer"][data-to="hub-gateway"]::after {
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .dependency-arrow[data-from="hub-gateway"][data-to="ollama"]::before {
+            width: 180px;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-45deg);
+        }
+        .dependency-arrow[data-from="hub-gateway"][data-to="ollama"]::after {
+            top: 72px;
+            left: 25%;
+            transform: rotate(-45deg);
+        }
+        
+        .dependency-arrow[data-from="hub-gateway"][data-to="qdrant"]::before {
+            width: 100px;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .dependency-arrow[data-from="hub-gateway"][data-to="qdrant"]::after {
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .dependency-arrow[data-from="hub-gateway"][data-to="redis"]::before {
+            width: 180px;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+        }
+        .dependency-arrow[data-from="hub-gateway"][data-to="redis"]::after {
+            top: 72px;
+            right: 25%;
+            transform: rotate(45deg);
+        }
+        
+        .dependency-arrow[data-from="hub-gateway"][data-to="onyx"]::before {
+            width: 200px;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-30deg);
+        }
+        .dependency-arrow[data-from="hub-gateway"][data-to="onyx"]::after {
+            top: 72px;
+            left: 40%;
+            transform: rotate(-30deg);
+        }
+        
+        .dependency-arrow[data-from="onyx"][data-to="ollama"]::before {
+            width: 120px;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-45deg);
+        }
+        .dependency-arrow[data-from="onyx"][data-to="ollama"]::after {
+            top: -28px;
+            left: 25%;
+            transform: rotate(-45deg);
+        }
+        
+        .dependency-arrow[data-from="onyx"][data-to="qdrant"]::before {
+            width: 100px;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .dependency-arrow[data-from="onyx"][data-to="qdrant"]::after {
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .dependency-arrow[data-from="onyx"][data-to="redis"]::before {
+            width: 120px;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+        }
+        .dependency-arrow[data-from="onyx"][data-to="redis"]::after {
+            top: -28px;
+            right: 25%;
+            transform: rotate(45deg);
         }
         .node-status.offline {
             background: #ffebee;
@@ -1877,16 +2029,21 @@
                                 <span class="dep-status healthy">✓ Healthy</span>
                             </div>
                             <div class="dep-item">
+                                <span class="dep-service">Onyx</span>
+                                <span class="dep-depends">→ Hub Gateway, Ollama, Qdrant, Redis</span>
+                                <span class="dep-status healthy">✓ Healthy</span>
+                            </div>
+                            <div class="dep-item">
+                                <span class="dep-service">RAG PDF Voice</span>
+                                <span class="dep-depends">→ Hub Gateway, Whisper Server</span>
+                                <span class="dep-status healthy">✓ Healthy</span>
+                            </div>
+                            <div class="dep-item">
                                 <span class="dep-service">Hub Gateway</span>
                                 <span class="dep-depends">→ Ollama, Qdrant, Redis</span>
                                 <span class="dep-status healthy">✓ Healthy</span>
                             </div>
-                                    <div class="dep-item">
-                                        <span class="dep-service">Onyx</span>
-                                        <span class="dep-depends">→ Ollama, Qdrant, Redis</span>
-                                        <span class="dep-status healthy">✓ Healthy</span>
                         </div>
-                    </div>
                 </div>
             </div>
             </div>
