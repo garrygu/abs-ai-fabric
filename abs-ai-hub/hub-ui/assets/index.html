@@ -93,8 +93,15 @@
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
         .app-card h3 {
-            margin: 0 0 12px 0;
+            margin: 0;
             color: #2c3e50;
             font-size: 1.3rem;
             font-weight: 600;
@@ -2326,7 +2333,10 @@
                     
                     return `
                         <div class="app-card">
-                            <h3>${getAppIcon(appId)} ${app.name}</h3>
+                            <div class="app-header">
+                                <h3>${getAppIcon(appId)} ${app.name}</h3>
+                                <span class="app-status offline" id="app-status-${appId}">Checking...</span>
+                            </div>
                             <p>${app.description}</p>
                             <div class="app-dependencies">
                                 <strong>Dependencies:</strong>
@@ -2336,7 +2346,6 @@
                             </div>
                             <div class="app-actions">
                                 <a href="${appUrl}" class="app-link" target="_blank">Open ${app.name}</a>
-                                <span class="app-status offline" id="app-status-${appId}">Checking...</span>
                             </div>
                         </div>
                     `;
