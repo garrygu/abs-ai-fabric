@@ -2383,13 +2383,23 @@
                 return;
             }
             
-            // For working apps (8000, 7860), try to check their actual status
-            if (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860')) {
+            // For working apps, try to check their actual status
+            if (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860') || appUrl.includes('localhost:3200')) {
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 3000);
                     
-                    const response = await fetch(`${appUrl}/healthz`, {
+                    // Determine the correct health endpoint for each app
+                    let healthEndpoint = '/healthz'; // Default
+                    if (appUrl.includes('localhost:8000')) {
+                        healthEndpoint = '/health'; // Onyx
+                    } else if (appUrl.includes('localhost:7860')) {
+                        healthEndpoint = '/healthz'; // Contract Reviewer
+                    } else if (appUrl.includes('localhost:3200')) {
+                        healthEndpoint = '/health'; // Open WebUI
+                    }
+                    
+                    const response = await fetch(`${appUrl}${healthEndpoint}`, {
                         method: 'GET',
                         signal: controller.signal
                     });
