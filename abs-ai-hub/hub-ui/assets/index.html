@@ -1934,7 +1934,12 @@
 
                     <!-- System Sub-Tab -->
                     <div id="system-sub" class="admin-sub-content">
-                        <h2>📈 System Monitoring</h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2>📈 System Monitoring</h2>
+                            <button onclick="updateSystemMetrics()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                🔄 Refresh Metrics
+                            </button>
+                        </div>
                         <div class="system-monitoring">
                             <div class="monitoring-grid">
                                 <div class="monitor-card">
@@ -2325,6 +2330,12 @@
         async function loadSystemData() {
             await updateSystemMetrics();
             await loadCollections();
+            
+            // Auto-refresh system metrics every 30 seconds
+            if (window.systemMetricsInterval) {
+                clearInterval(window.systemMetricsInterval);
+            }
+            window.systemMetricsInterval = setInterval(updateSystemMetrics, 30000);
         }
 
         async function loadAssetOverview() {
@@ -3216,19 +3227,45 @@
                 if (response.ok) {
                     const metrics = await response.json();
                     
-                    // Update system resource displays
+                    // Update system resource displays with proper formatting
                     const cpuElement = document.getElementById('cpu-usage');
                     const memoryElement = document.getElementById('memory-usage');
                     const diskElement = document.getElementById('disk-usage');
                     const connectionsElement = document.getElementById('active-connections');
                     const requestsElement = document.getElementById('requests-per-minute');
                     
-                    if (cpuElement) cpuElement.textContent = metrics.cpu || 'N/A';
-                    if (memoryElement) memoryElement.textContent = metrics.memory || 'N/A';
-                    if (diskElement) diskElement.textContent = metrics.disk || 'N/A';
-                    if (connectionsElement) connectionsElement.textContent = metrics.connections || 'N/A';
-                    if (requestsElement) requestsElement.textContent = metrics.requests_per_minute || 'N/A';
-                    } else {
+                    // Format CPU usage
+                    if (cpuElement && metrics.cpu) {
+                        cpuElement.textContent = `${metrics.cpu.usage_percent.toFixed(1)}% (${metrics.cpu.cores} cores)`;
+                    }
+                    
+                    // Format Memory usage
+                    if (memoryElement && metrics.memory) {
+                        const usedGB = (metrics.memory.used / (1024**3)).toFixed(1);
+                        const totalGB = (metrics.memory.total / (1024**3)).toFixed(1);
+                        memoryElement.textContent = `${metrics.memory.usage_percent.toFixed(1)}% (${usedGB}GB / ${totalGB}GB)`;
+                    }
+                    
+                    // Format Disk usage
+                    if (diskElement && metrics.disk) {
+                        const usedGB = (metrics.disk.used / (1024**3)).toFixed(1);
+                        const totalGB = (metrics.disk.total / (1024**3)).toFixed(1);
+                        diskElement.textContent = `${metrics.disk.usage_percent.toFixed(1)}% (${usedGB}GB / ${totalGB}GB)`;
+                    }
+                    
+                    // Format Network (using packets as connection proxy)
+                    if (connectionsElement && metrics.network) {
+                        const totalPackets = metrics.network.packets_sent + metrics.network.packets_recv;
+                        connectionsElement.textContent = totalPackets.toLocaleString();
+                    }
+                    
+                    // Format Network throughput as requests/min proxy
+                    if (requestsElement && metrics.network) {
+                        const totalBytes = metrics.network.bytes_sent + metrics.network.bytes_recv;
+                        const mbPerMin = (totalBytes / (1024**2) / 60).toFixed(1);
+                        requestsElement.textContent = `${mbPerMin} MB/min`;
+                    }
+                } else {
                     console.error('Failed to update system metrics:', response.status);
                 }
             } catch (error) {
