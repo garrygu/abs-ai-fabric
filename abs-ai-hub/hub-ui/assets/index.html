@@ -2366,14 +2366,18 @@
         }
         
         async function checkAppStatus(appId, appUrl) {
+            console.log(`🔍 Checking status for ${appId} at ${appUrl}`);
             if (!appUrl) return;
             
             const statusElement = document.getElementById(`app-status-${appId}`);
-            if (!statusElement) return;
+            if (!statusElement) {
+                console.log(`❌ No status element found for ${appId}`);
+                return;
+            }
             
             // Skip status checking for apps that are known to cause console errors
             // This prevents console spam while still showing the apps
-            const problematicPorts = ['8080', '3200']; // Removed 7860 and 8000 since they work now
+            const problematicPorts = ['8080']; // Only RAG PDF Voice (port 8080) is problematic
             const isProblematic = problematicPorts.some(port => appUrl.includes(`localhost:${port}`));
             
             if (isProblematic) {
