@@ -799,8 +799,10 @@
                 }
                 
                 // Group models by availability status
+                const allRegistered = models.map(m => m.name);
                 const availableModels = models.filter(m => m.available).map(m => m.name);
                 const runningModels = models.filter(m => m.running).map(m => m.name);
+                const notPulledModels = allRegistered.filter(m => !availableModels.includes(m) && !runningModels.includes(m));
                 
                 let html = '';
                 
@@ -817,6 +819,14 @@
                         if (!runningModels.includes(model)) {
                             html += `<div class="suggestion-item" onclick="addModelSuggestion('${model}')">${model}</div>`;
                         }
+                    });
+                }
+
+                // Always include all registered models (even if not available yet)
+                if (notPulledModels.length > 0) {
+                    html += '<div class="suggestion-group-title">🗂️ Catalog Models (not pulled)</div>';
+                    notPulledModels.forEach(model => {
+                        html += `<div class="suggestion-item" onclick="addModelSuggestion('${model}')">${model}</div>`;
                     });
                 }
                 

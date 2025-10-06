@@ -15,7 +15,8 @@ services:
   # ---- LLM Runtime (choose ONE) ----
   # A) OLLAMA (default): simple, offline, great for workstation
   ollama:
-    image: ollama/ollama:0.3.8
+    #image: ollama/ollama:0.3.8
+    image: ollama/ollama:latest
     container_name: abs-ollama
     restart: unless-stopped
     runtime: nvidia
@@ -102,8 +103,11 @@ services:
       OPENAI_BASE_URL: http://vllm:8000/v1
       OPENAI_API_KEY: abs-local
       REGISTRY_PATH: /app/registry.json
+      CATALOG_PATH: /app/catalog.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./gateway/catalog.json:/app/catalog.json
+      - ./gateway/registry.json:/app/registry.json
     ports: ["8081:8081"]
     depends_on: [redis]
     networks: [abs-net]

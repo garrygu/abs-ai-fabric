@@ -283,6 +283,12 @@
             color: #333;
             margin-bottom: 4px;
         }
+        .status-name .status-version {
+            font-weight: 400;
+            font-size: 12px;
+            color: #666;
+            margin-left: 6px;
+        }
         .status-indicator {
             font-size: 12px;
             padding: 2px 8px;
@@ -1604,28 +1610,28 @@
                                 <div class="status-card">
                                     <div class="status-icon">🤖</div>
                                     <div class="status-info">
-                                        <div class="status-name">Ollama</div>
+                                        <div class="status-name">Ollama <span class="status-version">v<span id="ollama-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="ollama-status-summary">Checking...</div>
                         </div>
                         </div>
                                 <div class="status-card">
                                     <div class="status-icon">🗄️</div>
                                     <div class="status-info">
-                                        <div class="status-name">Qdrant</div>
+                                        <div class="status-name">Qdrant <span class="status-version">v<span id="qdrant-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
                         </div>
                     </div>
                                 <div class="status-card">
                                     <div class="status-icon">⚡</div>
                                     <div class="status-info">
-                                        <div class="status-name">Redis</div>
+                                        <div class="status-name">Redis <span class="status-version">v<span id="redis-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="redis-status-summary">Checking...</div>
                 </div>
                         </div>
                                 <div class="status-card">
                                     <div class="status-icon">🌐</div>
                                     <div class="status-info">
-                                        <div class="status-name">Hub Gateway</div>
+                                        <div class="status-name">Hub Gateway <span class="status-version">v<span id="gateway-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="gateway-status-summary">Checking...</div>
                     </div>
                 </div>
@@ -2085,14 +2091,14 @@
                     <div class="asset-icon">🔧</div>
                     <h3>Services</h3>
                     <p>Configure core services and dependencies</p>
-                    <button class="btn btn-secondary" onclick="showTab('admin'); showAdminSubTab('services')">View Services</button>
+                    <a href="manage.html" class="btn btn-secondary">Manage Services</a>
                 </div>
                 
                 <div class="asset-card">
                     <div class="asset-icon">🧠</div>
                     <h3>Models</h3>
                     <p>Manage AI models and their availability</p>
-                    <button class="btn btn-secondary" onclick="showTab('admin'); showAdminSubTab('models')">View Models</button>
+                    <a href="manage.html" class="btn btn-secondary">Manage Models</a>
                 </div>
                 
                 <div class="asset-card">
@@ -2102,6 +2108,8 @@
                     <a href="http://localhost:8081/catalog" target="_blank" class="btn btn-secondary">View Catalog API</a>
                 </div>
             </div>
+
+            <div id="assets-list" style="margin-top: 20px; display: none;"></div>
         </div>
     </div>
 
@@ -2537,12 +2545,25 @@
         async function updateServiceSummary() {
             // Update summary status indicators
             const services = ['ollama', 'qdrant', 'redis', 'gateway'];
-            for (const service of services) {
-                const summaryElement = document.getElementById(service + '-status-summary');
-                if (summaryElement) {
-                    summaryElement.textContent = 'Online';
-                    summaryElement.className = 'status-indicator';
+            try {
+                const resp = await fetch('http://localhost:8081/admin/services/status');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const svc = await resp.json();
+                for (const service of services) {
+                    const summaryElement = document.getElementById(service + '-status-summary');
+                    const versionElement = document.getElementById(service + '-version-summary');
+                    const data = svc[service] || {};
+                    const isOnline = data.status === 'online';
+                    if (summaryElement) {
+                        summaryElement.textContent = isOnline ? 'Online' : 'Offline';
+                        summaryElement.className = 'status-indicator ' + (isOnline ? 'online' : 'offline');
+                    }
+                    if (versionElement) {
+                        versionElement.textContent = data.version || '-';
+                    }
                 }
+            } catch (e) {
+                console.warn('Failed to update service summary', e);
             }
         }
 
@@ -2789,6 +2810,20 @@
         async function refreshModels() {
             await checkModelStatus();
             await loadAdminModels();
+        }
+
+        const GATEWAY_URL = 'http://localhost:8081';
+
+        async function pullModel(modelName) {
+            try {
+                const resp = await fetch(`${GATEWAY_URL}/admin/models/${encodeURIComponent(modelName)}/pull`, { method: 'POST' });
+                if (!resp.ok) throw new Error(await resp.text());
+                await refreshModels();
+                alert(`Pull requested for ${modelName}.`);
+            } catch (e) {
+                console.error('Pull error', e);
+                alert(`Failed to pull ${modelName}: ${e.message}`);
+            }
         }
 
         async function loadAllModels() {
@@ -3618,6 +3653,82 @@
                 });
             }
         });
+
+        async function showAssetsOfType(className) {
+            try {
+                // Ensure we are on the Assets tab
+                showTab('assets');
+                
+                const list = document.getElementById('assets-list');
+                if (!list) return;
+                list.style.display = 'block';
+                list.innerHTML = '<div class="loading">Loading ' + className + 's...</div>';
+
+                const response = await fetch('http://localhost:8081/assets');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+
+                const assets = Array.isArray(data) ? data : (data.assets || data.value || []);
+                const filtered = assets.filter(a => a.class === className);
+
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div class="error">No ' + className + 's found.</div>';
+                    return;
+                }
+
+                list.innerHTML = '<div class="assets-grid">' + filtered.map(renderAssetCard).join('') + '</div>';
+            } catch (e) {
+                const list = document.getElementById('assets-list');
+                if (list) list.innerHTML = '<div class="error">Failed to load assets: ' + e.message + '</div>';
+            }
+        }
+
+        function renderAssetCard(asset) {
+            return `
+                <div class="asset-card">
+                    <div class="asset-header">
+                        <h3 class="asset-title">${asset.name}</h3>
+                        <span class="asset-class">${asset.class}</span>
+                    </div>
+                    <div class="asset-description">${asset.description || 'No description'}</div>
+                    <div class="asset-meta">
+                        <div class="meta-item">
+                            <div class="meta-label">ID</div>
+                            <div class="meta-value">${asset.id}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">URL</div>
+                            <div class="meta-value">${asset.metadata?.url || 'N/A'}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Lifecycle</div>
+                            <div class="meta-value">
+                                <span class="lifecycle-badge lifecycle-${asset.lifecycle?.desired || 'stopped'}">
+                                    ${asset.lifecycle?.desired || 'stopped'}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Owner</div>
+                            <div class="meta-value">${asset.owner || 'N/A'}</div>
+                        </div>
+                    </div>
+                    ${asset.policy ? `
+                        <div class="policy-section">
+                            <div class="policy-title">Policy</div>
+                            <div class="policy-items">
+                                ${asset.policy.allowed_models ? asset.policy.allowed_models.map(m => 
+                                    `<span class="policy-tag">${m}</span>`
+                                ).join('') : ''}
+                                ${asset.policy.allowed_embeddings ? asset.policy.allowed_embeddings.map(e => 
+                                    `<span class="policy-tag">${e}</span>`
+                                ).join('') : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
     </script>
     
     <!-- Footer -->

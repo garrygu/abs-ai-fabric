@@ -631,7 +631,8 @@ def build_unified_catalog() -> Dict[str, Any]:
     return {
         "version": CATALOG.get("version", "1.0"),
         "defaults": CATALOG.get("defaults", {}),
-        "aliases": REG.get("aliases", {}),
+        # Return current in-memory REG to reflect any runtime alias syncs
+        "aliases": (REG or {}).get("aliases", {}),
         "assets": assets,
         "tools": CATALOG.get("tools", []),
         "datasets": CATALOG.get("datasets", []),
@@ -645,6 +646,46 @@ async def catalog():
 @app.get("/assets")
 async def list_assets():
     return build_unified_catalog().get("assets", [])
+
+# ---- Admin: Registry/Catalog Diagnostics ----
+@app.get("/admin/config/paths")
+async def get_config_paths():
+    """Expose effective file paths used by the gateway for troubleshooting mounts."""
+    return {
+        "REGISTRY_PATH": REGISTRY_PATH,
+        "CATALOG_PATH": CATALOG_PATH,
+        "APPS_REGISTRY_PATH": APPS_REGISTRY_PATH
+    }
+
+@app.post("/admin/registry/flush")
+async def flush_registry(reg: Optional[dict] = None):
+    """Force-write the in-memory registry (or provided 'reg') to REGISTRY_PATH and report errors."""
+    try:
+        payload = reg if isinstance(reg, dict) else REG
+        if not isinstance(payload, dict):
+            raise HTTPException(400, "Invalid registry payload")
+        with open(REGISTRY_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        return {"status": "ok", "path": REGISTRY_PATH, "size": len(json.dumps(payload))}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to write registry: {str(e)}")
+
+@app.post("/admin/registry/alias")
+async def upsert_registry_alias(alias: dict):
+    """Upsert a logical alias mapping: {"id":"llama4:scout", "providers": {"ollama":"llama4:scout"}}"""
+    try:
+        logical = alias.get("id") or alias.get("name")
+        providers = alias.get("providers")
+        if not logical or not isinstance(providers, dict):
+            raise HTTPException(400, "Provide 'id' and 'providers' map")
+        if REG.get("aliases") is None:
+            REG["aliases"] = {}
+        REG["aliases"][logical] = providers
+        with open(REGISTRY_PATH, "w", encoding="utf-8") as f:
+            json.dump(REG, f, indent=2)
+        return {"status": "upserted", "id": logical, "providers": providers}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to upsert alias: {str(e)}")
 
 @app.get("/assets/{asset_id}")
 async def get_asset(asset_id: str):
@@ -673,6 +714,34 @@ async def create_asset(asset: dict):
         # Write back to file
         with open(CATALOG_PATH, "w", encoding="utf-8") as f:
             json.dump(CATALOG, f, indent=2)
+
+        # If this is a model asset, auto-sync registry aliases so it appears under Models
+        try:
+            if (asset.get("class") == "model"):
+                logical_name = asset.get("id") or asset.get("name")
+                meta = asset.get("metadata") or {}
+                providers = meta.get("providers") if isinstance(meta.get("providers"), dict) else None
+
+                # Heuristics: if explicit providers mapping not supplied, derive a minimal one
+                if not providers:
+                    single_provider = meta.get("provider")  # e.g. "ollama" | "openai" | "huggingface"
+                    if single_provider:
+                        providers = {str(single_provider): logical_name}
+                    else:
+                        providers = {"ollama": logical_name}
+
+                # Initialize REG structure if missing
+                if REG.get("aliases") is None:
+                    REG["aliases"] = {}
+
+                REG["aliases"][logical_name] = providers
+
+                # Persist registry
+                with open(REGISTRY_PATH, "w", encoding="utf-8") as rf:
+                    json.dump(REG, rf, indent=2)
+        except Exception:
+            # Do not fail the asset creation if registry sync fails; catalog remains the source of truth for assets
+            pass
         
         return {"status": "created", "asset": asset}
     except Exception as e:
@@ -685,12 +754,41 @@ async def update_asset(asset_id: str, asset_update: dict):
         # Find and update asset
         for i, asset in enumerate(CATALOG.get("assets", [])):
             if asset.get("id") == asset_id:
-                CATALOG["assets"][i] = {**asset, **asset_update}
+                updated = {**asset, **asset_update}
+                CATALOG["assets"][i] = updated
                 
                 # Write back to file
                 with open(CATALOG_PATH, "w", encoding="utf-8") as f:
                     json.dump(CATALOG, f, indent=2)
-                
+
+                # Keep registry aliases in sync for model assets
+                try:
+                    if (updated.get("class") == "model"):
+                        old_logical = asset.get("id") or asset.get("name")
+                        new_logical = updated.get("id") or updated.get("name") or old_logical
+                        meta = (updated.get("metadata") or {})
+                        providers = meta.get("providers") if isinstance(meta.get("providers"), dict) else None
+                        if not providers:
+                            single_provider = meta.get("provider")
+                            if single_provider:
+                                providers = {str(single_provider): new_logical}
+                            else:
+                                providers = {"ollama": new_logical}
+
+                        if REG.get("aliases") is None:
+                            REG["aliases"] = {}
+
+                        # Handle id rename: remove old key if changed
+                        if new_logical != old_logical and old_logical in REG["aliases"]:
+                            REG["aliases"].pop(old_logical, None)
+
+                        REG["aliases"][new_logical] = providers
+
+                        with open(REGISTRY_PATH, "w", encoding="utf-8") as rf:
+                            json.dump(REG, rf, indent=2)
+                except Exception:
+                    pass
+
                 return {"status": "updated", "asset": CATALOG["assets"][i]}
         
         raise HTTPException(404, f"Asset not found: {asset_id}")
@@ -709,6 +807,17 @@ async def delete_asset(asset_id: str):
                 # Write back to file
                 with open(CATALOG_PATH, "w", encoding="utf-8") as f:
                     json.dump(CATALOG, f, indent=2)
+
+                # If this was a model, also remove from registry aliases
+                try:
+                    if deleted_asset.get("class") == "model":
+                        logical = deleted_asset.get("id") or deleted_asset.get("name")
+                        if REG.get("aliases") and logical in REG["aliases"]:
+                            REG["aliases"].pop(logical, None)
+                            with open(REGISTRY_PATH, "w", encoding="utf-8") as rf:
+                                json.dump(REG, rf, indent=2)
+                except Exception:
+                    pass
                 
                 return {"status": "deleted", "asset": deleted_asset}
         
@@ -1132,6 +1241,14 @@ async def get_services_status():
         r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
         if r.is_success:
             models = r.json().get("models", [])
+            # Try to get Ollama version
+            ollama_version = "unknown"
+            try:
+                r_ver = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/version")
+                if r_ver.is_success:
+                    ollama_version = (r_ver.json() or {}).get("version", "unknown")
+            except Exception:
+                pass
             # Get running models
             try:
                 r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
@@ -1147,7 +1264,7 @@ async def get_services_status():
                 "running_models": running_models,
                 "model_count": len(models),
                 "running_count": len(running_models),
-                "version": "unknown"
+                "version": ollama_version
             }
         else:
             services["ollama"] = {"status": "offline", "error": r.text}
@@ -1170,12 +1287,22 @@ async def get_services_status():
                 except:
                     pass
             
+            # Try to get Qdrant version
+            qdrant_version = "unknown"
+            try:
+                r_root = await HTTP.get("http://qdrant:6333/")
+                if r_root.is_success:
+                    body = r_root.json() or {}
+                    qdrant_version = body.get("version") or body.get("status", {}).get("version", "unknown")
+            except Exception:
+                pass
+
             services["qdrant"] = {
                 "status": "online",
                 "collections": [c.get("name", "") for c in collections],
                 "collection_count": len(collections),
                 "total_vectors": total_vectors,
-                "version": "unknown"
+                "version": qdrant_version
             }
         else:
             services["qdrant"] = {"status": "offline", "error": r.text}
