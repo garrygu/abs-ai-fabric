@@ -542,22 +542,22 @@
                         <div class="form-help">Display name shown in the UI. Example: Contract Reviewer</div>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label" for="assetClass">
-                            Class *
-                            <span class="tooltip" data-tooltip="Type of asset. Apps are user-facing applications, Services are backend infrastructure, Models are AI models, Tools are utilities, Datasets are data collections, Secrets are credentials.">ℹ️</span>
-                        </label>
-                        <select id="assetClass" class="form-select" required>
-                            <option value="">Select class...</option>
-                            <option value="app">App - User-facing applications</option>
-                            <option value="service">Service - Backend infrastructure</option>
-                            <option value="model">Model - AI/ML models</option>
-                            <option value="tool">Tool - Utility services</option>
-                            <option value="dataset">Dataset - Data collections</option>
-                            <option value="secret">Secret - Credentials & keys</option>
-                        </select>
-                        <div class="form-help">Choose the type of asset you're creating</div>
-                    </div>
+                <div class="form-group">
+                    <label class="form-label" for="assetClass">
+                        Class *
+                        <span class="tooltip" data-tooltip="Type of asset. Apps are user-facing applications, Services are backend infrastructure, Models are AI models, Tools are utilities, Datasets are data collections, Secrets are credentials.">ℹ️</span>
+                    </label>
+                    <select id="assetClass" class="form-select" required onchange="updateFormFields()">
+                        <option value="">Select class...</option>
+                        <option value="app">App - User-facing applications</option>
+                        <option value="service">Service - Backend infrastructure</option>
+                        <option value="model">Model - AI/ML models</option>
+                        <option value="tool">Tool - Utility services</option>
+                        <option value="dataset">Dataset - Data collections</option>
+                        <option value="secret">Secret - Credentials & keys</option>
+                    </select>
+                    <div class="form-help">Choose the type of asset you're creating</div>
+                </div>
                     
                     <div class="form-group">
                         <label class="form-label" for="assetDescription">
@@ -580,10 +580,51 @@
                         <div class="form-help">Web URL where this asset can be accessed. Click Verify to test if the URL is reachable.</div>
                         <div id="urlStatus" class="url-status"></div>
                     </div>
+
+                    <!-- Service-specific fields -->
+                    <div id="serviceFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="serviceType">
+                            Service Type
+                            <span class="tooltip" data-tooltip="Type of service: asr (speech-to-text), llm-backend (AI models), vector-db (embeddings), cache (Redis), gateway (routing), etc.">ℹ️</span>
+                        </label>
+                        <select id="serviceType" class="form-select">
+                            <option value="">Select service type...</option>
+                            <option value="asr">ASR - Speech-to-Text</option>
+                            <option value="llm-backend">LLM Backend - AI Models</option>
+                            <option value="vector-db">Vector DB - Embeddings</option>
+                            <option value="cache">Cache - Redis</option>
+                            <option value="gateway">Gateway - Routing</option>
+                            <option value="ocr">OCR - Document Processing</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <div class="form-help">Type of service this represents</div>
+                    </div>
+
+                    <div id="lifecycleFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="desiredState">
+                            Desired State
+                            <span class="tooltip" data-tooltip="Desired lifecycle state for this service: running (started), stopped (stopped), paused (suspended)">ℹ️</span>
+                        </label>
+                        <select id="desiredState" class="form-select">
+                            <option value="running">Running - Service is active</option>
+                            <option value="stopped">Stopped - Service is inactive</option>
+                            <option value="paused">Paused - Service is suspended</option>
+                        </select>
+                        <div class="form-help">Desired lifecycle state for this service</div>
+                    </div>
+
+                    <div id="containerFields" class="form-group" style="display: none;">
+                        <label class="form-label" for="containerName">
+                            Container Name
+                            <span class="tooltip" data-tooltip="Docker container name for this service. Used for lifecycle management and health checks.">ℹ️</span>
+                        </label>
+                        <input type="text" id="containerName" class="form-input" placeholder="abs-whisper-server">
+                        <div class="form-help">Docker container name for lifecycle management</div>
+                    </div>
                 </div>
 
-                <!-- Policy Configuration -->
-                <div class="form-section">
+                <!-- Policy Configuration (Apps only) -->
+                <div id="policySection" class="form-section" style="display: none;">
                     <h3>Policy Configuration</h3>
                     
                     <div class="form-group">
@@ -912,40 +953,74 @@
         document.getElementById('assetForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const assetClass = document.getElementById('assetClass').value;
             const formData = {
                 id: document.getElementById('assetId').value,
-                class: document.getElementById('assetClass').value,
+                class: assetClass,
                 name: document.getElementById('assetName').value,
                 description: document.getElementById('assetDescription').value,
                 metadata: {
                     url: document.getElementById('assetUrl').value
-                },
-                policy: {}
+                }
             };
 
-            // Parse policy fields
-            const allowedModels = document.getElementById('allowedModels').value
-                .split(',').map(s => s.trim()).filter(s => s);
-            const allowedEmbeddings = document.getElementById('allowedEmbeddings').value
-                .split(',').map(s => s.trim()).filter(s => s);
+            // Handle different asset types
+            switch(assetClass) {
+                case 'app':
+                    // Apps need policy configuration
+                    formData.policy = {};
+                    
+                    // Parse policy fields
+                    const allowedModels = document.getElementById('allowedModels').value
+                        .split(',').map(s => s.trim()).filter(s => s);
+                    const allowedEmbeddings = document.getElementById('allowedEmbeddings').value
+                        .split(',').map(s => s.trim()).filter(s => s);
 
-            if (allowedModels.length > 0) formData.policy.allowed_models = allowedModels;
-            if (allowedEmbeddings.length > 0) formData.policy.allowed_embeddings = allowedEmbeddings;
+                    if (allowedModels.length > 0) formData.policy.allowed_models = allowedModels;
+                    if (allowedEmbeddings.length > 0) formData.policy.allowed_embeddings = allowedEmbeddings;
 
-            // Add defaults if provided
-            const defaults = {};
-            const defaultChatModel = document.getElementById('defaultChatModel').value.trim();
-            const defaultEmbedModel = document.getElementById('defaultEmbedModel').value.trim();
-            const defaultProvider = document.getElementById('defaultProvider').value.trim();
-            const embeddingDim = document.getElementById('embeddingDim').value.trim();
+                    // Add defaults if provided
+                    const defaults = {};
+                    const defaultChatModel = document.getElementById('defaultChatModel').value.trim();
+                    const defaultEmbedModel = document.getElementById('defaultEmbedModel').value.trim();
+                    const defaultProvider = document.getElementById('defaultProvider').value.trim();
+                    const embeddingDim = document.getElementById('embeddingDim').value.trim();
 
-            if (defaultChatModel) defaults.chat_model = defaultChatModel;
-            if (defaultEmbedModel) defaults.embed_model = defaultEmbedModel;
-            if (defaultProvider) defaults.provider = defaultProvider;
-            if (embeddingDim) defaults.dim = parseInt(embeddingDim);
+                    if (defaultChatModel) defaults.chat_model = defaultChatModel;
+                    if (defaultEmbedModel) defaults.embed_model = defaultEmbedModel;
+                    if (defaultProvider) defaults.provider = defaultProvider;
+                    if (embeddingDim) defaults.dim = parseInt(embeddingDim);
 
-            if (Object.keys(defaults).length > 0) {
-                formData.policy.defaults = defaults;
+                    if (Object.keys(defaults).length > 0) {
+                        formData.policy.defaults = defaults;
+                    }
+                    break;
+
+                case 'service':
+                    // Services need type, lifecycle, and container info
+                    const serviceType = document.getElementById('serviceType').value.trim();
+                    const desiredState = document.getElementById('desiredState').value.trim();
+                    const containerName = document.getElementById('containerName').value.trim();
+
+                    if (serviceType) formData.type = serviceType;
+                    
+                    if (desiredState) {
+                        formData.lifecycle = {
+                            desired: desiredState
+                        };
+                    }
+
+                    if (containerName) {
+                        formData.metadata.container = containerName;
+                    }
+                    break;
+
+                case 'model':
+                case 'tool':
+                case 'dataset':
+                case 'secret':
+                    // These types only need basic fields for now
+                    break;
             }
 
             try {
@@ -1029,6 +1104,41 @@
             successDiv.textContent = message;
             successDiv.style.display = 'block';
             setTimeout(() => successDiv.style.display = 'none', 3000);
+        }
+
+        // Dynamic form field management
+        function updateFormFields() {
+            const assetClass = document.getElementById('assetClass').value;
+            
+            // Get all conditional sections
+            const policySection = document.getElementById('policySection');
+            const serviceFields = document.getElementById('serviceFields');
+            const lifecycleFields = document.getElementById('lifecycleFields');
+            const containerFields = document.getElementById('containerFields');
+            
+            // Hide all conditional sections first
+            policySection.style.display = 'none';
+            serviceFields.style.display = 'none';
+            lifecycleFields.style.display = 'none';
+            containerFields.style.display = 'none';
+            
+            // Show relevant sections based on asset class
+            switch(assetClass) {
+                case 'app':
+                    policySection.style.display = 'block';
+                    break;
+                case 'service':
+                    serviceFields.style.display = 'block';
+                    lifecycleFields.style.display = 'block';
+                    containerFields.style.display = 'block';
+                    break;
+                case 'model':
+                case 'tool':
+                case 'dataset':
+                case 'secret':
+                    // These types don't need additional fields for now
+                    break;
+            }
         }
 
         // Enhanced functionality functions
