@@ -416,133 +416,209 @@
             color: #666;
         }
 
-        /* Models Grid */
+        /* Premium Model Management */
         .models-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            margin-top: 24px;
         }
+        
         .model-category {
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 10px;
-            padding: 15px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            font-family: 'Inter', sans-serif;
         }
+        
         .model-category h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-            color: #2c3e50;
-            font-size: 16px;
+            margin: 0 0 20px 0;
+            color: #1e293b;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        
         .model-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 16px;
         }
+        
         .model-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 6px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        .model-name {
-            font-weight: 500;
-            color: #2c3e50;
-            flex: 1;
-        }
-        .model-status {
-            font-size: 12px;
-            padding: 2px 8px;
+            background: #f8fafc;
             border-radius: 12px;
-            font-weight: 500;
-            margin-right: 10px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .model-status.available {
-            background: #e8f5e8;
-            color: #2e7d32;
+        
+        .model-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .model-status.unavailable {
-            background: #ffebee;
-            color: #c62828;
-        }
-        .model-status.running {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-        .model-actions {
-            display: flex;
-            gap: 5px;
-        }
-        .model-action-btn {
-            padding: 4px 8px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .model-load-btn {
-            background: #4CAF50;
-            color: white;
-        }
-        .model-load-btn:hover {
-            background: #45a049;
-        }
-        .model-unload-btn {
-            background: #f44336;
-            color: white;
-        }
-        .model-unload-btn:hover {
-            background: #da190b;
-        }
-        .model-pull-btn {
-            background: #ff9800;
-            color: white;
-        }
-        .model-pull-btn:hover {
-            background: #e68900;
-        }
-        .model-action-btn:disabled {
-            background: #ccc;
-            color: #666;
-            cursor: not-allowed;
-        }
-        .model-delete-btn {
-            background: #d32f2f;
-            color: white;
-        }
-        .model-delete-btn:hover {
-            background: #b71c1c;
-        }
-        .model-info-btn {
-            background: #2196F3;
-            color: white;
-        }
-        .model-info-btn:hover {
-            background: #1976D2;
-        }
+        
         .model-header {
             display: flex;
             align-items: center;
-            flex: 1;
-            gap: 10px;
+            justify-content: space-between;
+            margin-bottom: 12px;
         }
+        
+        .model-name {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 16px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .model-status {
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .model-status.running {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .model-status.available {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .model-status.unavailable {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        
         .model-default {
             font-size: 11px;
-            color: #f39c12;
+            color: #f59e0b;
             font-weight: 500;
-            margin-left: 5px;
+            margin-left: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
+        
         .model-usage {
-            font-size: 11px;
-            color: #7f8c8d;
-            margin: 4px 0;
-            font-style: italic;
+            margin: 12px 0;
+            font-size: 13px;
+            color: #64748b;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .used-by-toggle {
+            background: none;
+            border: none;
+            color: #3b82f6;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+        
+        .used-by-toggle:hover {
+            color: #1d4ed8;
+        }
+        
+        .used-by-list {
+            margin-top: 8px;
+            padding-left: 16px;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        
+        .used-by-list.hidden {
+            display: none;
+        }
+        
+        .model-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        .model-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .model-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .model-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .model-btn.load {
+            background: #10b981;
+            color: white;
+        }
+        
+        .model-btn.load:hover {
+            background: #059669;
+        }
+        
+        .model-btn.unload {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .model-btn.unload:hover {
+            background: #dc2626;
+        }
+        
+        .model-btn.pull {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .model-btn.pull:hover {
+            background: #d97706;
+        }
+        
+        .model-btn.delete {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .model-btn.delete:hover {
+            background: #dc2626;
+        }
+        
+        .model-btn.info {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .model-btn.info:hover {
+            background: #2563eb;
         }
 
         /* Premium Service Management */
@@ -1510,7 +1586,7 @@
                     </div>
                     <div class="logs-container" id="service-logs">
                         <div class="log-entry">
-                            <span class="log-timestamp">[Loading...]</span>
+                            <span class="log-timestamp">[▶️ Loading...]</span>
                             <span class="log-level info">INFO</span>
                             <span class="log-service">SYSTEM</span>
                             <span class="log-message">Select a service to view logs...</span>
@@ -1525,7 +1601,7 @@
                         <div class="model-management">
                             <div class="model-actions">
                                 <button class="btn btn-primary" onclick="refreshModels()">Refresh Models</button>
-                                <button class="btn btn-secondary" onclick="loadAllModels()">Load All Models</button>
+                                <button class="btn btn-secondary" onclick="loadAllModels()">▶️ Load All Models</button>
                                 <button class="btn btn-secondary" onclick="clearModelLogs()">Clear Logs</button>
                             </div>
                             <div class="models-grid" id="admin-models-grid">
@@ -1543,7 +1619,7 @@
                             </div>
                                 <div class="logs-container" id="model-logs">
                                     <div class="log-entry">
-                                        <span class="log-timestamp">[Loading...]</span>
+                                        <span class="log-timestamp">[▶️ Loading...]</span>
                                         <span class="log-level info">INFO</span>
                                         <span class="log-service">SYSTEM</span>
                                         <span class="log-message">Initializing model logs...</span>
@@ -1661,7 +1737,7 @@
                             <h3>🗄️ Qdrant Collections</h3>
                             <div id="collections-list">
                                 <div class="resource-item">
-                                    <span class="resource-label">Loading collections...</span>
+                                    <span class="resource-label">▶️ Loading collections...</span>
                                     <span class="resource-value">-</span>
                                 </div>
                             </div>
@@ -1698,7 +1774,7 @@
                 clickedTab.classList.add('active');
             }
             
-            // Load data when specific tabs are shown
+            // ▶️ Load data when specific tabs are shown
             if (tabName === 'admin') {
                 loadAdminData();
             } else if (tabName === 'apps') {
@@ -1727,7 +1803,7 @@
                 clickedButton.classList.add('active');
             }
             
-            // Load specific data for the sub-tab
+            // ▶️ Load specific data for the sub-tab
             switch(subTabName) {
                 case 'overview':
                     loadOverviewData();
@@ -2315,27 +2391,38 @@
                             let actionButtons = '';
                             if (model.running) {
                                 actionButtons = `
-                                    <button class="model-action-btn model-unload-btn" onclick="unloadModel('${model.name}')">Unload</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
-                                    <button class="model-action-btn model-load-btn" onclick="loadModel('${model.name}')">Load</button>
-                                    <button class="model-action-btn model-delete-btn" onclick="deleteModel('${model.name}')">Delete</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             } else {
                                 actionButtons = `
-                                    <button class="model-action-btn model-pull-btn" onclick="pullModel('${model.name}')">Pull</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             }
                             
-                            // Build usage info
+                            // Build collapsible usage info
                             let usageInfo = '';
                             if (model.used_by && model.used_by.length > 0) {
                                 const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
-                                usageInfo = `<div class="model-usage">Used by: ${usageText}</div>`;
+                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                                usageInfo = `
+                                    <div class="model-usage">
+                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
+                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
+                                            <span id="${uniqueId}-arrow">▼</span>
+                                        </button>
+                                        <div class="used-by-list hidden" id="${uniqueId}">
+                                            ${usageText}
+                                        </div>
+                                    </div>
+                                `;
                             }
                             
                             // Add default indicator
@@ -2379,27 +2466,38 @@
                             let actionButtons = '';
                             if (model.running) {
                                 actionButtons = `
-                                    <button class="model-action-btn model-unload-btn" onclick="unloadModel('${model.name}')">Unload</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
-                                    <button class="model-action-btn model-load-btn" onclick="loadModel('${model.name}')">Load</button>
-                                    <button class="model-action-btn model-delete-btn" onclick="deleteModel('${model.name}')">Delete</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             } else {
                                 actionButtons = `
-                                    <button class="model-action-btn model-pull-btn" onclick="pullModel('${model.name}')">Pull</button>
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 `;
                             }
                             
-                            // Build usage info
+                            // Build collapsible usage info
                             let usageInfo = '';
                             if (model.used_by && model.used_by.length > 0) {
                                 const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
-                                usageInfo = `<div class="model-usage">Used by: ${usageText}</div>`;
+                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                                usageInfo = `
+                                    <div class="model-usage">
+                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
+                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
+                                            <span id="${uniqueId}-arrow">▼</span>
+                                        </button>
+                                        <div class="used-by-list hidden" id="${uniqueId}">
+                                            ${usageText}
+                                        </div>
+                                    </div>
+                                `;
                             }
                             
                             // Add default indicator
@@ -2445,7 +2543,7 @@
                                     ${model.running ? 'Running' : model.available ? 'Available' : 'Unavailable'}
                                 </span>
                                 <div class="model-actions">
-                                    <button class="model-action-btn model-info-btn" onclick="showModelInfo('${model.name}')">Info</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 </div>
                             `;
                             debugList.appendChild(modelItem);
@@ -2489,7 +2587,7 @@
         // Model Operations
         async function loadModel(modelName) {
             try {
-                addModelLog('info', 'MODEL', `Loading model: ${modelName}`);
+                addModelLog('info', 'MODEL', `▶️ Loading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/load`, {
                     method: 'POST'
                 });
@@ -2508,7 +2606,7 @@
 
         async function unloadModel(modelName) {
             try {
-                addModelLog('info', 'MODEL', `Unloading model: ${modelName}`);
+                addModelLog('info', 'MODEL', `⏹️ Unloading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/unload`, {
                     method: 'POST'
                 });
@@ -2616,6 +2714,19 @@ Quantization: ${modelInfo.quantization_level || 'Unknown'}
                     <span class="log-message">Logs cleared</span>
                 </div>
             `;
+        }
+
+        function toggleUsedBy(uniqueId) {
+            const listElement = document.getElementById(uniqueId);
+            const arrowElement = document.getElementById(uniqueId + '-arrow');
+            
+            if (listElement.classList.contains('hidden')) {
+                listElement.classList.remove('hidden');
+                arrowElement.textContent = '▲';
+            } else {
+                listElement.classList.add('hidden');
+                arrowElement.textContent = '▼';
+            }
         }
 
         function refreshModelLogs() {
@@ -2788,7 +2899,7 @@ Quantization: ${modelInfo.quantization_level || 'Unknown'}
                         <span class="resource-label">${collection.name}</span>
                         <span class="resource-value">
                             ${collection.vectors_count || 0} vectors
-                            <button class="model-action-btn model-delete-btn" onclick="deleteCollection('${collection.name}')" style="margin-left: 10px;">Delete</button>
+                            <button class="model-btn delete" onclick="deleteCollection('${collection.name}')" style="margin-left: 10px;">🗑️ Delete</button>
                         </span>
                     `;
                     collectionsList.appendChild(collectionItem);
@@ -2859,11 +2970,11 @@ Quantization: ${modelInfo.quantization_level || 'Unknown'}
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContent▶️ Loaded', function() {
             console.log('ABS AI Hub loaded successfully');
-            // Load initial data
+            // ▶️ Load initial data
             refreshAllServices();
-            loadAppsData(); // Load apps data on page load
+            loadAppsData(); // ▶️ Load apps data on page load
         });
     </script>
 </body>
