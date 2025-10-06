@@ -45,9 +45,9 @@ SUPPORTED_DEFAULT_MODELS = [
 ]
 
 async def list_ollama_tags() -> List[str]:
-    """Return list of pulled models (via Hub Gateway)."""
+    """Return list of pulled models (via Hub Gateway) filtered by catalog policy."""
     try:
-        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models")
+        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models?app_id=onyx-assistant")
         if response.is_success:
             data = response.json()
             return [m.get("name") for m in data.get("models", []) if m.get("available")]
@@ -56,9 +56,9 @@ async def list_ollama_tags() -> List[str]:
     return []
 
 async def list_ollama_running_models() -> List[str]:
-    """Return list of running models (via Hub Gateway)."""
+    """Return list of running models (via Hub Gateway) filtered by catalog policy."""
     try:
-        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models")
+        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models?app_id=onyx-assistant")
         if response.is_success:
             data = response.json()
             return [m.get("name") for m in data.get("models", []) if m.get("running")]
@@ -293,32 +293,23 @@ async def update_settings(request: Request):
 
 @app.get("/models")
 async def get_available_models():
-    """List supported models with availability and running status."""
+    """List supported models with availability and running status, filtered by catalog policy."""
     try:
-        available = await list_ollama_tags()
-        running = await list_ollama_running_models()
-        # Build a union so supported-but-not-pulled models show up (e.g., llama3:8b)
-        union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
-        models = []
-        seen = set()
-        for name in union_names:
-            if name in seen:
-                continue
-            seen.add(name)
-            models.append({
-                "name": name,
-                "available": name in available,
-                "running": name in running
-            })
-        # Also include running models that might not be in tags list (edge cases)
-        for name in running:
-            if name not in seen:
-                models.append({"name": name, "available": False, "running": True})
-        return {"models": models}
+        # Get models filtered by catalog policy for onyx-assistant
+        response = await HTTP_CLIENT.get(f"{HUB_GATEWAY_URL.rstrip('/')}/admin/models?app_id=onyx-assistant")
+        if response.is_success:
+            data = response.json()
+            models = data.get("models", [])
+            logger.info(f"Retrieved {len(models)} models filtered by catalog policy for onyx-assistant")
+            return {"models": models, "policy_applied": data.get("policy_applied", False)}
+        else:
+            logger.error(f"Failed to get models from gateway: {response.status_code}")
+            # Fallback to default models
+            return {"models": [{"name": m, "available": False, "running": False, "allowed": True} for m in SUPPORTED_DEFAULT_MODELS], "policy_applied": False}
     except Exception as e:
         logger.exception("Error fetching models")
         # Minimal fallback
-        return {"models": [{"name": m, "available": False, "running": False} for m in SUPPORTED_DEFAULT_MODELS]}
+        return {"models": [{"name": m, "available": False, "running": False, "allowed": True} for m in SUPPORTED_DEFAULT_MODELS], "policy_applied": False}
 
 @app.post("/models/load")
 async def load_model(request: Request):

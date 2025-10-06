@@ -348,12 +348,28 @@ async def ensure_service_ready(service_name: str) -> bool:
     return await ensure_service_ready_with_dependencies(service_name)
 
 async def preload_model_if_needed(model_name: str, provider: str) -> bool:
-    """Pre-load a model into VRAM if using Ollama"""
+    """Pre-load a model into VRAM if using Ollama. If model is not available, pull it first."""
     if provider != "ollama":
         return True
     
     try:
-        # Check if model is already loaded by making a test request
+        # First check if model is available by trying to list it
+        r_tags = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
+        available_models = []
+        if r_tags.is_success:
+            available_models = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
+        
+        # If model is not available, pull it first
+        if model_name not in available_models:
+            print(f"Model {model_name} not available, pulling from Ollama...")
+            pull_payload = {"name": model_name, "stream": False}
+            r_pull = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/pull", json=pull_payload, timeout=300)
+            if not r_pull.is_success:
+                print(f"Failed to pull model {model_name}: {r_pull.text}")
+                return False
+            print(f"Successfully pulled model {model_name}")
+        
+        # Now try to load the model into VRAM
         test_payload = {
             "model": model_name,
             "prompt": "test",
@@ -1081,8 +1097,9 @@ async def get_services_status():
     return services
 
 @app.get("/admin/models")
-async def get_models():
-    """Unified model catalog for Hub UI: availability (pulled) and running (in VRAM)."""
+async def get_models(app_id: Optional[str] = None):
+    """Unified model catalog for Hub UI: availability (pulled) and running (in VRAM).
+    If app_id is provided, filter models by catalog policy."""
     try:
         # Pulled models (available)
         available: List[str] = []
@@ -1102,20 +1119,41 @@ async def get_models():
         except Exception:
             running = []
 
-        union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
+        # Get allowed models from catalog if app_id provided
+        allowed_models: Optional[List[str]] = None
+        if app_id:
+            for asset in CATALOG.get("assets", []):
+                if asset.get("class") == "app" and asset.get("id") == app_id:
+                    policy = asset.get("policy", {})
+                    allowed_models = policy.get("allowed_models", [])
+                    break
+        
+        # Build model list
+        if allowed_models:
+            # Show ALL allowed models, regardless of availability
+            # This allows users to select models that will be auto-pulled
+            union_names = set(allowed_models)
+        else:
+            # No filtering - show all models
+            union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
+        
         models = []
         for name in sorted(union_names):
             models.append({
                 "name": name,
                 "available": name in available,
                 "running": name in running,
+                "allowed": allowed_models is None or name in allowed_models
             })
+        
         # Also include running models that might not be in tags
         for name in running:
             if name not in union_names:
-                models.append({"name": name, "available": False, "running": True})
+                # Only include if not filtering by policy or if allowed
+                if allowed_models is None or name in allowed_models:
+                    models.append({"name": name, "available": False, "running": True, "allowed": True})
 
-        return {"models": models}
+        return {"models": models, "app_id": app_id, "policy_applied": allowed_models is not None}
     except Exception as e:
         raise HTTPException(500, f"Error listing models: {str(e)}")
 

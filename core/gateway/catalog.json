@@ -50,7 +50,7 @@
       "name": "Onyx AI Assistant",
       "description": "AI assistant with chat interface, RAG capabilities, and agent management",
       "policy": {
-        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest"],
+        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest", "llama3:8b"],
         "allowed_embeddings": ["bge-small-en-v1.5", "all-minilm"]
       },
       "metadata": {
