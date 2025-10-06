@@ -416,131 +416,209 @@
             color: #666;
         }
 
-        /* Premium Model Management */
+        /* ABS Legal Blue - Premium Model Management */
         .models-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 32px;
+            grid-template-columns: 1fr;
+            gap: 24px;
             margin-top: 24px;
         }
         
         .model-category {
-            background: #ffffff;
+            background: #F8FAFD;
             border-radius: 16px;
             padding: 24px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 2px 8px rgba(43, 76, 126, 0.08);
             font-family: 'Inter', sans-serif;
         }
         
         .model-category h3 {
             margin: 0 0 20px 0;
-            color: #1e293b;
-            font-size: 18px;
-            font-weight: 600;
+            color: #2B4C7E;
+            font-size: 20px;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
+            border-bottom: 2px solid #00BFA5;
+            padding-bottom: 12px;
         }
         
         .model-list {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 16px;
         }
         
         .model-item {
-            background: #f8fafc;
+            background: #ffffff;
             border-radius: 12px;
             padding: 20px;
-            border: 1px solid #e2e8f0;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #E2E8F0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .model-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #2B4C7E, #00BFA5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
         
         .model-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(43, 76, 126, 0.15);
+            border-color: #00BFA5;
+        }
+        
+        .model-item:hover::before {
+            opacity: 1;
         }
         
         .model-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .model-name-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+        
+        .model-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #2B4C7E, #00BFA5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
         }
         
         .model-name {
             font-weight: 600;
-            color: #1e293b;
+            color: #2B4C7E;
             font-size: 16px;
             font-family: 'Inter', sans-serif;
         }
         
         .model-status {
-            font-size: 12px;
+            font-size: 11px;
             padding: 6px 12px;
             border-radius: 20px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         
         .model-status.running {
-            background: #dbeafe;
-            color: #1e40af;
+            background: #4ADE80;
+            color: #166534;
         }
         
         .model-status.available {
-            background: #dcfce7;
+            background: #4ADE80;
             color: #166534;
         }
         
         .model-status.unavailable {
-            background: #fef2f2;
-            color: #dc2626;
+            background: #F87171;
+            color: #991B1B;
         }
         
         .model-default {
             font-size: 11px;
-            color: #f59e0b;
-            font-weight: 500;
+            color: #F59E0B;
+            font-weight: 600;
             margin-left: 8px;
             display: flex;
             align-items: center;
             gap: 4px;
+            background: #FEF3C7;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+        
+        .model-performance-tags {
+            display: flex;
+            gap: 6px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+        
+        .performance-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .performance-tag.fast {
+            background: #DCFCE7;
+            color: #166534;
+        }
+        
+        .performance-tag.legal-tuned {
+            background: #E0E7FF;
+            color: #3730A3;
+        }
+        
+        .performance-tag.multilingual {
+            background: #FEF3C7;
+            color: #92400E;
         }
         
         .model-usage {
             margin: 12px 0;
             font-size: 13px;
-            color: #64748b;
+            color: #64748B;
             font-family: 'Inter', sans-serif;
         }
         
         .used-by-toggle {
             background: none;
             border: none;
-            color: #3b82f6;
+            color: #2B4C7E;
             cursor: pointer;
             font-size: 12px;
             font-weight: 500;
             padding: 4px 0;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             transition: color 0.2s;
         }
         
         .used-by-toggle:hover {
-            color: #1d4ed8;
+            color: #00BFA5;
         }
         
         .used-by-list {
             margin-top: 8px;
             padding-left: 16px;
             font-size: 12px;
-            color: #64748b;
+            color: #64748B;
             line-height: 1.5;
         }
         
@@ -577,48 +655,159 @@
         }
         
         .model-btn.load {
-            background: #10b981;
+            background: #2B4C7E;
             color: white;
         }
         
         .model-btn.load:hover {
-            background: #059669;
+            background: #1E3A5F;
         }
         
         .model-btn.unload {
-            background: #ef4444;
+            background: #F87171;
             color: white;
         }
         
         .model-btn.unload:hover {
-            background: #dc2626;
+            background: #EF4444;
         }
         
         .model-btn.pull {
-            background: #f59e0b;
+            background: #00BFA5;
             color: white;
         }
         
         .model-btn.pull:hover {
-            background: #d97706;
+            background: #00A693;
         }
         
         .model-btn.delete {
-            background: #ef4444;
+            background: #F87171;
             color: white;
         }
         
         .model-btn.delete:hover {
-            background: #dc2626;
+            background: #EF4444;
         }
         
         .model-btn.info {
-            background: #3b82f6;
+            background: #64748B;
             color: white;
         }
         
         .model-btn.info:hover {
-            background: #2563eb;
+            background: #475569;
+        }
+        
+        /* Model Preview Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(43, 76, 126, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(43, 76, 126, 0.2);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #F8FAFD;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2B4C7E;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #64748B;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .modal-close:hover {
+            background: #F8FAFD;
+            color: #2B4C7E;
+        }
+        
+        .modal-section {
+            margin-bottom: 24px;
+        }
+        
+        .modal-section h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2B4C7E;
+            margin: 0 0 12px 0;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .modal-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .modal-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .modal-info-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .modal-info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2B4C7E;
+            font-family: 'Inter', sans-serif;
         }
 
         /* Premium Service Management */
@@ -1752,6 +1941,68 @@
         </div>
     </div>
 
+    <!-- Model Preview Modal -->
+    <div id="model-preview-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-model-name">Model Details</h3>
+                <button class="modal-close" onclick="closeModelModal()">&times;</button>
+            </div>
+            
+            <div class="modal-section">
+                <h4>Model Information</h4>
+                <div class="modal-info-grid">
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Name</span>
+                        <span class="modal-info-value" id="modal-name">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Type</span>
+                        <span class="modal-info-value" id="modal-type">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Status</span>
+                        <span class="modal-info-value" id="modal-status">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Provider</span>
+                        <span class="modal-info-value" id="modal-provider">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-section">
+                <h4>Model Parameters</h4>
+                <div class="modal-info-grid">
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Parameters</span>
+                        <span class="modal-info-value" id="modal-parameters">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Context Length</span>
+                        <span class="modal-info-value" id="modal-context-length">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Model Size</span>
+                        <span class="modal-info-value" id="modal-size">-</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Format</span>
+                        <span class="modal-info-value" id="modal-format">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-section">
+                <h4>Usage Information</h4>
+                <div class="modal-info-item">
+                    <span class="modal-info-label">Used By Applications</span>
+                    <span class="modal-info-value" id="modal-used-by">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Tab Functions
         function showTab(tabName) {
@@ -2431,13 +2682,33 @@
                                 defaultIndicator = '<span class="model-default">⭐ Default Chat</span>';
                             }
                             
+                            // Generate performance tags based on model name
+                            let performanceTags = '';
+                            const modelName = model.name.toLowerCase();
+                            if (modelName.includes('3.2') || modelName.includes('8b')) {
+                                performanceTags += '<span class="performance-tag fast">Fast</span>';
+                            }
+                            if (modelName.includes('legal')) {
+                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
+                            }
+                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
+                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
+                            }
+                            
+                            // Determine model icon
+                            const modelIcon = model.type === 'embedding' ? '🔤' : '🧠';
+                            
                             modelItem.innerHTML = `
                                 <div class="model-header">
-                                    <span class="model-name">${model.name}${defaultIndicator}</span>
+                                    <div class="model-name-section">
+                                        <div class="model-icon">${modelIcon}</div>
+                                        <span class="model-name">${model.name}${defaultIndicator}</span>
+                                    </div>
                                     <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                        ${model.running ? 'Running' : model.available ? 'Available' : 'Unavailable'}
+                                        ${model.running ? '✓ Running' : model.available ? '✓ Available' : '✗ Unavailable'}
                                     </span>
                                 </div>
+                                ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
                                 ${usageInfo}
                                 <div class="model-actions">
                                     ${actionButtons}
@@ -2506,13 +2777,33 @@
                                 defaultIndicator = '<span class="model-default">⭐ Default Embedding</span>';
                             }
                             
+                            // Generate performance tags based on model name
+                            let performanceTags = '';
+                            const modelName = model.name.toLowerCase();
+                            if (modelName.includes('3.2') || modelName.includes('8b')) {
+                                performanceTags += '<span class="performance-tag fast">Fast</span>';
+                            }
+                            if (modelName.includes('legal')) {
+                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
+                            }
+                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
+                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
+                            }
+                            
+                            // Determine model icon
+                            const modelIcon = model.type === 'embedding' ? '🔤' : '🧠';
+                            
                             modelItem.innerHTML = `
                                 <div class="model-header">
-                                    <span class="model-name">${model.name}${defaultIndicator}</span>
+                                    <div class="model-name-section">
+                                        <div class="model-icon">${modelIcon}</div>
+                                        <span class="model-name">${model.name}${defaultIndicator}</span>
+                                    </div>
                                     <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                        ${model.running ? 'Running' : model.available ? 'Available' : 'Unavailable'}
+                                        ${model.running ? '✓ Running' : model.available ? '✓ Available' : '✗ Unavailable'}
                                     </span>
                                 </div>
+                                ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
                                 ${usageInfo}
                                 <div class="model-actions">
                                     ${actionButtons}
@@ -2648,7 +2939,7 @@
 
         async function showModelInfo(modelName) {
             try {
-                addModelLog('info', 'MODEL', `Fetching info for model: ${modelName}`);
+                addModelLog('info', 'MODEL', `Opening model preview for: ${modelName}`);
                 
                 // Get model details from Ollama
                 const response = await fetch(`http://localhost:11434/api/show`, {
@@ -2657,26 +2948,49 @@
                     body: JSON.stringify({ name: modelName })
                 });
                 
+                let modelInfo = {};
                 if (response.ok) {
-                    const modelInfo = await response.json();
-                    const infoText = `
-Model: ${modelInfo.name}
-Size: ${modelInfo.size ? (modelInfo.size / 1024 / 1024 / 1024).toFixed(2) + ' GB' : 'Unknown'}
-Format: ${modelInfo.format || 'Unknown'}
-Family: ${modelInfo.family || 'Unknown'}
-Parameters: ${modelInfo.parameter_size || 'Unknown'}
-Quantization: ${modelInfo.quantization_level || 'Unknown'}
-                    `.trim();
-                    
-                    addModelLog('info', 'MODEL', `Model info for ${modelName}: ${infoText}`);
-                    alert(`Model Information:\n\n${infoText}`);
-                        } else {
-                    addModelLog('warning', 'MODEL', `Could not fetch detailed info for ${modelName}`);
-                    alert(`Model: ${modelName}\nStatus: Available\n\nDetailed information not available.`);
-                    }
-                } catch (error) {
-                addModelLog('error', 'MODEL', `Error fetching model info for ${modelName}: ${error.message}`);
+                    modelInfo = await response.json();
+                }
+                
+                // Get model data from our catalog
+                const catalogResponse = await fetch('http://localhost:8081/admin/models');
+                let catalogModel = null;
+                if (catalogResponse.ok) {
+                    const catalogData = await catalogResponse.json();
+                    catalogModel = catalogData.models.find(m => m.name === modelName);
+                }
+                
+                // Populate modal with data
+                document.getElementById('modal-model-name').textContent = modelName;
+                document.getElementById('modal-name').textContent = modelName;
+                document.getElementById('modal-type').textContent = catalogModel?.type || 'Unknown';
+                document.getElementById('modal-status').textContent = catalogModel?.running ? 'Running' : catalogModel?.available ? 'Available' : 'Unavailable';
+                document.getElementById('modal-provider').textContent = 'Ollama';
+                document.getElementById('modal-parameters').textContent = modelInfo.parameter_size || 'Unknown';
+                document.getElementById('modal-context-length').textContent = modelInfo.context_length || 'Unknown';
+                document.getElementById('modal-size').textContent = modelInfo.size ? (modelInfo.size / 1024 / 1024 / 1024).toFixed(2) + ' GB' : 'Unknown';
+                document.getElementById('modal-format').textContent = modelInfo.format || 'Unknown';
+                
+                // Usage information
+                if (catalogModel?.used_by && catalogModel.used_by.length > 0) {
+                    const usageText = catalogModel.used_by.map(u => `${u.name} (${u.type})`).join(', ');
+                    document.getElementById('modal-used-by').textContent = usageText;
+                } else {
+                    document.getElementById('modal-used-by').textContent = 'Not used by any applications';
+                }
+                
+                // Show modal
+                document.getElementById('model-preview-modal').classList.add('active');
+                
+            } catch (error) {
+                addModelLog('error', 'MODEL', `Error opening model preview for ${modelName}: ${error.message}`);
+                alert(`Error loading model information for ${modelName}`);
             }
+        }
+        
+        function closeModelModal() {
+            document.getElementById('model-preview-modal').classList.remove('active');
         }
 
         // Log Management
@@ -2970,11 +3284,32 @@ Quantization: ${modelInfo.quantization_level || 'Unknown'}
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContent▶️ Loaded', function() {
+        document.addEventListener('DOMContentLoaded', function() {
             console.log('ABS AI Hub loaded successfully');
-            // ▶️ Load initial data
+            
+            // Load initial data
             refreshAllServices();
-            loadAppsData(); // ▶️ Load apps data on page load
+            loadAppsData();
+            checkServiceStatus();
+            checkModelStatus();
+            
+            // Add modal event listeners
+            const modal = document.getElementById('model-preview-modal');
+            if (modal) {
+                // Close modal when clicking outside
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        closeModelModal();
+                    }
+                });
+                
+                // Close modal with Escape key
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && modal.classList.contains('active')) {
+                        closeModelModal();
+                    }
+                });
+            }
         });
     </script>
 </body>
