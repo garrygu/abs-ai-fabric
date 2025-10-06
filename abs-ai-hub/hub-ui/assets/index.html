@@ -2342,19 +2342,10 @@
                     `;
                 }).join('');
                 
-                // Set default status for all apps to avoid console errors
+                // Check status for each app
                 apps.forEach(app => {
-                    const statusElement = document.getElementById(`app-status-${app.id}`);
-                    if (statusElement) {
-                        // Set reasonable defaults based on app type
-                        if (app.id === 'onyx-assistant') {
-                            statusElement.textContent = 'Online';
-                            statusElement.className = 'app-status online';
-            } else {
-                            statusElement.textContent = 'Offline';
-                            statusElement.className = 'app-status offline';
-                        }
-                    }
+                    const appUrl = app.metadata?.url || `/${app.id}/`;
+                    checkAppStatus(app.id, appUrl);
                 });
                 
             } catch (error) {
