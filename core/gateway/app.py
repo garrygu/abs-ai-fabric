@@ -54,7 +54,7 @@ app = FastAPI(title="ABS Hub Gateway")
 # Add CORS middleware for Admin UI
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1099,67 +1099,7 @@ async def get_services_status():
 @app.get("/admin/models")
 async def get_models(app_id: Optional[str] = None):
     """Unified model catalog for Hub UI: availability (pulled) and running (in VRAM).
-    If app_id is provided, filter models by catalog policy."""
-    try:
-        # Pulled models (available)
-        available: List[str] = []
-        try:
-            r_tags = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
-            if r_tags.is_success:
-                available = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
-        except Exception:
-            available = []
-
-        # Running models
-        running: List[str] = []
-        try:
-            r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
-            if r_ps.is_success:
-                running = [m.get("name") for m in r_ps.json().get("models", []) if m.get("name")]
-        except Exception:
-            running = []
-
-        # Get allowed models from catalog if app_id provided
-        allowed_models: Optional[List[str]] = None
-        if app_id:
-            for asset in CATALOG.get("assets", []):
-                if asset.get("class") == "app" and asset.get("id") == app_id:
-                    policy = asset.get("policy", {})
-                    allowed_models = policy.get("allowed_models", [])
-                    break
-        
-        # Build model list
-        if allowed_models:
-            # Show ALL allowed models, regardless of availability
-            # This allows users to select models that will be auto-pulled
-            union_names = set(allowed_models)
-        else:
-            # No filtering - show all models
-            union_names = set(available or []) | set(SUPPORTED_DEFAULT_MODELS)
-        
-        models = []
-        for name in sorted(union_names):
-            models.append({
-                "name": name,
-                "available": name in available,
-                "running": name in running,
-                "allowed": allowed_models is None or name in allowed_models
-            })
-        
-        # Also include running models that might not be in tags
-        for name in running:
-            if name not in union_names:
-                # Only include if not filtering by policy or if allowed
-                if allowed_models is None or name in allowed_models:
-                    models.append({"name": name, "available": False, "running": True, "allowed": True})
-
-        return {"models": models, "app_id": app_id, "policy_applied": allowed_models is not None}
-    except Exception as e:
-        raise HTTPException(500, f"Error listing models: {str(e)}")
-
-@app.get("/admin/models/catalog")
-async def get_catalog_models():
-    """Get comprehensive model information from catalog with usage tracking and status."""
+    If app_id is provided, filter models by catalog policy. Includes usage tracking and catalog info."""
     try:
         # Get Ollama status
         available: List[str] = []
@@ -1201,6 +1141,15 @@ async def get_catalog_models():
         if defaults.get("embed_model"):
             all_models.add(defaults["embed_model"])
 
+        # Get allowed models from catalog if app_id provided
+        allowed_models: Optional[List[str]] = None
+        if app_id:
+            for asset in CATALOG.get("assets", []):
+                if asset.get("class") == "app" and asset.get("id") == app_id:
+                    policy = asset.get("policy", {})
+                    allowed_models = policy.get("allowed_models", []) + policy.get("allowed_embeddings", [])
+                    break
+        
         # Build comprehensive model information
         models = []
         for model_name in sorted(all_models):
@@ -1224,6 +1173,10 @@ async def get_catalog_models():
             is_default_chat = defaults.get("chat_model") == model_name
             is_default_embed = defaults.get("embed_model") == model_name
             
+            # Apply filtering if app_id provided
+            if allowed_models and model_name not in allowed_models:
+                continue
+            
             models.append({
                 "name": model_name,
                 "type": "embedding" if is_embedding else "llm",
@@ -1233,11 +1186,32 @@ async def get_catalog_models():
                 "is_default_chat": is_default_chat,
                 "is_default_embed": is_default_embed,
                 "aliases": aliases.get(model_name, {}),
-                "status": "running" if model_name in running else ("available" if model_name in available else "unavailable")
+                "status": "running" if model_name in running else ("available" if model_name in available else "unavailable"),
+                "allowed": allowed_models is None or model_name in (allowed_models or [])
             })
 
+        # Also include running models that might not be in catalog
+        for name in running:
+            if name not in all_models:
+                # Only include if not filtering by policy or if allowed
+                if allowed_models is None or name in (allowed_models or []):
+                    models.append({
+                        "name": name,
+                        "type": "embedding" if any(keyword in name.lower() for keyword in ['embedding', 'bert', 'bge', 'minilm', 'sentence', 'all-mini']) else "llm",
+                        "available": False,
+                        "running": True,
+                        "used_by": [],
+                        "is_default_chat": False,
+                        "is_default_embed": False,
+                        "aliases": {},
+                        "status": "running",
+                        "allowed": True
+                    })
+
         return {
-            "models": models,
+            "models": models, 
+            "app_id": app_id, 
+            "policy_applied": allowed_models is not None,
             "summary": {
                 "total": len(models),
                 "llm_models": len([m for m in models if m["type"] == "llm"]),
@@ -1248,7 +1222,7 @@ async def get_catalog_models():
             }
         }
     except Exception as e:
-        raise HTTPException(500, f"Error getting catalog models: {str(e)}")
+        raise HTTPException(500, f"Error listing models: {str(e)}")
 
 @app.post("/admin/services/{service_name}/control")
 async def control_service(service_name: str, action: str):
