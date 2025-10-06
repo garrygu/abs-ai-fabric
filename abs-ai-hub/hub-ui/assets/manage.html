@@ -957,6 +957,10 @@
             editingAsset = null;
             document.getElementById('modalTitle').textContent = 'Add Asset';
             document.getElementById('assetForm').reset();
+            
+            // Hide all conditional sections for new asset
+            updateFormFields();
+            
             document.getElementById('assetModal').style.display = 'block';
         }
 
@@ -971,12 +975,28 @@
             document.getElementById('assetClass').value = asset.class;
             document.getElementById('assetDescription').value = asset.description || '';
             document.getElementById('assetUrl').value = asset.metadata?.url || '';
+            
+            // Populate policy fields (for apps)
             document.getElementById('allowedModels').value = asset.policy?.allowed_models?.join(', ') || '';
             document.getElementById('allowedEmbeddings').value = asset.policy?.allowed_embeddings?.join(', ') || '';
             document.getElementById('defaultChatModel').value = asset.policy?.defaults?.chat_model || '';
             document.getElementById('defaultEmbedModel').value = asset.policy?.defaults?.embed_model || '';
             document.getElementById('defaultProvider').value = asset.policy?.defaults?.provider || '';
             document.getElementById('embeddingDim').value = asset.policy?.defaults?.dim || '';
+            
+            // Populate service fields (for services)
+            document.getElementById('serviceType').value = asset.type || '';
+            document.getElementById('desiredState').value = asset.lifecycle?.desired || '';
+            document.getElementById('containerName').value = asset.metadata?.container || '';
+            
+            // Populate model fields (for models)
+            document.getElementById('modelProvider').value = asset.metadata?.provider || '';
+            document.getElementById('modelSize').value = asset.metadata?.size || '';
+            document.getElementById('modelFormat').value = asset.metadata?.format || '';
+            
+            // Update form fields based on asset class
+            updateFormFields();
+            
             document.getElementById('assetModal').style.display = 'block';
         }
 
