@@ -1958,6 +1958,14 @@
                                     </div>
                                 </div>
                                 <div class="monitor-card">
+                                    <h3>GPU Status</h3>
+                                    <div id="gpu-info">
+                                        <div class="resource-item">
+                                            <span class="resource-label">Loading GPU info...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="monitor-card">
                                     <h3>Network Status</h3>
                                     <div class="resource-item">
                                         <span class="resource-label">Active Connections:</span>
@@ -3265,12 +3273,67 @@
                         const mbPerMin = (totalBytes / (1024**2) / 60).toFixed(1);
                         requestsElement.textContent = `${mbPerMin} MB/min`;
                     }
+                    
+                    // Update GPU information
+                    updateGPUInfo(metrics.gpu);
                 } else {
                     console.error('Failed to update system metrics:', response.status);
                 }
             } catch (error) {
                 console.error('Error updating system metrics:', error);
             }
+        }
+
+        // GPU Information Functions
+        function updateGPUInfo(gpuData) {
+            const gpuInfoElement = document.getElementById('gpu-info');
+            if (!gpuInfoElement) return;
+            
+            if (!gpuData || gpuData.length === 0) {
+                gpuInfoElement.innerHTML = `
+                    <div class="resource-item">
+                        <span class="resource-label">No GPU detected</span>
+                        <span class="resource-value">-</span>
+                    </div>
+                `;
+                return;
+            }
+            
+            let gpuHTML = '';
+            gpuData.forEach((gpu, index) => {
+                const usedGB = (gpu.memory_used / (1024**3)).toFixed(1);
+                const totalGB = (gpu.memory_total / (1024**3)).toFixed(1);
+                const tempStr = gpu.temperature ? `${gpu.temperature}°C` : 'N/A';
+                const powerStr = gpu.power_usage ? `${gpu.power_usage.toFixed(1)}W` : 'N/A';
+                
+                gpuHTML += `
+                    <div class="resource-item">
+                        <span class="resource-label">GPU ${gpu.id}: ${gpu.name}</span>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-label">GPU Utilization:</span>
+                        <span class="resource-value">${gpu.utilization.toFixed(1)}%</span>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-label">GPU Memory:</span>
+                        <span class="resource-value">${gpu.memory_utilization.toFixed(1)}% (${usedGB}GB / ${totalGB}GB)</span>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-label">Temperature:</span>
+                        <span class="resource-value">${tempStr}</span>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-label">Power Usage:</span>
+                        <span class="resource-value">${powerStr}</span>
+                    </div>
+                `;
+                
+                if (index < gpuData.length - 1) {
+                    gpuHTML += '<hr style="margin: 10px 0; border: 1px solid #eee;">';
+                }
+            });
+            
+            gpuInfoElement.innerHTML = gpuHTML;
         }
 
         // Collection Management Functions

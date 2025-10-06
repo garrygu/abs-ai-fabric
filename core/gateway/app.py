@@ -1001,7 +1001,7 @@ def get_collection_name_for_model(embed_model: str) -> str:
 
 @app.get("/admin/system/metrics")
 async def get_system_metrics():
-    """Get real-time system metrics"""
+    """Get real-time system metrics including GPU"""
     try:
         # CPU usage
         cpu_percent = psutil.cpu_percent(interval=1)
@@ -1014,6 +1014,83 @@ async def get_system_metrics():
         
         # Network I/O
         network = psutil.net_io_counters()
+        
+        # GPU metrics
+        gpu_info = []
+        gpu_debug = {"pynvml_available": False, "gputil_available": False, "error": None}
+        
+        try:
+            import pynvml
+            gpu_debug["pynvml_available"] = True
+            pynvml.nvmlInit()
+            device_count = pynvml.nvmlDeviceGetCount()
+            print(f"Found {device_count} NVIDIA GPUs")
+            
+            for i in range(device_count):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+                
+                # GPU name
+                name = pynvml.nvmlDeviceGetName(handle).decode('utf-8')
+                
+                # GPU utilization
+                util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                
+                # GPU memory
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                
+                # GPU temperature
+                try:
+                    temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+                except:
+                    temp = None
+                
+                # GPU power usage
+                try:
+                    power = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0  # Convert to watts
+                except:
+                    power = None
+                
+                gpu_info.append({
+                    "id": i,
+                    "name": name,
+                    "utilization": util.gpu,
+                    "memory_utilization": util.memory,
+                    "memory_total": mem_info.total,
+                    "memory_used": mem_info.used,
+                    "memory_free": mem_info.free,
+                    "temperature": temp,
+                    "power_usage": power
+                })
+                
+        except ImportError as e:
+            gpu_debug["error"] = f"pynvml ImportError: {e}"
+            print(f"pynvml not available: {e}")
+            # Fallback to GPUtil if pynvml not available
+            try:
+                import GPUtil
+                gpu_debug["gputil_available"] = True
+                gpus = GPUtil.getGPUs()
+                print(f"Found {len(gpus)} GPUs via GPUtil")
+                for i, gpu in enumerate(gpus):
+                    gpu_info.append({
+                        "id": i,
+                        "name": gpu.name,
+                        "utilization": gpu.load * 100,
+                        "memory_utilization": gpu.memoryUtil * 100,
+                        "memory_total": gpu.memoryTotal * 1024 * 1024 * 1024,  # Convert to bytes
+                        "memory_used": gpu.memoryUsed * 1024 * 1024 * 1024,
+                        "memory_free": gpu.memoryFree * 1024 * 1024 * 1024,
+                        "temperature": gpu.temperature,
+                        "power_usage": None
+                    })
+            except ImportError as e2:
+                gpu_debug["error"] = f"Both pynvml and GPUtil failed: {e}, {e2}"
+                print(f"GPUtil also not available: {e2}")
+                gpu_info = []
+        except Exception as gpu_error:
+            gpu_debug["error"] = str(gpu_error)
+            print(f"GPU monitoring error: {gpu_error}")
+            gpu_info = []
         
         return {
             "cpu": {
@@ -1038,6 +1115,8 @@ async def get_system_metrics():
                 "packets_sent": network.packets_sent,
                 "packets_recv": network.packets_recv
             },
+            "gpu": gpu_info,
+            "gpu_debug": gpu_debug,
             "timestamp": time.time()
         }
     except Exception as e:
