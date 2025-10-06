@@ -1053,9 +1053,21 @@ async def get_services_status():
         r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
         if r.is_success:
             models = r.json().get("models", [])
+            # Get running models
+            try:
+                r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+                running_models = []
+                if r_ps.is_success:
+                    running_models = [m.get("name", "") for m in r_ps.json().get("models", [])]
+            except:
+                running_models = []
+            
             services["ollama"] = {
                 "status": "online",
                 "models": [m.get("name", "") for m in models],
+                "running_models": running_models,
+                "model_count": len(models),
+                "running_count": len(running_models),
                 "version": "unknown"
             }
         else:
@@ -1068,9 +1080,22 @@ async def get_services_status():
         r = await HTTP.get("http://qdrant:6333/collections")
         if r.is_success:
             collections = r.json().get("result", {}).get("collections", [])
+            total_vectors = 0
+            for collection in collections:
+                try:
+                    # Get collection info to count vectors
+                    coll_info = await HTTP.get(f"http://qdrant:6333/collections/{collection.get('name', '')}")
+                    if coll_info.is_success:
+                        vectors_count = coll_info.json().get("result", {}).get("vectors_count", 0)
+                        total_vectors += vectors_count
+                except:
+                    pass
+            
             services["qdrant"] = {
                 "status": "online",
                 "collections": [c.get("name", "") for c in collections],
+                "collection_count": len(collections),
+                "total_vectors": total_vectors,
                 "version": "unknown"
             }
         else:
@@ -1093,6 +1118,16 @@ async def get_services_status():
             services["redis"] = {"status": "offline", "error": "Redis client not initialized"}
     except Exception as e:
         services["redis"] = {"status": "offline", "error": str(e)}
+    
+    # Check Gateway (self)
+    try:
+        services["gateway"] = {
+            "status": "online",
+            "version": "1.0.0",
+            "uptime": "running"
+        }
+    except Exception as e:
+        services["gateway"] = {"status": "offline", "error": str(e)}
     
     return services
 

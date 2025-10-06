@@ -1847,22 +1847,100 @@
                 if (response.ok) {
                     const services = await response.json();
                     
-                    // Update service status indicators
+                    // Update service status indicators and detailed metrics
                     Object.keys(services).forEach(serviceName => {
+                        const service = services[serviceName];
+                        const isOnline = service.status === 'online';
+                        
+                        // Update status indicators
                         const statusElement = document.getElementById(serviceName + '-status');
                         const statusTextElement = document.getElementById(serviceName + '-status-text');
                         
                         if (statusElement && statusTextElement) {
-                            const isOnline = services[serviceName].status === 'online';
                             statusElement.textContent = isOnline ? 'Online' : 'Offline';
                             statusElement.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
                             statusTextElement.textContent = isOnline ? 'Online' : 'Offline';
+                        }
+                        
+                        // Update detailed metrics based on service type
+                        if (isOnline) {
+                            if (serviceName === 'ollama') {
+                                // Update Ollama metrics
+                                const modelsElement = document.getElementById('ollama-models');
+                                const memoryElement = document.getElementById('ollama-memory');
+                                const versionElement = document.getElementById('ollama-version');
+                                
+                                if (modelsElement) {
+                                    modelsElement.textContent = service.model_count || service.models?.length || '0';
+                                }
+                                if (memoryElement) {
+                                    memoryElement.textContent = service.memory_used || '-';
+                                }
+                                if (versionElement) {
+                                    versionElement.textContent = service.version || '-';
+                                }
+                            } else if (serviceName === 'qdrant') {
+                                // Update Qdrant metrics
+                                const collectionsElement = document.getElementById('qdrant-collections');
+                                const vectorsElement = document.getElementById('qdrant-vectors');
+                                const versionElement = document.getElementById('qdrant-version');
+                                
+                                if (collectionsElement) {
+                                    collectionsElement.textContent = service.collection_count || service.collections?.length || '0';
+                                }
+                                if (vectorsElement) {
+                                    vectorsElement.textContent = service.total_vectors || '-';
+                                }
+                                if (versionElement) {
+                                    versionElement.textContent = service.version || '-';
+                                }
+                            } else if (serviceName === 'redis') {
+                                // Update Redis metrics
+                                const keysElement = document.getElementById('redis-keys');
+                                const memoryElement = document.getElementById('redis-memory');
+                                const versionElement = document.getElementById('redis-version');
+                                
+                                if (keysElement) {
+                                    keysElement.textContent = service.keys || '0';
+                                }
+                                if (memoryElement) {
+                                    memoryElement.textContent = service.memory_used || '-';
+                                }
+                                if (versionElement) {
+                                    versionElement.textContent = service.version || '-';
+                                }
+                            } else if (serviceName === 'gateway') {
+                                // Update Gateway metrics
+                                const versionElement = document.getElementById('gateway-version');
+                                const uptimeElement = document.getElementById('gateway-uptime');
+                                
+                                if (versionElement) {
+                                    versionElement.textContent = service.version || '-';
+                                }
+                                if (uptimeElement) {
+                                    uptimeElement.textContent = service.uptime || '-';
+                                }
+                            }
+                        } else {
+                            // Service is offline, reset metrics to dashes
+                            const metricElements = [
+                                serviceName + '-models', serviceName + '-memory', serviceName + '-version',
+                                serviceName + '-collections', serviceName + '-vectors', serviceName + '-keys',
+                                serviceName + '-uptime'
+                            ];
+                            
+                            metricElements.forEach(elementId => {
+                                const element = document.getElementById(elementId);
+                                if (element) {
+                                    element.textContent = '-';
+                                }
+                            });
                         }
                     });
                 } else {
                     console.error('Failed to check service status:', response.status);
                 }
-                } catch (error) {
+            } catch (error) {
                 console.error('Error checking service status:', error);
             }
         }
