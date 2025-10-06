@@ -1032,6 +1032,72 @@
             background: #f1f5f9;
             color: #1e293b;
         }
+        
+        /* Asset Management */
+        .asset-management-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-top: 30px;
+        }
+        
+        .asset-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+        
+        .asset-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+            border-color: #667eea;
+        }
+        
+        .asset-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            display: block;
+        }
+        
+        .asset-card h3 {
+            margin: 0 0 12px 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        
+        .asset-card p {
+            margin: 0 0 20px 0;
+            color: #7f8c8d;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        
+        /* Footer */
+        .footer {
+            margin-top: 60px;
+            padding: 20px 0;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.5);
+            text-align: center;
+        }
+        
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .footer p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
         .status-indicator {
             font-size: 12px;
             padding: 4px 8px;
@@ -1473,16 +1539,13 @@
         <div class="header">
             <h1>🤖 ABS AI Hub</h1>
             <p>Legal Workstation - AI-powered legal tools and document analysis</p>
-            <div style="margin-top: 20px;">
-                <a href="manage.html" class="btn" style="margin-right: 10px;">Manage Assets</a>
-                <a href="http://localhost:8081/catalog" target="_blank" class="btn btn-secondary">View Catalog API</a>
-            </div>
         </div>
 
         <!-- Enhanced Navigation Tabs -->
         <div class="nav-tabs">
             <button class="nav-tab active" onclick="showTab('apps')">📱 Apps</button>
             <button class="nav-tab" onclick="showTab('admin')">⚙️ Admin</button>
+            <button class="nav-tab" onclick="showTab('assets')">📊 Assets</button>
         </div>
 
         <!-- Apps Tab -->
@@ -1997,6 +2060,42 @@
                 </div>
             </div>
         </div>
+
+        <!-- Assets Tab -->
+        <div id="assets-tab" class="tab-content">
+            <h2>📊 Asset Management</h2>
+            <p>Manage and configure your AI assets, services, and applications.</p>
+            
+            <div class="asset-management-grid">
+                <div class="asset-card">
+                    <div class="asset-icon">📱</div>
+                    <h3>Applications</h3>
+                    <p>Manage AI applications and their configurations</p>
+                    <a href="manage.html" class="btn btn-primary">Manage Apps</a>
+                </div>
+                
+                <div class="asset-card">
+                    <div class="asset-icon">🔧</div>
+                    <h3>Services</h3>
+                    <p>Configure core services and dependencies</p>
+                    <button class="btn btn-secondary" onclick="showTab('admin'); showAdminSubTab('services')">View Services</button>
+                </div>
+                
+                <div class="asset-card">
+                    <div class="asset-icon">🧠</div>
+                    <h3>Models</h3>
+                    <p>Manage AI models and their availability</p>
+                    <button class="btn btn-secondary" onclick="showTab('admin'); showAdminSubTab('models')">View Models</button>
+                </div>
+                
+                <div class="asset-card">
+                    <div class="asset-icon">📋</div>
+                    <h3>Catalog API</h3>
+                    <p>Access the unified asset catalog via API</p>
+                    <a href="http://localhost:8081/catalog" target="_blank" class="btn btn-secondary">View Catalog API</a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Model Preview Modal -->
@@ -2088,6 +2187,9 @@
                 loadAdminData();
             } else if (tabName === 'apps') {
                 loadAppsData();
+            } else if (tabName === 'assets') {
+                // Assets tab doesn't need special data loading
+                console.log('Assets tab loaded');
             }
         }
 
@@ -3275,7 +3377,7 @@
                     }
                     
                     // Update GPU information
-                    updateGPUInfo(metrics.gpu);
+                    updateGPUInfo(metrics.gpu, metrics.gpu_debug);
                 } else {
                     console.error('Failed to update system metrics:', response.status);
                 }
@@ -3285,15 +3387,30 @@
         }
 
         // GPU Information Functions
-        function updateGPUInfo(gpuData) {
+        function updateGPUInfo(gpuData, gpuDebug) {
             const gpuInfoElement = document.getElementById('gpu-info');
             if (!gpuInfoElement) return;
             
             if (!gpuData || gpuData.length === 0) {
+                let message = "No GPU detected";
+                if (gpuDebug && gpuDebug.error) {
+                    if (gpuDebug.error.includes("NVML Shared Library Not Found")) {
+                        message = "GPU not accessible from container";
+                    } else if (gpuDebug.error.includes("ImportError")) {
+                        message = "GPU libraries not available";
+                    } else {
+                        message = `GPU error: ${gpuDebug.error}`;
+                    }
+                }
+                
                 gpuInfoElement.innerHTML = `
                     <div class="resource-item">
-                        <span class="resource-label">No GPU detected</span>
+                        <span class="resource-label">${message}</span>
                         <span class="resource-value">-</span>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-label">Note:</span>
+                        <span class="resource-value">Docker container needs GPU access</span>
                     </div>
                 `;
                 return;
@@ -3463,5 +3580,12 @@
             }
         });
     </script>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p>ABS Legal AI Suite v1.0.0 | Secure On-Prem Deployment</p>
+        </div>
+    </footer>
 </body>
 </html>
