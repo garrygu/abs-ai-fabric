@@ -2395,16 +2395,29 @@
             // For working apps (8000, 7860), try to check their actual status
             if (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860')) {
                 try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    
                     const response = await fetch(`${appUrl}/healthz`, {
                         method: 'GET',
-                        mode: 'no-cors',
-                        timeout: 3000
+                        signal: controller.signal
                     });
-                    statusElement.textContent = 'Online';
-                    statusElement.className = 'app-status online';
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        statusElement.textContent = 'Online';
+                        statusElement.className = 'app-status online';
+                        console.log(`✅ ${appId} is online`);
+                    } else {
+                        statusElement.textContent = 'Offline';
+                        statusElement.className = 'app-status offline';
+                        console.log(`❌ ${appId} health check failed: ${response.status}`);
+                    }
                 } catch (error) {
                     statusElement.textContent = 'Offline';
                     statusElement.className = 'app-status offline';
+                    console.log(`❌ ${appId} status check error:`, error.message);
                 }
                 return;
             }

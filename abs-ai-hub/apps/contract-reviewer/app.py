@@ -5,6 +5,7 @@ import fitz  # PyMuPDF
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import gradio as gr
 import uvicorn
 import requests
@@ -432,6 +433,15 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
 
 # -------- FastAPI + Gradio --------
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ReviewResponse(BaseModel):
     summary: str
