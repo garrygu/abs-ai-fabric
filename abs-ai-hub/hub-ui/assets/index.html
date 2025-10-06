@@ -2382,16 +2382,28 @@
             
             // Skip status checking for apps that are known to cause console errors
             // This prevents console spam while still showing the apps
-            const problematicPorts = ['8080', '8000', '7860', '3200'];
+            const problematicPorts = ['8080', '3200']; // Removed 7860 and 8000 since they work now
             const isProblematic = problematicPorts.some(port => appUrl.includes(`localhost:${port}`));
             
             if (isProblematic) {
                 // Set a reasonable default status based on the app
-                if (appUrl.includes('localhost:8000')) {
-                    statusElement.textContent = 'Online'; // Onyx is usually running
+                statusElement.textContent = 'Offline'; // These are likely offline
+                statusElement.className = 'app-status offline';
+                return;
+            }
+            
+            // For working apps (8000, 7860), try to check their actual status
+            if (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860')) {
+                try {
+                    const response = await fetch(`${appUrl}/healthz`, {
+                        method: 'GET',
+                        mode: 'no-cors',
+                        timeout: 3000
+                    });
+                    statusElement.textContent = 'Online';
                     statusElement.className = 'app-status online';
-                } else {
-                    statusElement.textContent = 'Offline'; // Others are likely offline
+                } catch (error) {
+                    statusElement.textContent = 'Offline';
                     statusElement.className = 'app-status offline';
                 }
                 return;
