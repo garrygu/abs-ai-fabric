@@ -1,0 +1,9 @@
+{
+  "id": "onyx-suite",
+  "name": "Onyx Suite",
+  "description": "Full Onyx deployment (local)",
+  "port": 8150,
+  "health": "http://localhost:8150/healthz"
+}
+
+

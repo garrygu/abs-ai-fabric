@@ -1,0 +1,35 @@
+name: abs-app-legal-assistant
+
+networks:
+  abs-net:
+    external: true
+
+services:
+  wait-core:
+    image: curlimages/curl:8.8.0
+    networks: [abs-net]
+    command: >
+      sh -c "
+        until curl -sf http://hub-gateway:8081/.well-known/abs-services >/dev/null; do echo waiting hub-gateway; sleep 2; done &&
+        echo core ready
+      "
+
+  legal-assistant:
+    build: .
+    image: abs-legal-assistant:latest
+    container_name: abs-legal-assistant
+    restart: unless-stopped
+    environment:
+      HUB_GATEWAY_URL: http://hub-gateway:8081
+      APP_PORT: 8050
+    ports:
+      - "8050:8050"
+    networks: [abs-net]
+    depends_on:
+      - wait-core
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+

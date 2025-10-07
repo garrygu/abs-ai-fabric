@@ -3320,7 +3320,7 @@
                 });
                 if (response.ok) {
                     addModelLog('info', 'MODEL', `Model ${modelName} deleted successfully`);
-                    // Refresh immediately to reflect removal
+                    // Refresh immediately to reflect removalX
                     await refreshModels();
                 } else {
                     addModelLog('error', 'MODEL', `Failed to delete model ${modelName}: ${response.status}`);

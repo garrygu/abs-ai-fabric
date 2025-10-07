@@ -3,6 +3,20 @@
   "description": "ABS AI Hub Applications Registry",
   "applications": [
     {
+      "name": "Legal Assistant",
+      "id": "legal-assistant",
+      "category": "Legal Apps",
+      "description": "Rich legal assistant with chat, RAG, and contract analysis.",
+      "entrypoint": "docker compose up -d",
+      "healthcheck": {
+        "url": "http://localhost:8050/healthz",
+        "expect": "200"
+      },
+      "port": 8050,
+      "icon": "contract-reviewer.png",
+      "path": "apps/legal-assistant"
+    },
+    {
       "name": "Contract Reviewer",
       "id": "contract-reviewer",
       "category": "Legal Apps",

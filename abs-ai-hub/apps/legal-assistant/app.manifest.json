@@ -1,0 +1,9 @@
+{
+  "id": "legal-assistant",
+  "name": "Legal Assistant",
+  "version": "1.0.0",
+  "description": "Rich legal assistant with chat, RAG, and contract analysis",
+  "port": 8050,
+  "health": "/healthz"
+}
+

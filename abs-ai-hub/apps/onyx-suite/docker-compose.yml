@@ -1,0 +1,17 @@
+services:
+  onyx-suite:
+    image: ghcr.io/onyx-dot-app/onyx:latest
+    container_name: abs-onyx-suite
+    restart: unless-stopped
+    ports:
+      - "8150:8000"  # avoid conflict; app exposed on localhost:8150
+    environment:
+      ONYX_ENV: "local"
+      ONYX_DISABLE_AUTH: "true"
+    volumes:
+      - onyx_suite_data:/var/lib/onyx
+
+volumes:
+  onyx_suite_data:
+
+
