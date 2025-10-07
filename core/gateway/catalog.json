@@ -14,8 +14,7 @@
       "description": "Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports",
       "policy": {
         "allowed_models": [
-          "llama3.2:latest",
-          "llama3.2:7b"
+          "llama3.2:latest"
         ],
         "allowed_embeddings": [
           "legal-bert",
@@ -39,8 +38,7 @@
       "description": "Summarize deposition transcripts and extract key information",
       "policy": {
         "allowed_models": [
-          "llama3.2:3b",
-          "llama3.2:7b"
+          "llama3.2:3b"
         ],
         "allowed_embeddings": [
           "all-minilm",
@@ -64,7 +62,6 @@
       "policy": {
         "allowed_models": [
           "llama3.2:3b",
-          "llama3.2:7b",
           "llama3.2:latest",
           "llama3:8b",
           "llama4:scout"
@@ -86,7 +83,6 @@
       "policy": {
         "allowed_models": [
           "llama3.2:3b",
-          "llama3.2:7b",
           "llama3.2:latest"
         ],
         "allowed_embeddings": [

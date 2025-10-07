@@ -659,19 +659,20 @@ def build_unified_catalog() -> Dict[str, Any]:
                 }
             })
 
-    # Models (logical aliases and defaults)
+    # Models (logical aliases and defaults) - only add if not already in catalog
     aliases = (REG or {}).get("aliases", {})
     for logical, providers in aliases.items():
-        assets.append({
-            "id": logical,
-            "class": "model",
-            "name": logical,
-            "version": None,
-            "owner": None,
-            "policy": {},
-            "health": {"status": "unknown"},
-            "metadata": {"providers": providers}
-        })
+        if logical not in existing_ids:  # Only add if not already in catalog
+            assets.append({
+                "id": logical,
+                "class": "model",
+                "name": logical,
+                "version": None,
+                "owner": None,
+                "policy": {},
+                "health": {"status": "unknown"},
+                "metadata": {"providers": providers}
+            })
 
     # Services (from hardcoded registry map)
     for svc in SERVICE_REGISTRY.keys():
