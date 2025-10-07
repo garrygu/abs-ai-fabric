@@ -478,12 +478,37 @@ async def unload_model(model_name: str) -> bool:
     print(f"DEBUG: unload_model called with model_name: {model_name}")
     try:
         # Try multiple approaches to unload the model
+        # Normalize helper for X vs X:latest comparisons
+        def _variants(name: str) -> set:
+            bases = set()
+            if not name:
+                return bases
+            bases.add(name)
+            if name.endswith(":latest"):
+                bases.add(name[:-7])
+            else:
+                bases.add(f"{name}:latest")
+            return bases
+
+        # Resolve to provider-specific alias if present (e.g., logical all-minilm -> ollama all-minilm:latest)
+        aliases = (REG or {}).get("aliases", {}) if isinstance(REG, dict) else {}
+        provider_map = aliases.get(model_name, {}) if isinstance(aliases, dict) else {}
+        ollama_alias = provider_map.get("ollama", model_name)
+        candidates = set()
+        candidates |= _variants(model_name)
+        candidates |= _variants(ollama_alias)
+
+        # Approach 1: Set keep_alive to 0 with a minimal request (LLM)
+        # Try both LLM and Embeddings unload across all variants
+        success = False
+        for candidate in list(candidates):
+            try:
+                payload = {"model": candidate, "prompt": "test", "stream": False, "options": {"keep_alive": 0}}
+                r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=10)
+            except Exception:
+                r = None
         
-        # Approach 1: Set keep_alive to 0 with a minimal request
-        payload = {"model": model_name, "prompt": "test", "stream": False, "options": {"keep_alive": 0}}
-        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=10)
-        
-        if r.is_success:
+        if r is not None and r.is_success:
             # Wait a moment for Ollama to process the unload
             await asyncio.sleep(3)
             
@@ -491,21 +516,39 @@ async def unload_model(model_name: str) -> bool:
             ps_r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
             if ps_r.is_success:
                 running_models = [m.get("name") for m in ps_r.json().get("models", [])]
-                if model_name not in running_models:
+                present = False
+                for cand in candidates:
+                    if cand in running_models:
+                        present = True
+                        break
+                if not present:
                     print(f"Model {model_name} successfully unloaded using keep_alive=0")
                     return True
             
             # Approach 2: Try with keep_alive as "0s" (string format)
             print(f"Model {model_name} still running, trying alternative unload method...")
-            payload2 = {"model": model_name, "prompt": "test", "stream": False, "options": {"keep_alive": "0s"}}
-            r2 = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload2, timeout=10)
+            last_r2 = None
+            for candidate in list(candidates):
+                try:
+                    payload2 = {"model": candidate, "prompt": "test", "stream": False, "options": {"keep_alive": "0s"}}
+                    last_r2 = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload2, timeout=10)
+                except Exception:
+                    last_r2 = None
+
+            # Try embedding warm/unload path as well (always attempt once)
+            for candidate in list(candidates):
+                payload_e = {"model": candidate, "input": "warm", "options": {"keep_alive": 0}}
+                try:
+                    _ = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/embeddings", json=payload_e, timeout=10)
+                except Exception:
+                    continue
             
-            if r2.is_success:
+            if last_r2 is not None and last_r2.is_success:
                 await asyncio.sleep(3)
                 ps_r2 = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
                 if ps_r2.is_success:
                     running_models2 = [m.get("name") for m in ps_r2.json().get("models", [])]
-                    if model_name not in running_models2:
+                    if not any(c in running_models2 for c in candidates):
                         print(f"Model {model_name} successfully unloaded using keep_alive='0s'")
                         return True
             
@@ -513,8 +556,11 @@ async def unload_model(model_name: str) -> bool:
             ps_r3 = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
             if ps_r3.is_success:
                 running_models3 = ps_r3.json().get("models", [])
+                # Success if none of the variants remain
+                if not any((m.get("name") in candidates) for m in running_models3):
+                    return True
                 for model in running_models3:
-                    if model.get("name") == model_name:
+                    if model.get("name") in candidates:
                         expires_at = model.get("expires_at")
                         if expires_at:
                             # Calculate time until auto-unload
@@ -1411,7 +1457,16 @@ async def get_models(app_id: Optional[str] = None):
         try:
             r_tags = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
             if r_tags.is_success:
-                available = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
+                raw = [m.get("name") for m in r_tags.json().get("models", []) if m.get("name")]
+                # Normalize X and X:latest to be equivalent
+                norm = set()
+                for n in raw:
+                    norm.add(n)
+                    if n.endswith(":latest"):
+                        norm.add(n[:-7])
+                    else:
+                        norm.add(f"{n}:latest")
+                available = list(norm)
         except Exception:
             pass
 
@@ -1420,7 +1475,17 @@ async def get_models(app_id: Optional[str] = None):
             running_models_info = {}
             if r_ps.is_success:
                 running_models_data = r_ps.json().get("models", [])
-                running = [m.get("name") for m in running_models_data if m.get("name")]
+                # Normalize running names similarly (X and X:latest)
+                running = []
+                for m in running_models_data:
+                    n = m.get("name")
+                    if not n:
+                        continue
+                    running.append(n)
+                    if n.endswith(":latest"):
+                        running.append(n[:-7])
+                    else:
+                        running.append(f"{n}:latest")
                 # Store detailed info for countdown calculation
                 for model in running_models_data:
                     running_models_info[model.get("name")] = model
@@ -1458,12 +1523,25 @@ async def get_models(app_id: Optional[str] = None):
                     policy = asset.get("policy", {})
                     allowed_models = policy.get("allowed_models", []) + policy.get("allowed_embeddings", [])
                     break
+
+        # Normalize model names: collapse X and X:latest to X for display
+        def _base(name: str) -> str:
+            return name[:-7] if isinstance(name, str) and name.endswith(":latest") else name
+
+        all_models = { _base(n) for n in all_models }
+        if allowed_models is not None:
+            allowed_models = [ _base(n) for n in (allowed_models or []) ]
         
-        # Build comprehensive model information
+        # Build comprehensive model information (dedupe by logical base name)
         models = []
+        seen: set = set()
         for model_name in sorted(all_models):
+            logical_name = model_name[:-7] if isinstance(model_name, str) and model_name.endswith(":latest") else model_name
+            if logical_name in seen:
+                continue
+            seen.add(logical_name)
             # Determine model type
-            is_embedding = any(keyword in model_name.lower() for keyword in 
+            is_embedding = any(keyword in logical_name.lower() for keyword in 
                               ['embedding', 'bert', 'bge', 'minilm', 'sentence', 'all-mini'])
             
             # Find usage by apps
@@ -1471,24 +1549,24 @@ async def get_models(app_id: Optional[str] = None):
             for asset in CATALOG.get("assets", []):
                 if asset.get("class") == "app":
                     policy = asset.get("policy", {})
-                    if model_name in policy.get("allowed_models", []) or model_name in policy.get("allowed_embeddings", []):
+                    if logical_name in policy.get("allowed_models", []) or logical_name in policy.get("allowed_embeddings", []):
                         used_by.append({
                             "id": asset.get("id"),
                             "name": asset.get("name"),
-                            "type": "chat" if model_name in policy.get("allowed_models", []) else "embedding"
+                            "type": "chat" if logical_name in policy.get("allowed_models", []) else "embedding"
                         })
             
             # Check if it's a default model
-            is_default_chat = defaults.get("chat_model") == model_name
-            is_default_embed = defaults.get("embed_model") == model_name
+            is_default_chat = defaults.get("chat_model") == logical_name
+            is_default_embed = defaults.get("embed_model") == logical_name
             
             # Apply filtering if app_id provided
-            if allowed_models and model_name not in allowed_models:
+            if allowed_models and logical_name not in allowed_models:
                 continue
             
             # Map logical name to provider-specific names for Ollama checks
-            model_aliases = aliases.get(model_name, {})
-            ollama_name = model_aliases.get("ollama", model_name)
+            model_aliases = aliases.get(logical_name, {})
+            ollama_name = model_aliases.get("ollama", logical_name)
             
             # Calculate auto-unload countdown if model is running
             auto_unload_countdown = None
@@ -1509,36 +1587,20 @@ async def get_models(app_id: Optional[str] = None):
                         auto_unload_countdown = expires_at
             
             models.append({
-                "name": model_name,
+                "name": logical_name,
                 "type": "embedding" if is_embedding else "llm",
                 "available": ollama_name in available,
                 "running": ollama_name in running,
                 "used_by": used_by,
                 "is_default_chat": is_default_chat,
                 "is_default_embed": is_default_embed,
-                "aliases": aliases.get(model_name, {}),
+                "aliases": aliases.get(logical_name, {}),
                 "status": "running" if ollama_name in running else ("available" if ollama_name in available else "unavailable"),
-                "allowed": allowed_models is None or model_name in (allowed_models or []),
+                "allowed": allowed_models is None or logical_name in (allowed_models or []),
                 "auto_unload_countdown": auto_unload_countdown
             })
 
-        # Also include running models that might not be in catalog
-        for name in running:
-            if name not in all_models:
-                # Only include if not filtering by policy or if allowed
-                if allowed_models is None or name in (allowed_models or []):
-                    models.append({
-                        "name": name,
-                        "type": "embedding" if any(keyword in name.lower() for keyword in ['embedding', 'bert', 'bge', 'minilm', 'sentence', 'all-mini']) else "llm",
-                        "available": False,
-                        "running": True,
-                        "used_by": [],
-                        "is_default_chat": False,
-                        "is_default_embed": False,
-                        "aliases": {},
-                        "status": "running",
-                        "allowed": True
-                    })
+        # Note: we intentionally do NOT append extra running-only names to avoid duplicates
 
         return {
             "models": models, 
@@ -1779,14 +1841,31 @@ async def pull_model(model_name: str):
 
 @app.post("/admin/models/{model_name}/load")
 async def load_model(model_name: str):
-    """Load a model into VRAM in Ollama"""
+    """Load a model (LLM or embedding) into VRAM in Ollama.
+    For embeddings, we warm by calling /api/embeddings; for LLMs we call /api/generate.
+    """
     try:
         # First ensure model is available (pull if needed)
         await preload_model_if_needed(model_name, "ollama")
         
-        # Then load it into VRAM
-        payload = {"model": model_name, "prompt": "test", "stream": False}
-        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=30)
+        # Detect if this is likely an embedding model by checking registry aliases
+        aliases = (REG or {}).get("aliases", {})
+        providers = aliases.get(model_name, {}) if isinstance(aliases, dict) else {}
+        # simple heuristic: embedding models we track are non-llama families like bge/all-minilm/legal-bert
+        is_embedding = any(k in model_name.lower() for k in ["bge", "minilm", "bert", "embedding"]) or providers.get("type") == "embedding"
+
+        if is_embedding:
+            # Warm embeddings by issuing a tiny embedding request with keep_alive
+            payload = {
+                "model": model_name,
+                "input": "warm",
+                "options": {"keep_alive": f"{AUTO_WAKE_SETTINGS['model_keep_alive_hours']}h"}
+            }
+            r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/embeddings", json=payload, timeout=30)
+        else:
+            # LLM warm via generate
+            payload = {"model": model_name, "prompt": "test", "stream": False, "options": {"keep_alive": f"{AUTO_WAKE_SETTINGS['model_keep_alive_hours']}h"}}
+            r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=30)
         if not r.is_success:
             raise HTTPException(r.status_code, r.text)
         
@@ -1796,20 +1875,41 @@ async def load_model(model_name: str):
 
 @app.delete("/admin/models/{model_name}")
 async def delete_model(model_name: str):
-    """Unload a model from Ollama"""
+    """Delete a model from Ollama storage (handles aliases and :latest)."""
     try:
-        payload = {"name": model_name}
-        r = await HTTP.request("DELETE", f"{OLLAMA_BASE.rstrip('/')}/api/delete", 
-                               json=payload)
-        if not r.is_success:
-            # If model not found, consider it already unloaded
-            if "model" in r.text and "not found" in r.text:
-                return {"status": "unloaded", "model": model_name, "note": "model was not found in Ollama"}
-            raise HTTPException(r.status_code, r.text)
-        
-        return {"status": "unloaded", "model": model_name}
+        # Build candidate names from alias and :latest normalization
+        def variants(name: str) -> set:
+            out = {name}
+            if name.endswith(":latest"):
+                out.add(name[:-7])
+            else:
+                out.add(f"{name}:latest")
+            return out
+
+        aliases = (REG or {}).get("aliases", {}) if isinstance(REG, dict) else {}
+        provider_map = aliases.get(model_name, {}) if isinstance(aliases, dict) else {}
+        oll_name = provider_map.get("ollama", model_name)
+        cands = set()
+        cands |= variants(model_name)
+        cands |= variants(oll_name)
+
+        last_error = None
+        for cand in cands:
+            try:
+                payload = {"name": cand}
+                r = await HTTP.request("DELETE", f"{OLLAMA_BASE.rstrip('/')}/api/delete", json=payload)
+                if r.is_success:
+                    return {"status": "deleted", "model": cand}
+                # Treat not found as success (already deleted)
+                if "not found" in (r.text or "").lower():
+                    return {"status": "deleted", "model": cand, "note": "model not found (already deleted)"}
+                last_error = f"{r.status_code}: {r.text}"
+            except Exception as ex:
+                last_error = str(ex)
+                continue
+        raise HTTPException(500, f"Failed to delete model {model_name}: {last_error}")
     except Exception as e:
-        raise HTTPException(500, f"Error unloading model: {str(e)}")
+        raise HTTPException(500, f"Error deleting model: {str(e)}")
 
 @app.delete("/admin/collections/{collection_name}")
 async def delete_collection(collection_name: str):

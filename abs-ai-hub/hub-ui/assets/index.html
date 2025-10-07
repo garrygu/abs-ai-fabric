@@ -3312,14 +3312,16 @@
             
             try {
                 addModelLog('info', 'MODEL', `Deleting model: ${modelName}`);
-                const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}`, {
+                // Prefer provider alias if available in the DOM data (stored on the card as data-alias)
+                const elId = 'pull-status-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
+                const alias = (document.getElementById(elId)?.dataset?.alias) || modelName;
+                const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(alias)}`, {
                     method: 'DELETE'
                 });
                 if (response.ok) {
                     addModelLog('info', 'MODEL', `Model ${modelName} deleted successfully`);
-                    setTimeout(() => {
-                        refreshModels();
-                    }, 2000);
+                    // Refresh immediately to reflect removal
+                    await refreshModels();
                 } else {
                     addModelLog('error', 'MODEL', `Failed to delete model ${modelName}: ${response.status}`);
                 }
