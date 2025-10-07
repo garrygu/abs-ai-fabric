@@ -302,6 +302,13 @@
             color: #333;
             margin-bottom: 15px;
         }
+        /* Pull progress */
+        .pull-status { margin-top: 8px; font-size: 12px; color: #555; }
+        .progress-track { width: 160px; height: 6px; background: #e9ecef; border-radius: 4px; overflow: hidden; display: inline-block; vertical-align: middle; }
+        .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ffd166, #f6ad55); transition: width 0.3s ease; }
+        .progress-indeterminate { position: relative; width: 160px; height: 6px; background: #e9ecef; border-radius: 4px; overflow: hidden; display: inline-block; }
+        .progress-indeterminate::before { content: ""; position: absolute; left: -40%; width: 40%; height: 100%; background: linear-gradient(90deg, #ffd166, #f6ad55); animation: indet 1.2s infinite; }
+        @keyframes indet { 0% { left: -40%; } 50% { left: 60%; } 100% { left: 100%; } }
         .action-buttons {
             display: flex;
             gap: 10px;
@@ -329,6 +336,19 @@
         }
         .action-buttons .btn-secondary:hover {
             background: #5a6268;
+        }
+        
+        /* Disabled button styling */
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #6c757d !important;
+            color: #adb5bd !important;
+        }
+        
+        .btn:disabled:hover {
+            background: #6c757d !important;
+            transform: none !important;
         }
         
         /* Asset Statistics */
@@ -645,6 +665,21 @@
             display: flex;
             gap: 8px;
             align-items: center;
+        }
+        
+        .model-error-message {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.2);
+            border-radius: 6px;
+            font-size: 12px;
+            color: #dc3545;
+            display: none;
+        }
+        
+        .model-error-message .error-text {
+            font-weight: 500;
         }
         
         .model-btn {
@@ -1892,7 +1927,7 @@
                         <div class="model-management">
                             <div class="model-actions">
                                 <button class="btn btn-primary" onclick="refreshModels()">Refresh Models</button>
-                                <button class="btn btn-secondary" onclick="loadAllModels()">▶️ Load All Models</button>
+                                <button class="btn btn-secondary" onclick="loadAllModels()" disabled title="Disabled: Loading all models simultaneously would overwhelm system resources">▶️ Load All Models</button>
                                 <button class="btn btn-secondary" onclick="clearModelLogs()">Clear Logs</button>
                             </div>
                             <div class="models-grid" id="admin-models-grid">
@@ -2810,38 +2845,79 @@
         async function refreshModels() {
             await checkModelStatus();
             await loadAdminModels();
+            
+            // Clear all error messages when refreshing
+            document.querySelectorAll('.model-error-message').forEach(el => {
+                el.style.display = 'none';
+            });
         }
 
         const GATEWAY_URL = 'http://localhost:8081';
+        // Persist pull state across tab switches
+        const PULLING_MODELS_STORAGE_KEY = 'abs_pulling_models';
+        let PULLING_MODELS = new Set();
+        try {
+            const raw = localStorage.getItem(PULLING_MODELS_STORAGE_KEY);
+            if (raw) PULLING_MODELS = new Set(JSON.parse(raw));
+        } catch (_) { PULLING_MODELS = new Set(); }
+        function persistPulling() {
+            try { localStorage.setItem(PULLING_MODELS_STORAGE_KEY, JSON.stringify(Array.from(PULLING_MODELS))); } catch (_) {}
+        }
 
         async function pullModel(modelName) {
             try {
+                // Hide any previous error message
+                hideModelError(modelName);
+                
+                const elemId = 'pull-status-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
+                // helper to ensure progress nodes exist
+                const ensureStatus = (id, text) => {
+                    const el = document.getElementById(id);
+                    if (!el) return null;
+                    el.style.display = 'inline-block';
+                    if (!el.querySelector('.pull-text')) {
+                        el.innerHTML = '<span class="pull-text"></span><span class="progress-indeterminate"></span>';
+                    }
+                    el.querySelector('.pull-text').textContent = text;
+                    return el;
+                };
+                let statusEl = ensureStatus(elemId, 'Pulling...');
+                // Mark as pulling in persistent set
+                PULLING_MODELS.add(modelName);
+                persistPulling();
+                // Explicitly pull the model first (gateway triggers Ollama /api/pull)
                 const resp = await fetch(`${GATEWAY_URL}/admin/models/${encodeURIComponent(modelName)}/pull`, { method: 'POST' });
                 if (!resp.ok) throw new Error(await resp.text());
-                await refreshModels();
-                alert(`Pull requested for ${modelName}.`);
+                // Show success and refresh list after a short delay
+                statusEl = ensureStatus(elemId, 'Pull requested. This may take a while...');
+                setTimeout(() => { refreshModels(); }, 1500);
             } catch (e) {
                 console.error('Pull error', e);
-                alert(`Failed to pull ${modelName}: ${e.message}`);
+                const elemId = 'pull-status-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
+                const el = document.getElementById(elemId);
+                if (el) {
+                    if (!el.querySelector('.pull-text')) {
+                        el.innerHTML = '<span class="pull-text"></span>';
+                    }
+                    el.style.display = 'inline-block';
+                    el.querySelector('.pull-text').textContent = 'Failed: ' + (e.message || 'error');
+                } else {
+                    alert(`Failed to pull ${modelName}: ${e.message}`);
+                }
+                
+                // Show error message on model card
+                showModelError(modelName, `Failed to pull: ${e.message || 'error'}`);
+                
+                // Do not keep failed pulls marked as pulling
+                PULLING_MODELS.delete(modelName);
+                persistPulling();
             }
         }
 
         async function loadAllModels() {
-            try {
-                const response = await fetch('http://localhost:8081/admin/models/load-all', {
-                    method: 'POST'
-                });
-                if (response.ok) {
-                    console.log('All models load command sent');
-                    setTimeout(() => {
-                        refreshModels();
-                    }, 3000);
-                } else {
-                    console.error('Failed to load all models:', response.status);
-                }
-            } catch (error) {
-                console.error('Error loading all models:', error);
-            }
+            // This function is disabled to prevent overwhelming system resources
+            addModelLog('warning', 'MODEL', '⚠️ Load All Models is disabled to prevent system overload. Please load models individually as needed.');
+            alert('Load All Models is disabled to prevent overwhelming system resources.\n\nPlease load models individually as needed.');
         }
 
         async function loadAdminModels() {
@@ -2883,18 +2959,18 @@
                             let actionButtons = '';
                             if (model.running) {
                                 actionButtons = `
-                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
+                                    <button class=\"model-btn unload\" onclick=\"unloadModel('${model.name}')\">⏹️ Unload</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">🗑️ Delete</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
-                                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
+                                    <button class=\"model-btn load\" onclick=\"loadModel('${model.name}')\">▶️ Load</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">🗑️ Delete</button>
                                 `;
-                        } else {
+                            } else {
                                 actionButtons = `
                                     <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
+                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
                             
@@ -2948,9 +3024,13 @@
                                             <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
                                                 ${model.running ? '✓ Running' : model.available ? '✓ Available' : '✗ Unavailable'}
                                             </span>
+                                            <button class="model-btn info" style="margin-left:6px;" onclick="showModelInfo('${model.name}')">ℹ️</button>
                                         </div>
                                         ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
                                         ${usageInfo}
+                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
+                                            <span class="error-text"></span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="model-actions">
@@ -2958,6 +3038,13 @@
                                 </div>
                             `;
                             llmList.appendChild(modelItem);
+                            // Restore pull indicator if this model is still pulling
+                            const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
+                            const statusEl = document.getElementById(elemId);
+                            if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
+                                statusEl.style.display = 'inline-block';
+                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
+                            }
                         });
                         
                         modelsGrid.appendChild(llmCategory);
@@ -2982,17 +3069,19 @@
                             if (model.running) {
                                 actionButtons = `
                                     <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
                                     <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
                                     <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
                                     <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
                                 `;
                             } else {
                                 actionButtons = `
                                     <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
+                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
                             
@@ -3049,6 +3138,9 @@
                                         </div>
                                         ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
                                         ${usageInfo}
+                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
+                                            <span class="error-text"></span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="model-actions">
@@ -3056,6 +3148,13 @@
                                 </div>
                             `;
                             embedList.appendChild(modelItem);
+                            // Restore pull indicator if this model is still pulling
+                            const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
+                            const statusEl = document.getElementById(elemId);
+                            if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
+                                statusEl.style.display = 'inline-block';
+                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
+                            }
                         });
                         
                         modelsGrid.appendChild(embedCategory);
@@ -3121,9 +3220,30 @@
             }
         }
 
+        // Helper function to show error message on model card
+        function showModelError(modelName, message) {
+            const errorId = 'error-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
+            const errorElement = document.getElementById(errorId);
+            if (errorElement) {
+                errorElement.querySelector('.error-text').textContent = message;
+                errorElement.style.display = 'block';
+            }
+        }
+        
+        function hideModelError(modelName) {
+            const errorId = 'error-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
+            const errorElement = document.getElementById(errorId);
+            if (errorElement) {
+                errorElement.style.display = 'none';
+            }
+        }
+
         // Model Operations
         async function loadModel(modelName) {
             try {
+                // Hide any previous error message
+                hideModelError(modelName);
+                
                 addModelLog('info', 'MODEL', `▶️ Loading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/load`, {
                     method: 'POST'
@@ -3133,16 +3253,30 @@
                     setTimeout(() => {
                         refreshModels();
                     }, 2000);
-                        } else {
-                    addModelLog('error', 'MODEL', `Failed to load model ${modelName}: ${response.status}`);
-                        }
+                } else {
+                    const errorText = await response.text();
+                    addModelLog('error', 'MODEL', `Failed to load model ${modelName}: ${errorText}`);
+                    
+                    // Show error message on model card
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        const errorMessage = errorData.detail || errorText;
+                        showModelError(modelName, errorMessage);
+                    } catch {
+                        showModelError(modelName, `Failed to load: ${errorText}`);
+                    }
+                }
             } catch (error) {
                 addModelLog('error', 'MODEL', `Error loading model ${modelName}: ${error.message}`);
+                showModelError(modelName, `Network error: ${error.message}`);
             }
         }
 
         async function unloadModel(modelName) {
             try {
+                // Hide any previous error message
+                hideModelError(modelName);
+                
                 addModelLog('info', 'MODEL', `⏹️ Unloading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/unload`, {
                     method: 'POST'
@@ -3153,10 +3287,21 @@
                         refreshModels();
                     }, 2000);
                 } else {
-                    addModelLog('error', 'MODEL', `Failed to unload model ${modelName}: ${response.status}`);
+                    const errorText = await response.text();
+                    addModelLog('error', 'MODEL', `Failed to unload model ${modelName}: ${errorText}`);
+                    
+                    // Show error message on model card
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        const errorMessage = errorData.detail || errorText;
+                        showModelError(modelName, errorMessage);
+                    } catch {
+                        showModelError(modelName, `Failed to unload: ${errorText}`);
+                    }
                 }
             } catch (error) {
                 addModelLog('error', 'MODEL', `Error unloading model ${modelName}: ${error.message}`);
+                showModelError(modelName, `Network error: ${error.message}`);
             }
         }
 
