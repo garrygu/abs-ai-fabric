@@ -13,8 +13,14 @@
       "name": "Contract Reviewer",
       "description": "Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports",
       "policy": {
-        "allowed_models": ["llama3.2:latest", "llama3.2:7b"],
-        "allowed_embeddings": ["legal-bert", "bge-small-en-v1.5"],
+        "allowed_models": [
+          "llama3.2:latest",
+          "llama3.2:7b"
+        ],
+        "allowed_embeddings": [
+          "legal-bert",
+          "bge-small-en-v1.5"
+        ],
         "defaults": {
           "embed_model": "legal-bert",
           "chat_model": "llama3.2:latest",
@@ -32,8 +38,14 @@
       "name": "Deposition Summarizer",
       "description": "Summarize deposition transcripts and extract key information",
       "policy": {
-        "allowed_models": ["llama3.2:3b", "llama3.2:7b"],
-        "allowed_embeddings": ["all-minilm", "bge-small-en-v1.5"],
+        "allowed_models": [
+          "llama3.2:3b",
+          "llama3.2:7b"
+        ],
+        "allowed_embeddings": [
+          "all-minilm",
+          "bge-small-en-v1.5"
+        ],
         "defaults": {
           "embed_model": "all-minilm",
           "provider": "ollama",
@@ -50,8 +62,17 @@
       "name": "Onyx AI Assistant",
       "description": "AI assistant with chat interface, RAG capabilities, and agent management",
       "policy": {
-        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest", "llama3:8b"],
-        "allowed_embeddings": ["bge-small-en-v1.5", "all-minilm"]
+        "allowed_models": [
+          "llama3.2:3b",
+          "llama3.2:7b",
+          "llama3.2:latest",
+          "llama3:8b",
+          "llama4:scout"
+        ],
+        "allowed_embeddings": [
+          "bge-small-en-v1.5",
+          "all-minilm"
+        ]
       },
       "metadata": {
         "url": "http://localhost:8000"
@@ -63,8 +84,14 @@
       "name": "Open WebUI",
       "description": "Open-source web interface for LLM chat and model management",
       "policy": {
-        "allowed_models": ["llama3.2:3b", "llama3.2:7b", "llama3.2:latest"],
-        "allowed_embeddings": ["bge-small-en-v1.5"]
+        "allowed_models": [
+          "llama3.2:3b",
+          "llama3.2:7b",
+          "llama3.2:latest"
+        ],
+        "allowed_embeddings": [
+          "bge-small-en-v1.5"
+        ]
       },
       "metadata": {
         "url": "http://localhost:3200"
@@ -76,8 +103,14 @@
       "name": "RAG PDF Voice",
       "description": "Document analysis with voice interaction capabilities",
       "policy": {
-        "allowed_models": ["llama3.2:3b", "llama3.2:latest"],
-        "allowed_embeddings": ["bge-small-en-v1.5", "all-minilm"]
+        "allowed_models": [
+          "llama3.2:3b",
+          "llama3.2:latest"
+        ],
+        "allowed_embeddings": [
+          "bge-small-en-v1.5",
+          "all-minilm"
+        ]
       },
       "metadata": {
         "url": "http://localhost:8080"
@@ -134,6 +167,31 @@
         "container": "abs-redis",
         "health": "redis://redis:6379"
       }
+    },
+    {
+      "id": "llama4:scout",
+      "class": "model",
+      "name": "llama4:scout",
+      "description": "",
+      "metadata": {
+        "url": "",
+        "provider": "ollama",
+        "size": "17B (parameters)",
+        "format": "GGUF Q4_K_M"
+      },
+      "lifecycle": {
+        "desired": "running"
+      }
+    },
+    {
+      "id": "llama3:8b",
+      "class": "model",
+      "name": "llama3:8b",
+      "description": "",
+      "metadata": {
+        "url": "",
+        "provider": "ollama"
+      }
     }
   ],
   "tools": [
@@ -142,30 +200,50 @@
       "name": "OCR Service",
       "type": "ocr",
       "endpoint": "http://ocr:9000/ocr",
-      "policy": { "scopes": ["tools.ocr.use"] },
-      "metadata": { "container": "abs-ocr" }
+      "policy": {
+        "scopes": [
+          "tools.ocr.use"
+        ]
+      },
+      "metadata": {
+        "container": "abs-ocr"
+      }
     },
     {
       "id": "pdf-parser",
       "name": "PDF Parser",
       "type": "parser",
       "endpoint": "http://parser:9100/parse/pdf",
-      "policy": { "scopes": ["tools.parse.pdf"] },
-      "metadata": { "container": "abs-parser" }
+      "policy": {
+        "scopes": [
+          "tools.parse.pdf"
+        ]
+      },
+      "metadata": {
+        "container": "abs-parser"
+      }
     },
     {
       "id": "text-chunker",
       "name": "Text Chunker",
       "type": "chunker",
       "endpoint": "http://chunker:9200/chunk",
-      "policy": { "scopes": ["tools.chunk.use"] }
+      "policy": {
+        "scopes": [
+          "tools.chunk.use"
+        ]
+      }
     },
     {
       "id": "bge-reranker",
       "name": "BGE Reranker",
       "type": "reranker",
       "endpoint": "http://reranker:9300/rerank",
-      "policy": { "scopes": ["tools.rerank.use"] }
+      "policy": {
+        "scopes": [
+          "tools.rerank.use"
+        ]
+      }
     }
   ],
   "datasets": [
@@ -173,36 +251,64 @@
       "id": "contracts-corpus",
       "name": "Contracts Corpus",
       "type": "rag-dataset",
-      "storage": { "vector_db": "qdrant", "collection": "contracts_vectors" },
+      "storage": {
+        "vector_db": "qdrant",
+        "collection": "contracts_vectors"
+      },
       "owner": "legal-platform",
-      "policy": { "scopes": ["datasets.contracts.read"] },
-      "metadata": { "embedding_dim": 384, "embed_model": "bge-small-en-v1.5" }
+      "policy": {
+        "scopes": [
+          "datasets.contracts.read"
+        ]
+      },
+      "metadata": {
+        "embedding_dim": 384,
+        "embed_model": "bge-small-en-v1.5"
+      }
     },
     {
       "id": "ndas-sample",
       "name": "NDAs Sample",
       "type": "files",
-      "storage": { "path": "/data/ndas" },
+      "storage": {
+        "path": "/data/ndas"
+      },
       "owner": "legal-platform",
-      "policy": { "scopes": ["datasets.ndas.read"] }
+      "policy": {
+        "scopes": [
+          "datasets.ndas.read"
+        ]
+      }
     }
   ],
   "secrets": [
     {
       "id": "openai-api-key",
       "name": "OpenAI API Key",
-      "ref": { "type": "env", "key": "OPENAI_API_KEY" },
+      "ref": {
+        "type": "env",
+        "key": "OPENAI_API_KEY"
+      },
       "owner": "platform",
-      "policy": { "scopes": ["secrets.openai.read"] }
+      "policy": {
+        "scopes": [
+          "secrets.openai.read"
+        ]
+      }
     },
     {
       "id": "qdrant-api-key",
       "name": "Qdrant API Key",
-      "ref": { "type": "vault", "path": "kv/qdrant/api_key" },
+      "ref": {
+        "type": "vault",
+        "path": "kv/qdrant/api_key"
+      },
       "owner": "platform",
-      "policy": { "scopes": ["secrets.qdrant.read"] }
+      "policy": {
+        "scopes": [
+          "secrets.qdrant.read"
+        ]
+      }
     }
   ]
 }
-
-

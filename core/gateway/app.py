@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import redis as redislib
 from sentence_transformers import SentenceTransformer
@@ -50,6 +51,14 @@ except Exception:
     CATALOG = {"version": "1.0", "assets": [], "tools": [], "datasets": [], "secrets": []}
 
 app = FastAPI(title="ABS Hub Gateway")
+# Enable CORS so the Hub UI (different port) can call POST/OPTIONS endpoints
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Add CORS middleware for Admin UI
 app.add_middleware(
@@ -466,14 +475,67 @@ async def stop_service(service_name: str) -> bool:
 
 async def unload_model(model_name: str) -> bool:
     """Unload a model from Ollama to free VRAM"""
+    print(f"DEBUG: unload_model called with model_name: {model_name}")
     try:
-        # Send a request to Ollama to unload the model
-        payload = {"name": model_name}
-        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", 
-                           json={"model": model_name, "prompt": "", "stream": False}, 
-                           timeout=10)
-        # This will trigger model unloading after the request
-        return True
+        # Try multiple approaches to unload the model
+        
+        # Approach 1: Set keep_alive to 0 with a minimal request
+        payload = {"model": model_name, "prompt": "test", "stream": False, "options": {"keep_alive": 0}}
+        r = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload, timeout=10)
+        
+        if r.is_success:
+            # Wait a moment for Ollama to process the unload
+            await asyncio.sleep(3)
+            
+            # Check if model is actually unloaded
+            ps_r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+            if ps_r.is_success:
+                running_models = [m.get("name") for m in ps_r.json().get("models", [])]
+                if model_name not in running_models:
+                    print(f"Model {model_name} successfully unloaded using keep_alive=0")
+                    return True
+            
+            # Approach 2: Try with keep_alive as "0s" (string format)
+            print(f"Model {model_name} still running, trying alternative unload method...")
+            payload2 = {"model": model_name, "prompt": "test", "stream": False, "options": {"keep_alive": "0s"}}
+            r2 = await HTTP.post(f"{OLLAMA_BASE.rstrip('/')}/api/generate", json=payload2, timeout=10)
+            
+            if r2.is_success:
+                await asyncio.sleep(3)
+                ps_r2 = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+                if ps_r2.is_success:
+                    running_models2 = [m.get("name") for m in ps_r2.json().get("models", [])]
+                    if model_name not in running_models2:
+                        print(f"Model {model_name} successfully unloaded using keep_alive='0s'")
+                        return True
+            
+            # If still running, check when it will auto-unload and provide that info
+            ps_r3 = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+            if ps_r3.is_success:
+                running_models3 = ps_r3.json().get("models", [])
+                for model in running_models3:
+                    if model.get("name") == model_name:
+                        expires_at = model.get("expires_at")
+                        if expires_at:
+                            # Calculate time until auto-unload
+                            try:
+                                from datetime import datetime
+                                expires_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                                now_dt = datetime.now(expires_dt.tzinfo)
+                                time_until_unload = expires_dt - now_dt
+                                hours = int(time_until_unload.total_seconds() // 3600)
+                                minutes = int((time_until_unload.total_seconds() % 3600) // 60)
+                                print(f"Warning: Could not force unload model {model_name}. It will auto-unload in {hours}h {minutes}m")
+                            except:
+                                print(f"Warning: Could not force unload model {model_name}. It will auto-unload at {expires_at}")
+                        else:
+                            print(f"Warning: Could not unload model {model_name} - no expiration time available")
+                        break
+                else:
+                    print(f"Warning: Could not unload model {model_name} - model not found in running list")
+            return False
+        
+        return False
     except Exception as e:
         print(f"Error unloading model {model_name}: {e}")
         return False
@@ -1354,10 +1416,15 @@ async def get_models(app_id: Optional[str] = None):
 
         try:
             r_ps = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+            running_models_info = {}
             if r_ps.is_success:
-                running = [m.get("name") for m in r_ps.json().get("models", []) if m.get("name")]
+                running_models_data = r_ps.json().get("models", [])
+                running = [m.get("name") for m in running_models_data if m.get("name")]
+                # Store detailed info for countdown calculation
+                for model in running_models_data:
+                    running_models_info[model.get("name")] = model
         except Exception:
-            pass
+            running_models_info = {}
 
         # Collect all models from catalog
         all_models = set()
@@ -1418,17 +1485,40 @@ async def get_models(app_id: Optional[str] = None):
             if allowed_models and model_name not in allowed_models:
                 continue
             
+            # Map logical name to provider-specific names for Ollama checks
+            model_aliases = aliases.get(model_name, {})
+            ollama_name = model_aliases.get("ollama", model_name)
+            
+            # Calculate auto-unload countdown if model is running
+            auto_unload_countdown = None
+            if ollama_name in running and ollama_name in running_models_info:
+                model_info = running_models_info[ollama_name]
+                expires_at = model_info.get("expires_at")
+                if expires_at:
+                    try:
+                        from datetime import datetime
+                        expires_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                        now_dt = datetime.now(expires_dt.tzinfo)
+                        time_until_unload = expires_dt - now_dt
+                        if time_until_unload.total_seconds() > 0:
+                            hours = int(time_until_unload.total_seconds() // 3600)
+                            minutes = int((time_until_unload.total_seconds() % 3600) // 60)
+                            auto_unload_countdown = f"{hours}h {minutes}m"
+                    except:
+                        auto_unload_countdown = expires_at
+            
             models.append({
                 "name": model_name,
                 "type": "embedding" if is_embedding else "llm",
-                "available": model_name in available,
-                "running": model_name in running,
+                "available": ollama_name in available,
+                "running": ollama_name in running,
                 "used_by": used_by,
                 "is_default_chat": is_default_chat,
                 "is_default_embed": is_default_embed,
                 "aliases": aliases.get(model_name, {}),
-                "status": "running" if model_name in running else ("available" if model_name in available else "unavailable"),
-                "allowed": allowed_models is None or model_name in (allowed_models or [])
+                "status": "running" if ollama_name in running else ("available" if ollama_name in available else "unavailable"),
+                "allowed": allowed_models is None or model_name in (allowed_models or []),
+                "auto_unload_countdown": auto_unload_countdown
             })
 
         # Also include running models that might not be in catalog
@@ -1591,14 +1681,40 @@ async def toggle_service_idle_sleep(service_name: str, enabled: bool):
 async def force_unload_model(model_name: str):
     """Force unload a model from memory"""
     try:
-        if await unload_model(model_name):
+        result = await unload_model(model_name)
+        if result:
             # Remove from model registry
             if model_name in MODEL_REGISTRY:
                 MODEL_REGISTRY[model_name]["keep_alive_until"] = 0
             
             return {"status": "unloaded", "model": model_name}
         else:
-            raise HTTPException(500, f"Failed to unload model {model_name}")
+            # Get countdown info for better error message
+            countdown_info = ""
+            try:
+                ps_r = await HTTP.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+                if ps_r.is_success:
+                    running_models = ps_r.json().get("models", [])
+                    for model in running_models:
+                        if model.get("name") == model_name:
+                            expires_at = model.get("expires_at")
+                            if expires_at:
+                                try:
+                                    from datetime import datetime
+                                    expires_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                                    now_dt = datetime.now(expires_dt.tzinfo)
+                                    time_until_unload = expires_dt - now_dt
+                                    if time_until_unload.total_seconds() > 0:
+                                        hours = int(time_until_unload.total_seconds() // 3600)
+                                        minutes = int((time_until_unload.total_seconds() % 3600) // 60)
+                                        countdown_info = f" Model will auto-unload in {hours}h {minutes}m."
+                                except:
+                                    countdown_info = f" Model will auto-unload at {expires_at}."
+                            break
+            except:
+                pass
+            
+            raise HTTPException(500, f"Failed to unload model {model_name}.{countdown_info}")
     except Exception as e:
         raise HTTPException(500, f"Error unloading model: {str(e)}")
 
@@ -1678,12 +1794,16 @@ async def load_model(model_name: str):
         raise HTTPException(500, f"Error loading model: {str(e)}")
 
 @app.delete("/admin/models/{model_name}")
-async def unload_model(model_name: str):
+async def delete_model(model_name: str):
     """Unload a model from Ollama"""
     try:
         payload = {"name": model_name}
-        r = await HTTP.delete(f"{OLLAMA_BASE.rstrip('/')}/api/delete", json=payload)
+        r = await HTTP.request("DELETE", f"{OLLAMA_BASE.rstrip('/')}/api/delete", 
+                               json=payload)
         if not r.is_success:
+            # If model not found, consider it already unloaded
+            if "model" in r.text and "not found" in r.text:
+                return {"status": "unloaded", "model": model_name, "note": "model was not found in Ollama"}
             raise HTTPException(r.status_code, r.text)
         
         return {"status": "unloaded", "model": model_name}
