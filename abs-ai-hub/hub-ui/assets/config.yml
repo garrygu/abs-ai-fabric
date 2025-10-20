@@ -7,6 +7,7 @@ core_services:
   ollama: "http://localhost:11434"
   qdrant: "http://localhost:6333"
   redis: "http://localhost:6379"
+  postgresql: "http://localhost:5432"
   onyx: "http://localhost:8000"
 
 # Applications

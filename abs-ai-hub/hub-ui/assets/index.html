@@ -1664,6 +1664,13 @@
                 </div>
                         </div>
                                 <div class="status-card">
+                                    <div class="status-icon">🐘</div>
+                                    <div class="status-info">
+                                        <div class="status-name">PostgreSQL <span class="status-version">v<span id="postgresql-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
+                    </div>
+                </div>
+                                <div class="status-card">
                                     <div class="status-icon">🌐</div>
                                     <div class="status-info">
                                         <div class="status-name">Hub Gateway <span class="status-version">v<span id="gateway-version-summary">-</span></span></div>
@@ -1827,6 +1834,44 @@
                         </div>
                     </div>
                         <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
+            </div>
+
+                    <div class="service-control-card critical" id="postgresql-control">
+                        <div class="service-header">
+                            <div class="service-info">
+                                <h3>🐘 PostgreSQL (Database)</h3>
+                                <p>Relational database for metadata and structured data storage</p>
+                            </div>
+                            <div class="service-status">
+                                <span class="status-indicator" id="postgresql-status">Checking...</span>
+                                <div class="service-controls">
+                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('postgresql', true)">▶️</button>
+                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('postgresql', false)">⏹️</button>
+                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('postgresql')">♻️</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="service-details" id="postgresql-details">
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">Status</span>
+                                    <span class="detail-value" id="postgresql-status-text">Checking...</span>
+                    </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Database Size</span>
+                                    <span class="detail-value" id="postgresql-size">-</span>
+                            </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Connections</span>
+                                    <span class="detail-value" id="postgresql-connections">-</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Version</span>
+                                    <span class="detail-value" id="postgresql-version">-</span>
+                            </div>
+                        </div>
+                    </div>
+                        <button class="expand-btn" onclick="toggleServiceDetails('postgresql')">View Details</button>
             </div>
 
                     <div class="service-control-card" id="gateway-control">
@@ -2579,7 +2624,7 @@
 
         async function updateServiceSummary() {
             // Update summary status indicators
-            const services = ['ollama', 'qdrant', 'redis', 'gateway'];
+            const services = ['ollama', 'qdrant', 'redis', 'postgresql', 'gateway'];
             try {
                 const resp = await fetch('http://localhost:8081/admin/services/status');
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -2681,6 +2726,21 @@
                                 if (versionElement) {
                                     versionElement.textContent = service.version || '-';
                                 }
+                            } else if (serviceName === 'postgresql') {
+                                // Update PostgreSQL metrics
+                                const sizeElement = document.getElementById('postgresql-size');
+                                const connectionsElement = document.getElementById('postgresql-connections');
+                                const versionElement = document.getElementById('postgresql-version');
+                                
+                                if (sizeElement) {
+                                    sizeElement.textContent = service.database_size || '-';
+                                }
+                                if (connectionsElement) {
+                                    connectionsElement.textContent = service.active_connections || '-';
+                                }
+                                if (versionElement) {
+                                    versionElement.textContent = service.version || '-';
+                                }
                             } else if (serviceName === 'gateway') {
                                 // Update Gateway metrics
                                 const versionElement = document.getElementById('gateway-version');
@@ -2698,7 +2758,7 @@
                             const metricElements = [
                                 serviceName + '-models', serviceName + '-memory', serviceName + '-version',
                                 serviceName + '-collections', serviceName + '-vectors', serviceName + '-keys',
-                                serviceName + '-uptime'
+                                serviceName + '-size', serviceName + '-connections', serviceName + '-uptime'
                             ];
                             
                             metricElements.forEach(elementId => {
