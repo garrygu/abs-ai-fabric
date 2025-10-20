@@ -17,7 +17,7 @@ services:
       - ./error_pages:/usr/share/nginx/errors:ro
     networks: [abs-net]
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/"]
       interval: 30s
       timeout: 10s
       retries: 3

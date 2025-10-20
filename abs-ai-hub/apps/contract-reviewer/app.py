@@ -32,6 +32,10 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 review_history = []
 executor = ThreadPoolExecutor(max_workers=4)
 
+# Global state for model selection
+selected_llm_model = "llama3.2:3b"  # Default LLM model
+selected_embed_model = "legal-bert"  # Default embedding model (matches vector DB)
+
 from docx import Document as DocxDocument
 
 ALLOWED_EXTS = {".pdf", ".docx"}
@@ -104,6 +108,36 @@ def ensure_collection_exists():
 # Initialize collection
 ensure_collection_exists()
 
+def get_available_models():
+    """Fetch available models from Hub Gateway - all model management goes through gateway"""
+    try:
+        response = requests.get(
+            f"{HUB_GATEWAY_URL}/admin/models",
+            headers={"X-ABS-App-Id": "contract-reviewer"},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            models = data.get("models", [])
+            
+            # Separate LLM and embedding models from gateway catalog
+            # Trust the gateway for all model availability
+            llm_models = [m["name"] for m in models if m.get("type") == "llm"]
+            embed_models = [m["name"] for m in models if m.get("type") == "embedding"]
+            
+            return {
+                "llm": sorted(llm_models) if llm_models else [],
+                "embedding": sorted(embed_models) if embed_models else []
+            }
+        else:
+            # If gateway is unavailable, return empty - don't fallback to hardcoded models
+            print(f"Warning: Gateway returned status {response.status_code}")
+            return {"llm": [], "embedding": []}
+    except Exception as e:
+        print(f"Error: Could not fetch models from gateway: {e}")
+        # Return empty lists - admin needs to configure gateway
+        return {"llm": [], "embedding": []}
+
 def sha256_of_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
@@ -132,11 +166,12 @@ def chunk_text(text: str, max_chars=1200, overlap=120):
     return chunks
 
 def upsert_chunks(chunks: List[str], doc_id: str):
-    # Get embeddings from Hub Gateway
+    # Get embeddings from Hub Gateway with selected model
+    global selected_embed_model
     response = requests.post(
         f"{HUB_GATEWAY_URL}/v1/embeddings",
         headers={"X-ABS-App-Id": "contract-reviewer"},
-        json={"input": chunks},
+        json={"input": chunks, "model": selected_embed_model},
         timeout=60
     )
     response.raise_for_status()
@@ -160,11 +195,12 @@ def upsert_chunks(chunks: List[str], doc_id: str):
         raise Exception(f"Failed to upsert chunks: {response.text}")
 
 def retrieve(query: str, top_k=6, doc_id: Optional[str] = None) -> List[str]:
-    # Get query embedding from Hub Gateway
+    # Get query embedding from Hub Gateway with selected model
+    global selected_embed_model
     response = requests.post(
         f"{HUB_GATEWAY_URL}/v1/embeddings",
         headers={"X-ABS-App-Id": "contract-reviewer"},
-        json={"input": [query]},
+        json={"input": [query], "model": selected_embed_model},
         timeout=60
     )
     response.raise_for_status()
@@ -207,12 +243,14 @@ def retrieve(query: str, top_k=6, doc_id: Optional[str] = None) -> List[str]:
     return [hit["payload"]["text"] for hit in search_results["result"]]
 
 def openai_chat(messages, max_tokens=1024) -> str:
-    # Use Hub Gateway for chat completions
+    # Use Hub Gateway for chat completions with selected model
+    global selected_llm_model
     response = requests.post(
         f"{HUB_GATEWAY_URL}/v1/chat/completions",
         headers={"X-ABS-App-Id": "contract-reviewer"},
         json={
-        "messages": messages,
+            "model": selected_llm_model,
+            "messages": messages,
             "temperature": 0.2,
             "max_tokens": max_tokens
         },
@@ -222,32 +260,44 @@ def openai_chat(messages, max_tokens=1024) -> str:
     result = response.json()
     return result["choices"][0]["message"]["content"]
 
-def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
-    # collect context via retrieval queries for common clauses
-    queries = [
-        "Confidentiality clause", "Liability limitation", "Indemnity",
-        "Intellectual Property ownership", "Termination", "Governing Law",
-        "Assignment", "Data Protection / Privacy"
-    ]
-    contexts = []
-    for q in queries:
-        contexts.extend(retrieve(q, doc_id=doc_id))
-    context = "\n---\n".join(contexts[:12])
+def analyze_with_onyx(text: str, doc_id: str) -> Dict:
+    """Analyze document using Onyx LLM via Hub Gateway"""
+    try:
+        # Load policy file
+        policy = Path(POLICY_FILE).read_text(encoding="utf-8")
+        
+        # Collect context via retrieval queries for common clauses
+        queries = [
+            "Confidentiality clause", "Liability limitation", "Indemnity",
+            "Intellectual Property ownership", "Termination", "Governing Law",
+            "Assignment", "Data Protection / Privacy"
+        ]
+        contexts = []
+        for q in queries:
+            contexts.extend(retrieve(q, doc_id=doc_id))
+        context = "\n---\n".join(contexts[:12])
 
-    with open("/app/prompts/review_prompt.md", "r", encoding="utf-8") as f:
-        system_prompt = f.read()
+        with open("/app/prompts/review_prompt.md", "r", encoding="utf-8") as f:
+            system_prompt = f.read()
 
-    # Include a substantial document excerpt to anchor the model on the uploaded file
-    doc_excerpt = text[:6000]  # Increased excerpt size
-    user_prompt = f"""DOCUMENT TO ANALYZE:\n{doc_excerpt}\n\nPOLICY GUIDELINES:\n{policy}\n\nRELEVANT CONTEXT FROM SIMILAR DOCUMENTS:\n{context}\n\nINSTRUCTIONS: Analyze the DOCUMENT TO ANALYZE above and return ONLY valid JSON as specified in the system prompt."""
-    rsp = openai_chat([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ], max_tokens=int(os.getenv("MAX_TOKENS", "1024")))
+        # Include a substantial document excerpt to anchor the model on the uploaded file
+        doc_excerpt = text[:6000]  # Increased excerpt size
+        user_prompt = f"""DOCUMENT TO ANALYZE:\n{doc_excerpt}\n\nPOLICY GUIDELINES:\n{policy}\n\nRELEVANT CONTEXT FROM SIMILAR DOCUMENTS:\n{context}\n\nINSTRUCTIONS: Analyze the DOCUMENT TO ANALYZE above and return ONLY valid JSON as specified in the system prompt."""
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        rsp = openai_chat(messages, max_tokens=int(os.getenv("MAX_TOKENS", "1024")))
+        return parse_llm_response(rsp)
+        
+    except Exception as e:
+        print(f"Error in analyze_with_onyx: {e}")
+        return create_fallback_analysis(text, str(e))
 
-    # Debug: Log the raw response
-    print(f"DEBUG: Raw LLM response: {repr(rsp)}")
-    
+def parse_llm_response(rsp: str) -> Dict:
+    """Parse LLM response and handle various formats"""
     try:
         # Clean the response - remove markdown code blocks and extra text
         cleaned_rsp = rsp.strip()
@@ -276,160 +326,46 @@ def review_contract(text: str, policy: str, doc_id: Optional[str]) -> Dict:
         print(f"DEBUG: Cleaned JSON string: {repr(cleaned_rsp)}")
         data = json.loads(cleaned_rsp)
         
-        # Fallback: If LLM returns wrong structure, create expected structure
+        # Ensure required fields exist
         if "summary" not in data:
-            print("DEBUG: Wrong JSON structure detected, creating fallback")
+            data["summary"] = "Document analysis completed successfully."
+        if "risks" not in data:
+            data["risks"] = []
+        if "recommendations" not in data:
+            data["recommendations"] = []
+        if "key_points" not in data:
+            data["key_points"] = []
+        if "citations" not in data:
+            data["citations"] = []
+        if "document_type" not in data:
+            data["document_type"] = "Contract"
             
-            # Create a meaningful summary from the document content
-            summary_parts = []
-            risk_count = 0
-            key_terms = []
-            
-            # Extract meaningful information from wrong structure
-            if "agreement" in data:
-                agreement = data["agreement"]
-                if "terms" in agreement:
-                    key_terms = [term.get('text', '') for term in agreement["terms"][:3] if term.get('text')]
-                
-                # Count risks from various sources
-                if "representations" in agreement:
-                    risk_count += len(agreement["representations"])
-                if "liabilities" in agreement:
-                    risk_count += len(agreement["liabilities"])
-                if "disclaimers" in agreement:
-                    risk_count += len(agreement["disclaimers"])
-            
-            if "prohibitions" in data:
-                risk_count += len(data["prohibitions"])
-            if "liquidated_damages" in data:
-                risk_count += len(data["liquidated_damages"])
-            
-            # Create meaningful summary based on document content
-            if key_terms:
-                summary_parts.append(f"This document is a legal agreement covering: {', '.join(key_terms[:3])}.")
-            else:
-                summary_parts.append("This document is a legal agreement or contract.")
-            
-            # Add more specific analysis based on document content
-            if "user_data" in data:
-                summary_parts.append("The document includes data responsibility clauses.")
-            if "electronic_contracting" in data:
-                summary_parts.append("The document covers electronic contracting and payment terms.")
-            if "refund_policy" in data:
-                summary_parts.append("The document includes refund policy terms.")
-            if "modifications" in data:
-                summary_parts.append("The document includes modification and amendment procedures.")
-            
-            if risk_count > 0:
-                summary_parts.append(f"The document contains {risk_count} potential risk areas that require careful review.")
-            else:
-                summary_parts.append("The document appears to be relatively standard with no obvious high-risk provisions.")
-            
-            summary_parts.append("Please review the detailed analysis below for specific recommendations.")
-            
-            fallback_data = {
-                "summary": " ".join(summary_parts),
-                "document_type": "Contract",
-                "key_points": [],
-                "risks": [],
-                "recommendations": [],
-                "citations": []
-            }
-            
-            # Try to extract useful info from wrong structure
-            if "agreement" in data:
-                agreement = data["agreement"]
-                if "terms" in agreement:
-                    # Create meaningful key points from terms
-                    key_points = []
-                    for term in agreement["terms"][:5]:
-                        section = term.get('section', '')
-                        text = term.get('text', '')
-                        if section and text and text != section and text != "":
-                            key_points.append(f"{section}: {text}")
-                        elif section:
-                            key_points.append(section)
-                    fallback_data["key_points"] = key_points
-                if "representations" in agreement:
-                    fallback_data["risks"].append({
-                        "level": "Medium",
-                        "description": "Representations and warranties identified",
-                        "rationale": "Contract contains specific representations that may create liability"
-                    })
-                if "liabilities" in agreement:
-                    for liability in agreement["liabilities"]:
-                        fallback_data["risks"].append({
-                            "level": "High",
-                            "description": liability.get("description", "Liability clause identified"),
-                            "rationale": "Contract contains liability provisions"
-                        })
-            
-            # Extract risks from other sections
-            if "user_data" in data:
-                user_data = data["user_data"]
-                if "responsibility" in user_data:
-                    fallback_data["risks"].append({
-                        "level": "Medium",
-                        "description": "Data responsibility clause",
-                        "rationale": "User is responsible for all data transferred to the platform"
-                    })
-            
-            if "refund_policy" in data:
-                refund_policy = data["refund_policy"]
-                if "policy" in refund_policy and "no refunds" in refund_policy["policy"].lower():
-                    fallback_data["risks"].append({
-                        "level": "High",
-                        "description": "No refund policy",
-                        "rationale": "All payments are final with no refunds allowed"
-                    })
-            
-            if "electronic_contracting" in data:
-                electronic = data["electronic_contracting"]
-                if "payment" in electronic:
-                    payment = electronic["payment"]
-                    if "tax" in payment:
-                        fallback_data["risks"].append({
-                            "level": "Low",
-                            "description": "Tax obligations",
-                            "rationale": "Sales tax will be added to purchases as required"
-                        })
-            
-            if "prohibitions" in data:
-                for prohibition in data["prohibitions"]:
-                    fallback_data["risks"].append({
-                        "level": "Medium",
-                        "description": prohibition.get("description", "Restriction identified"),
-                        "rationale": "Contract contains restrictive provisions"
-                    })
-            
-            if "liquidated_damages" in data:
-                for damage in data["liquidated_damages"]:
-                    fallback_data["risks"].append({
-                        "level": "High",
-                        "description": f"Liquidated damages: {damage.get('amount', 'Amount specified')}",
-                        "rationale": "Contract contains liquidated damages clause"
-                    })
-            
-            # Add generic recommendations if none found
-            if not fallback_data["recommendations"]:
-                fallback_data["recommendations"] = [
-                    "Review all liability and damage clauses carefully",
-                    "Consider legal counsel for complex provisions",
-                    "Verify compliance with applicable laws"
-                ]
-            
-            data = fallback_data
+        return data
         
     except json.JSONDecodeError as e:
-        # If JSON parsing fails, wrap the response
         print(f"DEBUG: JSON parsing failed: {str(e)}")
-        data = {"summary": rsp, "raw": rsp, "error": f"JSON parsing failed: {str(e)}"}
+        return create_fallback_analysis("", f"JSON parsing failed: {str(e)}")
     except Exception as e:
-        # Any other error
         print(f"DEBUG: Processing failed: {str(e)}")
-        data = {"summary": rsp, "raw": rsp, "error": f"Processing failed: {str(e)}"}
+        return create_fallback_analysis("", f"Processing failed: {str(e)}")
 
-    return data
+def create_fallback_analysis(text: str, error_msg: str = "") -> Dict:
+    """Create a fallback analysis when LLM fails"""
+    return {
+        "summary": f"This document is a legal agreement or contract. {error_msg}",
+        "document_type": "Contract",
+        "key_points": ["Document analysis completed with fallback processing"],
+        "risks": [],
+        "recommendations": [
+            "Review the document manually for important clauses",
+            "Consider professional legal review if this is a critical contract",
+            "Verify all terms and conditions before signing"
+        ],
+        "citations": [],
+        "error": error_msg
+    }
+
+# Remove old review_contract function - replaced by analyze_with_onyx
 
 # -------- FastAPI + Gradio --------
 app = FastAPI()
@@ -437,7 +373,7 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001"],
+    allow_origins=["*"],  # Allow all origins for Gradio to work properly
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -455,35 +391,7 @@ class ReviewResponse(BaseModel):
 def healthz():
     return {"status": "ok"}
 
-@app.get("/api/history")
-def get_history():
-    """Get review history"""
-    return {"history": review_history[-50:]}  # Last 50 reviews
-
-@app.get("/api/reports/{report_id}")
-def get_report(report_id: str):
-    """Get a specific report by ID"""
-    report_file = REPORTS_DIR / f"report-{report_id}.json"
-    if not report_file.exists():
-        raise HTTPException(status_code=404, detail="Report not found")
-    
-    with open(report_file, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-@app.delete("/api/reports/{report_id}")
-def delete_report(report_id: str):
-    """Delete a specific report"""
-    report_file = REPORTS_DIR / f"report-{report_id}.json"
-    if not report_file.exists():
-        raise HTTPException(status_code=404, detail="Report not found")
-    
-    report_file.unlink()
-    
-    # Remove from history
-    global review_history
-    review_history = [h for h in review_history if h["id"] != report_id]
-    
-    return {"message": "Report deleted successfully"}
+# Remove duplicate API endpoints - they're defined later in the file
 
 @app.get("/api/export/{report_id}/pdf")
 def export_pdf(report_id: str):
@@ -1064,36 +972,65 @@ def create_modern_ui():
         try:
             progress(0.1, desc="📤 Uploading document...")
             
-            mime = "application/pdf" if file.name.lower().endswith(".pdf") else \
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            
+            # Extract text from document
             progress(0.2, desc="🔍 Extracting text from document...")
+            text, file_type = read_any_text(Path(file.name))
             
-            with open(file.name, "rb") as fh:
-                progress(0.3, desc="🧠 Analyzing document with AI...")
-                response = requests.post("http://localhost:7860/api/review",
-                                       files={"file": (Path(file.name).name, fh, mime)},
-                            timeout=300)
+            # Chunk text for analysis
+            progress(0.3, desc="📝 Chunking text for analysis...")
+            chunks = chunk_text(text)
             
-            progress(0.8, desc="📊 Processing results...")
+            # Generate file hash for document identification
+            file_hash = hashlib.sha256(Path(file.name).read_bytes()).hexdigest()
             
-            if response.status_code == 200:
-                result = response.json()
-                progress(1.0, desc="✅ Analysis complete!")
-                return (format_results(result), 
-                       create_summary_html(result), 
-                       create_key_terms_html(result),
-                       create_risks_html(result), 
-                       create_recommendations_html(result), 
-                       result.get("report_id", ""),
-                       True,  # Show results
-                       file.name)  # Return filename for display
-            else:
-                progress(1.0, desc="❌ Analysis failed")
-                return None, f"Error: {response.status_code} - {response.text[:500]}", "", "", "", "", False, ""
+            # Store chunks in vector database
+            progress(0.4, desc="🗄️ Storing document in vector database...")
+            upsert_chunks(chunks, file_hash)
+            
+            # Analyze with AI
+            progress(0.5, desc="🧠 Analyzing document with AI...")
+            analysis_result = analyze_with_onyx(text, file_hash)
+            
+            # Generate report
+            progress(0.8, desc="📊 Generating report...")
+            report_id = str(uuid.uuid4())
+            report_data = {
+                "report_id": report_id,
+                "file_name": Path(file.name).name,
+                "file_hash": file_hash,
+                "timestamp": datetime.now().isoformat(),
+                "analysis": analysis_result
+            }
+            
+            # Save report
+            report_file = REPORTS_DIR / f"report-{report_id}.json"
+            report_file.write_text(json.dumps(report_data, indent=2))
+            
+            # Add to history
+            review_history.append({
+                "report_id": report_id,
+                "file_name": Path(file.name).name,
+                "timestamp": report_data["timestamp"],
+                "summary": analysis_result.get("summary", "No summary available")
+            })
+            
+            progress(1.0, desc="✅ Analysis complete!")
+            
+            # Format results for display
+            json_data = json.dumps(analysis_result, indent=2)
+            summary_html = create_summary_html(analysis_result)
+            key_terms_html = create_key_terms_html(analysis_result)
+            risks_html = create_risks_html(analysis_result)
+            recommendations_html = create_recommendations_html(analysis_result)
+            
+            return (json_data, summary_html, key_terms_html, risks_html, 
+                   recommendations_html, report_id, True, Path(file.name).name)
                 
         except Exception as e:
             progress(1.0, desc="❌ Analysis failed")
+            print(f"Error in process_document: {e}")
+            import traceback
+            traceback.print_exc()
             return None, f"Error processing document: {str(e)}", "", "", "", "", False, ""
     
     def format_results(result):
@@ -1338,7 +1275,7 @@ def create_modern_ui():
                 function exportToPDF() {
                     const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
                     if (reportId) {
-                        window.open(`/api/export/${reportId}/pdf`, '_blank');
+                        window.open(`http://localhost:7860/api/export/${reportId}/pdf`, '_blank');
                         showNotification('PDF export started!', 'success');
                     } else {
                         showNotification('No report available for export', 'error');
@@ -1348,7 +1285,7 @@ def create_modern_ui():
                 function exportToWord() {
                     const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
                     if (reportId) {
-                        window.open(`/api/export/${reportId}/word`, '_blank');
+                        window.open(`http://localhost:7860/api/export/${reportId}/word`, '_blank');
                         showNotification('Word export started!', 'success');
                     } else {
                         showNotification('No report available for export', 'error');
@@ -1358,7 +1295,7 @@ def create_modern_ui():
                 function exportToJSON() {
                     const reportId = document.querySelector('[data-report-id]')?.getAttribute('data-report-id');
                     if (reportId) {
-                        window.open(`/api/export/${reportId}/json`, '_blank');
+                        window.open(`http://localhost:7860/api/export/${reportId}/json`, '_blank');
                         showNotification('JSON export started!', 'success');
                     } else {
                         showNotification('No report available for export', 'error');
@@ -1636,7 +1573,7 @@ def create_modern_ui():
                             <div style="color: #6c757d; font-size: 0.9rem; font-style: italic;">
                                 💡 {rec.get('rationale', '')}
                             </div>
-                        </div>
+                        </div>-
                     </div>
                 </div>
                 """
@@ -2051,44 +1988,106 @@ def create_modern_ui():
     def get_history_data():
         """Get review history"""
         try:
-            response = requests.get("http://localhost:7860/api/history")
-            if response.status_code == 200:
-                history = response.json().get("history", [])
-                if not history:
-                    return "No review history available."
-                
-                html = """
+            if not review_history:
+                return """
                 <div class="result-section">
                     <h3>📋 Review History</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="background: #f8f9fa;">
-                                <th style="padding: 0.5rem; border: 1px solid #dee2e6;">File</th>
-                                <th style="padding: 0.5rem; border: 1px solid #dee2e6;">Date</th>
-                                <th style="padding: 0.5rem; border: 1px solid #dee2e6;">Summary</th>
-                                <th style="padding: 0.5rem; border: 1px solid #dee2e6;">Risks</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div style="text-align: center; color: #6c757d; padding: 2rem;">
+                        <p>No review history available.</p>
+                        <p>Upload and analyze documents to see them here.</p>
+                    </div>
+                </div>
                 """
-                
-                for item in history[-10:]:  # Show last 10
+            
+            html = """
+            <div class="result-section">
+                <h3>📋 Review History</h3>
+                <div style="margin-bottom: 1rem;">
+                    <p style="color: #6c757d; font-size: 0.9rem;">Showing last 10 analyses</p>
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="padding: 0.75rem; border: 1px solid #dee2e6; text-align: left;">File</th>
+                            <th style="padding: 0.75rem; border: 1px solid #dee2e6; text-align: left;">Date</th>
+                            <th style="padding: 0.75rem; border: 1px solid #dee2e6; text-align: left;">Summary</th>
+                            <th style="padding: 0.75rem; border: 1px solid #dee2e6; text-align: center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """
+            
+            for item in review_history[-10:]:  # Show last 10
+                try:
                     date = datetime.fromisoformat(item["timestamp"]).strftime("%Y-%m-%d %H:%M")
-                    html += f"""
-                    <tr>
-                        <td style="padding: 0.5rem; border: 1px solid #dee2e6;">{item["filename"]}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #dee2e6;">{date}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #dee2e6;">{item["summary"][:100]}...</td>
-                        <td style="padding: 0.5rem; border: 1px solid #dee2e6;">{item["risks_count"]}</td>
-                    </tr>
-                    """
+                except:
+                    date = item.get("timestamp", "Unknown")
                 
-                html += "</tbody></table></div>"
-                return html
-            else:
-                return "Error loading history."
+                filename = item.get("file_name", "Unknown file")
+                summary = item.get("summary", "No summary available")
+                report_id = item.get("report_id", "")
+                
+                # Truncate summary for display
+                display_summary = summary[:100] + "..." if len(summary) > 100 else summary
+                
+                html += f"""
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                    <td style="padding: 0.75rem; border: 1px solid #dee2e6; font-weight: 500;">{filename}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #dee2e6; color: #6c757d; font-size: 0.9rem;">{date}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #dee2e6; color: #495057; font-size: 0.9rem;">{display_summary}</td>
+                    <td style="padding: 0.75rem; border: 1px solid #dee2e6; text-align: center;">
+                        <button onclick="viewReport('{report_id}')" style="background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-right: 0.25rem;">
+                            👁️ View
+                        </button>
+                        <button onclick="deleteReport('{report_id}')" style="background: #dc3545; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+                            🗑️ Delete
+                        </button>
+                    </td>
+                </tr>
+                """
+            
+            html += """
+                    </tbody>
+                </table>
+            </div>
+            
+            <script>
+                function viewReport(reportId) {
+                    if (reportId) {
+                        window.open(`http://localhost:7860/api/reports/${reportId}`, '_blank');
+                    }
+                }
+                
+                function deleteReport(reportId) {
+                    if (confirm('Are you sure you want to delete this report?')) {
+                        fetch(`http://localhost:7860/api/reports/${reportId}`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                showNotification('Report deleted successfully!', 'success');
+                                setTimeout(() => location.reload(), 1000);
+                            } else {
+                                showNotification('Failed to delete report', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            showNotification('Error deleting report', 'error');
+                        });
+                    }
+                }
+            </script>
+            """
+            return html
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"""
+            <div class="result-section">
+                <h3>📋 Review History</h3>
+                <div style="background: #f8d7da; border: 1px solid #dc3545; border-radius: 8px; padding: 1rem; color: #721c24;">
+                    <strong>Error loading history:</strong> {str(e)}
+                </div>
+            </div>
+            """
     
     # Create the modern UI
     with gr.Blocks(css=custom_css, title="Contract Review Assistant") as demo:
@@ -2183,19 +2182,42 @@ def create_modern_ui():
             with gr.Tab("⚙️ Settings"):
                 gr.Markdown("### 🔧 Application Settings")
                 
+                # Model Selection Section
+                gr.Markdown("### 🤖 Model Configuration")
                 with gr.Row():
+                    with gr.Column():
+                        # Fetch available models
+                        available_models = get_available_models()
+                        
+                        llm_dropdown = gr.Dropdown(
+                            label="🧠 LLM Model (Chat & Analysis)",
+                            choices=available_models["llm"],
+                            value=selected_llm_model,
+                            info="Select the language model for contract analysis"
+                        )
+                        
+                        embed_dropdown = gr.Dropdown(
+                            label="📊 Embedding Model (Vector Search)",
+                            choices=available_models["embedding"],
+                            value=selected_embed_model,
+                            info="Select the embedding model for semantic search"
+                        )
+                        
+                        model_status = gr.Markdown(f"""
+                        **Current Models:**
+                        - LLM: `{selected_llm_model}`
+                        - Embedding: `{selected_embed_model}`
+                        """)
+                        
+                        refresh_models_btn = gr.Button("🔄 Refresh Model List", variant="secondary", size="sm")
+                    
                     with gr.Column():
                         gr.Markdown(f"""
                         **Processing Options:**
                         - Document chunk size: 1200 characters
                         - Overlap: 120 characters
-                        - Embedding model: legal-bert (768-dim)
-                        - Chat model: llama3.2:7b
                         - Vector dimension: {EMBED_DIM}
-                        """)
-                    
-                    with gr.Column():
-                        gr.Markdown("""
+                        
                         **System Status:**
                         - Hub Gateway: Connected
                         - Vector Database: Active
@@ -2237,7 +2259,7 @@ def create_modern_ui():
                     recommendations,    # recommendations_html
                     report_id,          # report_id_output
                     risk_overview_html, # risk_overview
-                    gr.update(visible=True),
+                    gr.update(visible=True),  # results_group - keep visible
                     filename            # upload_status
                 )
             else:
@@ -2265,12 +2287,22 @@ def create_modern_ui():
             """Show results section immediately when analysis starts"""
             return gr.update(visible=True)
         
-        # Chain events: show results immediately -> show status -> run analysis -> hide status
-        process_btn.click(
-            fn=show_results_immediately,
-            outputs=[results_group],
+        def reset_ui_on_upload(file):
+            """Reset status and hide results when a new file is uploaded"""
+            if file is None:
+                return gr.update(visible=False), gr.update(visible=False)
+            return gr.update(visible=False), gr.update(visible=False)
+        
+        # Reset UI when new file is uploaded
+        file_input.change(
+            fn=reset_ui_on_upload,
+            inputs=[file_input],
+            outputs=[status_html, results_group],
             show_progress=False
-        ).then(
+        )
+        
+        # Simplified event chain: show status -> run analysis -> hide status
+        process_btn.click(
             fn=show_analyzing,
             outputs=[status_html],
             show_progress=False
@@ -2305,6 +2337,90 @@ def create_modern_ui():
         refresh_vector_status_btn.click(
             fn=create_vector_status_html,
             outputs=[vector_status_html]
+        )
+        
+        # Model selection handlers
+        def update_llm_model(model):
+            global selected_llm_model
+            selected_llm_model = model
+            return f"""
+            **Current Models:**
+            - LLM: `{selected_llm_model}`
+            - Embedding: `{selected_embed_model}`
+            """
+        
+        def update_embed_model(model):
+            global selected_embed_model
+            selected_embed_model = model
+            return f"""
+            **Current Models:**
+            - LLM: `{selected_llm_model}`
+            - Embedding: `{selected_embed_model}`
+            """
+        
+        def refresh_model_list():
+            models = get_available_models()
+            return (
+                gr.update(choices=models["llm"], value=selected_llm_model),
+                gr.update(choices=models["embedding"], value=selected_embed_model),
+                f"""
+                **Current Models:**
+                - LLM: `{selected_llm_model}`
+                - Embedding: `{selected_embed_model}`
+                
+                ✅ Model list refreshed!
+                """
+            )
+        
+        llm_dropdown.change(
+            fn=update_llm_model,
+            inputs=[llm_dropdown],
+            outputs=[model_status]
+        )
+        
+        embed_dropdown.change(
+            fn=update_embed_model,
+            inputs=[embed_dropdown],
+            outputs=[model_status]
+        )
+        
+        refresh_models_btn.click(
+            fn=refresh_model_list,
+            outputs=[llm_dropdown, embed_dropdown, model_status]
+        )
+        
+        # Data management handlers
+        def clear_history():
+            global review_history
+            review_history.clear()
+            return "History cleared successfully!"
+        
+        def export_data():
+            try:
+                import json
+                from datetime import datetime
+                
+                export_data = {
+                    "export_timestamp": datetime.now().isoformat(),
+                    "total_reports": len(review_history),
+                    "reports": review_history
+                }
+                
+                export_file = DATA_DIR / f"contract_reviewer_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                export_file.write_text(json.dumps(export_data, indent=2))
+                
+                return f"Data exported successfully to {export_file.name}"
+            except Exception as e:
+                return f"Export failed: {str(e)}"
+        
+        clear_history_btn.click(
+            fn=clear_history,
+            outputs=[gr.Textbox(visible=False)]  # Dummy output
+        )
+        
+        export_data_btn.click(
+            fn=export_data,
+            outputs=[gr.Textbox(visible=False)]  # Dummy output
         )
         
         # Load history on tab switch
@@ -2350,50 +2466,96 @@ if __name__ == "__main__":
         report_file.unlink()
         return {"message": "Report deleted successfully"}
     
+    @app.get("/api/history")
+    def get_history():
+        """Get review history"""
+        return {"history": review_history[-50:]}  # Last 50 reviews
+
+    @app.get("/api/reports/{report_id}")
+    def get_report(report_id: str):
+        """Get a specific report by ID"""
+        report_file = REPORTS_DIR / f"report-{report_id}.json"
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        with open(report_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    @app.delete("/api/reports/{report_id}")
+    def delete_report(report_id: str):
+        """Delete a specific report"""
+        report_file = REPORTS_DIR / f"report-{report_id}.json"
+        if not report_file.exists():
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report_file.unlink()
+        
+        # Remove from history
+        global review_history
+        review_history = [h for h in review_history if h.get("report_id") != report_id]
+        
+        return {"message": "Report deleted successfully"}
+
     @app.post("/api/review")
     async def api_review(file: UploadFile = File(...)):
         try:
             raw = await file.read()
-            # Save uploaded file
-            file_hash = hashlib.sha256(raw).hexdigest()
-            file_path = UPLOADS_DIR / f"{file_hash}_{file.filename}"
-            file_path.write_bytes(raw)
-            
-            # Process the document
-            text, file_type = read_any_text(file_path)
-            
-            # Get embeddings and store in vector DB
+            if not raw:
+                raise HTTPException(status_code=400, detail="Empty file.")
+
+            ext = Path(file.filename).suffix or ".pdf"
+            upath = DATA_DIR / f"upload-{uuid.uuid4()}{ext}"
+            upath.write_bytes(raw)
+            input_hash = sha256_of_bytes(raw)
+
+            text, kind = read_any_text(upath)
+            print(f"DEBUG: Text extracted, length: {len(text)}")
             chunks = chunk_text(text)
-            upsert_chunks(chunks, file_hash)
-            
-            # Generate analysis using Onyx
-            analysis_result = await analyze_with_onyx(text, file_hash)
-            
-            # Store the result
+            print(f"DEBUG: Text chunked into {len(chunks)} chunks")
+            # Tag chunks with a per-upload doc_id so retrieval only hits this document
+            doc_id = str(uuid.uuid4())
+            upsert_chunks(chunks, doc_id)
+            print("DEBUG: Chunks upserted to Qdrant")
+
+            policy = Path(POLICY_FILE).read_text(encoding="utf-8")
+            result = analyze_with_onyx(text, doc_id)
+            result.update({"input_sha256": input_hash, "file_kind": kind})
+
+            # Save report to reports directory
             report_id = str(uuid.uuid4())
-            report_data = {
-                "report_id": report_id,
-                "file_name": file.filename,
-                "file_hash": file_hash,
-                "timestamp": datetime.now().isoformat(),
-                "analysis": analysis_result
-            }
-            
             report_file = REPORTS_DIR / f"report-{report_id}.json"
-            report_file.write_text(json.dumps(report_data, indent=2))
+            report_data = {
+                **result,
+                "report_id": report_id,
+                "timestamp": datetime.now().isoformat(),
+                "file_name": file.filename,
+                "file_size": len(raw),
+                "file_type": kind
+            }
+            report_file.write_text(json.dumps(report_data, ensure_ascii=False, indent=2), encoding="utf-8")
             
             # Add to history
             review_history.append({
                 "report_id": report_id,
                 "file_name": file.filename,
-                "timestamp": report_data["timestamp"],
-                "summary": analysis_result.get("summary", "No summary available")
+                "timestamp": datetime.now().isoformat(),
+                "summary": result.get("summary", ""),
+                "risks_count": len(result.get("risks", [])),
+                "file_size": len(raw)
             })
             
-            return report_data
-            
+            return JSONResponse(status_code=200, content=report_data)
+
+        except HTTPException as he:
+            # clean JSON, no bytes
+            return JSONResponse(status_code=he.status_code, content={"error": he.detail})
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            # last-resort error message (string only)
+            print(f"ERROR in review endpoint: {str(e)}")
+            print(f"ERROR type: {type(e)}")
+            import traceback
+            print(f"ERROR traceback: {traceback.format_exc()}")
+            return JSONResponse(status_code=400, content={"error": str(e)})
     
     # Run the FastAPI app with uvicorn
     uvicorn.run(app, host="0.0.0.0", port=APP_PORT)
