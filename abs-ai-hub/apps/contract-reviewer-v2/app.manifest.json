@@ -1,0 +1,148 @@
+{
+  "name": "Contract Reviewer v2",
+  "id": "contract-reviewer-v2",
+  "version": "2.0.0",
+  "description": "Professional AI-powered contract analysis platform with modern three-panel interface",
+  "category": "Legal Apps",
+  "author": "ABS AI Hub",
+  "license": "MIT",
+  "homepage": "https://github.com/abs-ai-hub/contract-reviewer-v2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abs-ai-hub/contract-reviewer-v2.git"
+  },
+  "keywords": [
+    "contract",
+    "legal",
+    "ai",
+    "analysis",
+    "review",
+    "risk-assessment"
+  ],
+  "main": "app.py",
+  "scripts": {
+    "start": "uvicorn app:app --host 0.0.0.0 --port 8080",
+    "dev": "uvicorn app:app --host 0.0.0.0 --port 8080 --reload",
+    "test": "pytest tests/"
+  },
+  "dependencies": {
+    "fastapi": ">=0.104.1",
+    "uvicorn": ">=0.24.0",
+    "pydantic": ">=2.5.0",
+    "httpx": ">=0.25.2",
+    "PyMuPDF": ">=1.23.8",
+    "python-docx": ">=1.1.0",
+    "qdrant-client": ">=1.7.0",
+    "redis": ">=5.0.1"
+  },
+  "configuration": {
+    "port": 8080,
+    "health_check": {
+      "endpoint": "/healthz",
+      "interval": 30
+    },
+    "gateway_integration": {
+      "enabled": true,
+      "app_id": "contract-reviewer-v2",
+      "services": ["ollama", "qdrant", "redis"]
+    },
+    "features": {
+      "document_upload": true,
+      "ai_analysis": true,
+      "risk_assessment": true,
+      "chat_interface": true,
+      "export_reports": true,
+      "session_management": true
+    },
+    "supported_formats": [".pdf", ".docx"],
+    "max_file_size": "50MB",
+    "ui": {
+      "type": "modern",
+      "layout": "three-panel",
+      "theme": "professional",
+      "responsive": true
+    }
+  },
+  "deployment": {
+    "docker": {
+      "enabled": true,
+      "compose_file": "docker-compose.yml",
+      "network": "abs-network"
+    },
+    "environment": {
+      "APP_PORT": "8080",
+      "HUB_GATEWAY_URL": "http://hub-gateway:8081",
+      "REDIS_URL": "redis://redis:6379/0",
+      "ABS_DATA_DIR": "/data"
+    },
+    "volumes": [
+      "contract-reviewer-v2-data:/data"
+    ],
+    "healthcheck": {
+      "test": ["CMD", "curl", "-f", "http://localhost:8080/healthz"],
+      "interval": "30s",
+      "timeout": "10s",
+      "retries": 3,
+      "start_period": "40s"
+    }
+  },
+  "api": {
+    "version": "v1",
+    "base_path": "/api",
+    "endpoints": [
+      {
+        "path": "/upload",
+        "method": "POST",
+        "description": "Upload and process documents"
+      },
+      {
+        "path": "/review",
+        "method": "POST",
+        "description": "Perform comprehensive document review"
+      },
+      {
+        "path": "/chat",
+        "method": "POST",
+        "description": "Chat with document using AI"
+      },
+      {
+        "path": "/sessions",
+        "method": "GET",
+        "description": "List all review sessions"
+      },
+      {
+        "path": "/models",
+        "method": "GET",
+        "description": "Get available AI models"
+      },
+      {
+        "path": "/export/{session_id}",
+        "method": "GET",
+        "description": "Export review results"
+      }
+    ]
+  },
+  "security": {
+    "cors": {
+      "enabled": true,
+      "origins": ["*"]
+    },
+    "authentication": {
+      "required": false,
+      "type": "none"
+    },
+    "rate_limiting": {
+      "enabled": false
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "enabled": true,
+      "endpoint": "/metrics"
+    },
+    "logging": {
+      "level": "INFO",
+      "format": "json"
+    }
+  }
+}

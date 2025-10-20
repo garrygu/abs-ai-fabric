@@ -57,6 +57,20 @@
       "port": 8001,
       "icon": "whisper.png",
       "path": "apps/whisper-server"
+    },
+    {
+      "name": "Contract Reviewer v2",
+      "id": "contract-reviewer-v2",
+      "category": "Legal Apps",
+      "description": "Professional AI-powered contract analysis platform with modern three-panel interface.",
+      "entrypoint": "docker compose up -d",
+      "healthcheck": {
+        "url": "http://localhost:8082/healthz",
+        "expect": "200"
+      },
+      "port": 8082,
+      "icon": "contract-reviewer.png",
+      "path": "apps/contract-reviewer-v2"
     }
   ]
 }
