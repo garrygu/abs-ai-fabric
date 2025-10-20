@@ -60,10 +60,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add CORS middleware for Admin UI
+# Add CORS middleware for Admin UI and Onyx Suite
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001"],
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001", "http://localhost:8150"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,7 +131,8 @@ SERVICE_REGISTRY = {
     "ollama": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
     "qdrant": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
     "redis": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False},  # Redis should stay running
-    "onyx": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True}
+    "onyx": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
+    "postgresql": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False}  # PostgreSQL should stay running
 }
 
 # Model registry for tracking loaded models and their usage
@@ -146,7 +147,8 @@ CONTAINER_MAP = {
     "qdrant": "abs-qdrant", 
     "redis": "abs-redis",
     "hub-gateway": "abs-hub-gateway",
-    "onyx": "abs-onyx"
+    "onyx": "abs-onyx",
+    "postgresql": "document-hub-postgres"
 }
  
 # Supported default LLM models (logical names as seen by Ollama)
@@ -161,6 +163,7 @@ SERVICE_DEPENDENCIES = {
     "ollama": [],  # Ollama has no dependencies
     "qdrant": [],  # Qdrant has no dependencies
     "redis": [],   # Redis has no dependencies
+    "postgresql": [],  # PostgreSQL has no dependencies
     "hub-gateway": ["redis"],  # Hub Gateway depends on Redis
     "onyx": ["redis", "qdrant"],  # Onyx depends on Redis and Qdrant
     # Future services can be added here
@@ -170,7 +173,7 @@ SERVICE_DEPENDENCIES = {
 }
 
 # Service startup order - defines the order services should be started
-SERVICE_STARTUP_ORDER = ["redis", "qdrant", "ollama", "onyx", "hub-gateway"]
+SERVICE_STARTUP_ORDER = ["redis", "postgresql", "qdrant", "ollama", "onyx", "hub-gateway"]
 
 # ---- Schemas ----
 class ChatMessage(BaseModel):
@@ -345,6 +348,22 @@ async def wait_for_service_ready(service_name: str, timeout: int = 60) -> bool:
                 if rds is not None:
                     rds.ping()
                     return True
+            elif service_name == "postgresql":
+                # Check PostgreSQL health by attempting to connect
+                try:
+                    import psycopg2
+                    conn = psycopg2.connect(
+                        host='localhost',
+                        port=5432,
+                        database='document_hub',
+                        user='hub_user',
+                        password='secure_password',
+                        connect_timeout=5
+                    )
+                    conn.close()
+                    return True
+                except Exception:
+                    pass
         except Exception:
             pass
         
@@ -959,6 +978,52 @@ async def set_asset_lifecycle(asset_id: str, lifecycle: dict):
     except Exception as e:
         raise HTTPException(500, f"Error updating lifecycle: {str(e)}")
 
+# ---- Models List (OpenAI-compatible) ----
+@app.get("/v1/models")
+async def list_models_openai():
+    """OpenAI-compatible /v1/models endpoint for client discovery"""
+    try:
+        # Get all models from catalog and registry
+        all_models = set()
+        
+        # From catalog defaults
+        defaults = CATALOG.get("defaults", {})
+        if defaults.get("chat_model"):
+            all_models.add(defaults["chat_model"])
+        if defaults.get("embed_model"):
+            all_models.add(defaults["embed_model"])
+        
+        # From app policies
+        for asset in CATALOG.get("assets", []):
+            if asset.get("class") == "app":
+                policy = asset.get("policy", {})
+                all_models.update(policy.get("allowed_models", []))
+                all_models.update(policy.get("allowed_embeddings", []))
+        
+        # From registry aliases
+        aliases = (REG or {}).get("aliases", {})
+        all_models.update(aliases.keys())
+        
+        # Format as OpenAI-compatible response
+        models_data = []
+        for model_name in sorted(all_models):
+            models_data.append({
+                "id": model_name,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "abs-hub",
+                "permission": [],
+                "root": model_name,
+                "parent": None
+            })
+        
+        return {
+            "object": "list",
+            "data": models_data
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Error listing models: {str(e)}")
+
 # ---- Chat ----
 @app.post("/v1/chat/completions")
 async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
@@ -1340,6 +1405,384 @@ async def get_system_metrics():
     except Exception as e:
         raise HTTPException(500, f"Error getting system metrics: {str(e)}")
 
+@app.get("/api/health/postgresql")
+async def health_postgresql():
+    """Check PostgreSQL service health"""
+    try:
+        # Check if PostgreSQL container is running
+        container_name = CONTAINER_MAP.get("postgresql")
+        if not container_name:
+            return {"status": "error", "service": "postgresql", "error": "Container mapping not found"}, 500
+        
+        if docker_client == "subprocess":
+            result = subprocess.run([
+                'docker', 'ps', '--filter', f'name={container_name}',
+                '--format', '{{.Status}}'
+            ], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                container_status = result.stdout.strip()
+                if 'Up' in container_status:
+                    # Container is running, check database connectivity
+                    try:
+                        import psycopg2
+                        conn = psycopg2.connect(
+                            host='localhost',
+                            port=5432,
+                            database='document_hub',
+                            user='hub_user',
+                            password='secure_password',
+                            connect_timeout=5
+                        )
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT 1")
+                        cursor.close()
+                        conn.close()
+                        
+                        return {
+                            'status': 'healthy',
+                            'service': 'postgresql',
+                            'container_status': container_status,
+                            'database_connectivity': 'ok'
+                        }
+                    except Exception as db_error:
+                        return {
+                            'status': 'unhealthy',
+                            'service': 'postgresql',
+                            'container_status': container_status,
+                            'database_connectivity': 'failed',
+                            'error': str(db_error)
+                        }, 503
+                else:
+                    return {
+                        'status': 'unhealthy',
+                        'service': 'postgresql',
+                        'container_status': container_status,
+                        'error': 'Container not running'
+                    }, 503
+            else:
+                return {
+                    'status': 'unhealthy',
+                    'service': 'postgresql',
+                    'error': 'Container not found'
+                }, 503
+        else:
+            # Use docker library
+            container = docker_client.containers.get(container_name)
+            if container.status == "running":
+                # Check database connectivity
+                try:
+                    import psycopg2
+                    conn = psycopg2.connect(
+                        host='localhost',
+                        port=5432,
+                        database='document_hub',
+                        user='hub_user',
+                        password='secure_password',
+                        connect_timeout=5
+                    )
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.close()
+                    conn.close()
+                    
+                    return {
+                        'status': 'healthy',
+                        'service': 'postgresql',
+                        'container_status': container.status,
+                        'database_connectivity': 'ok'
+                    }
+                except Exception as db_error:
+                    return {
+                        'status': 'unhealthy',
+                        'service': 'postgresql',
+                        'container_status': container.status,
+                        'database_connectivity': 'failed',
+                        'error': str(db_error)
+                    }, 503
+            else:
+                return {
+                    'status': 'unhealthy',
+                    'service': 'postgresql',
+                    'container_status': container.status,
+                    'error': 'Container not running'
+                }, 503
+                
+    except Exception as e:
+        return {
+            'status': 'error',
+            'service': 'postgresql',
+            'error': str(e)
+        }, 500
+
+@app.post("/api/manage/postgresql")
+async def manage_postgresql(request: Request):
+    """Manage PostgreSQL service (start/stop/restart)"""
+    try:
+        payload = await request.json()
+        action = payload.get('action')
+        
+        if action not in ['start', 'stop', 'restart']:
+            return {"error": "Invalid action. Must be: start, stop, or restart"}, 400
+        
+        container_name = CONTAINER_MAP.get("postgresql")
+        if not container_name:
+            return {"error": "PostgreSQL container mapping not found"}, 500
+        
+        if docker_client == "subprocess":
+            cmd = ["docker", action, container_name]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                # Update service registry
+                SERVICE_REGISTRY["postgresql"]["actual"] = "running" if action == "start" else "stopped"
+                return {
+                    "action": action,
+                    "status": "success",
+                    "message": f"PostgreSQL {action}ed successfully",
+                    "output": result.stdout
+                }
+            else:
+                return {
+                    "action": action,
+                    "status": "error",
+                    "message": f"Failed to {action} PostgreSQL",
+                    "error": result.stderr
+                }, 500
+        else:
+            # Use docker library
+            container = docker_client.containers.get(container_name)
+            
+            if action == "start":
+                container.start()
+            elif action == "stop":
+                container.stop()
+            elif action == "restart":
+                container.restart()
+            
+            # Update service registry
+            SERVICE_REGISTRY["postgresql"]["actual"] = "running" if action == "start" else "stopped"
+            
+            return {
+                "action": action,
+                "status": "success",
+                "message": f"PostgreSQL {action}ed successfully"
+            }
+            
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+@app.get("/api/metrics/postgresql")
+async def metrics_postgresql():
+    """Get PostgreSQL performance metrics"""
+    try:
+        # Get container stats
+        container_name = CONTAINER_MAP.get("postgresql")
+        if not container_name:
+            return {"error": "PostgreSQL container mapping not found"}, 500
+        
+        container_stats = {}
+        if docker_client == "subprocess":
+            result = subprocess.run([
+                'docker', 'stats', container_name, '--no-stream', '--format',
+                '{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}},{{.NetIO}},{{.BlockIO}}'
+            ], capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                stats_parts = result.stdout.strip().split(',')
+                if len(stats_parts) >= 5:
+                    container_stats = {
+                        "cpu_percent": stats_parts[0],
+                        "memory_usage": stats_parts[1],
+                        "memory_percent": stats_parts[2],
+                        "network_io": stats_parts[3],
+                        "block_io": stats_parts[4]
+                    }
+        else:
+            # Use docker library for stats
+            container = docker_client.containers.get(container_name)
+            stats = container.stats(stream=False)
+            
+            # Calculate CPU percentage
+            cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+            system_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+            cpu_percent = (cpu_delta / system_delta) * len(stats['cpu_stats']['cpu_usage']['percpu_usage']) * 100.0
+            
+            # Memory usage
+            memory_usage = stats['memory_stats']['usage']
+            memory_limit = stats['memory_stats']['limit']
+            memory_percent = (memory_usage / memory_limit) * 100.0
+            
+            container_stats = {
+                "cpu_percent": f"{cpu_percent:.2f}%",
+                "memory_usage": f"{memory_usage / 1024 / 1024:.2f}MB",
+                "memory_percent": f"{memory_percent:.2f}%",
+                "network_io": f"{stats['networks']['eth0']['rx_bytes']} / {stats['networks']['eth0']['tx_bytes']}",
+                "block_io": f"{stats['blkio_stats']['io_service_bytes'][0]['value']} / {stats['blkio_stats']['io_service_bytes'][1]['value']}"
+            }
+        
+        # Get database metrics
+        db_metrics = {}
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host='localhost',
+                port=5432,
+                database='document_hub',
+                user='hub_user',
+                password='secure_password',
+                connect_timeout=5
+            )
+            cursor = conn.cursor()
+            
+            # Get database size
+            cursor.execute("SELECT pg_size_pretty(pg_database_size('document_hub'))")
+            db_size = cursor.fetchone()[0]
+            
+            # Get connection count
+            cursor.execute("SELECT count(*) FROM pg_stat_activity")
+            connections = cursor.fetchone()[0]
+            
+            # Get table statistics
+            cursor.execute("""
+                SELECT schemaname, tablename, n_tup_ins, n_tup_upd, n_tup_del 
+                FROM pg_stat_user_tables
+            """)
+            table_stats = cursor.fetchall()
+            
+            # Get database uptime
+            cursor.execute("SELECT pg_postmaster_start_time()")
+            start_time = cursor.fetchone()[0]
+            
+            cursor.close()
+            conn.close()
+            
+            db_metrics = {
+                'database_size': db_size,
+                'active_connections': connections,
+                'table_statistics': [{"schema": row[0], "table": row[1], "inserts": row[2], "updates": row[3], "deletes": row[4]} for row in table_stats],
+                'uptime_since': start_time.isoformat() if start_time else None
+            }
+            
+        except Exception as db_error:
+            db_metrics = {'error': str(db_error)}
+        
+        return {
+            'container': container_stats,
+            'database': db_metrics,
+            'timestamp': time.time()
+        }
+        
+    except Exception as e:
+        return {'error': str(e)}, 500
+
+def discover_postgresql_service():
+    """Discover and register PostgreSQL service"""
+    try:
+        # Check if PostgreSQL container exists
+        container_name = CONTAINER_MAP.get("postgresql")
+        if not container_name:
+            return None
+        
+        if docker_client == "subprocess":
+            result = subprocess.run([
+                'docker', 'ps', '-a', '--filter', f'name={container_name}',
+                '--format', '{{.Names}},{{.Status}},{{.Ports}}'
+            ], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                name, status, ports = result.stdout.strip().split(',')
+                
+                service_info = {
+                    'name': 'postgresql',
+                    'container_name': name,
+                    'status': 'running' if 'Up' in status else 'stopped',
+                    'ports': ports,
+                    'health_endpoint': '/api/health/postgresql',
+                    'management_endpoint': '/api/manage/postgresql',
+                    'metrics_endpoint': '/api/metrics/postgresql'
+                }
+                
+                # Register in service registry
+                SERVICE_REGISTRY["postgresql"]["actual"] = service_info['status']
+                
+                return service_info
+            else:
+                return None
+        else:
+            # Use docker library
+            try:
+                container = docker_client.containers.get(container_name)
+                service_info = {
+                    'name': 'postgresql',
+                    'container_name': container.name,
+                    'status': container.status,
+                    'ports': str(container.ports),
+                    'health_endpoint': '/api/health/postgresql',
+                    'management_endpoint': '/api/manage/postgresql',
+                    'metrics_endpoint': '/api/metrics/postgresql'
+                }
+                
+                # Register in service registry
+                SERVICE_REGISTRY["postgresql"]["actual"] = service_info['status']
+                
+                return service_info
+            except docker.errors.NotFound:
+                return None
+                
+    except Exception as e:
+        print(f"Error discovering PostgreSQL service: {e}")
+        return None
+
+@app.get("/admin/services/discovery")
+async def discover_services():
+    """Discover all services and return their information"""
+    discovered_services = {}
+    
+    # Discover PostgreSQL
+    postgresql_info = discover_postgresql_service()
+    if postgresql_info:
+        discovered_services["postgresql"] = postgresql_info
+    
+    # Discover other services (existing logic can be added here)
+    for service_name in ["ollama", "qdrant", "redis", "onyx"]:
+        try:
+            container_name = CONTAINER_MAP.get(service_name)
+            if container_name:
+                if docker_client == "subprocess":
+                    result = subprocess.run([
+                        'docker', 'ps', '-a', '--filter', f'name={container_name}',
+                        '--format', '{{.Names}},{{.Status}},{{.Ports}}'
+                    ], capture_output=True, text=True, timeout=5)
+                    
+                    if result.returncode == 0 and result.stdout.strip():
+                        name, status, ports = result.stdout.strip().split(',')
+                        discovered_services[service_name] = {
+                            'name': service_name,
+                            'container_name': name,
+                            'status': 'running' if 'Up' in status else 'stopped',
+                            'ports': ports
+                        }
+                else:
+                    try:
+                        container = docker_client.containers.get(container_name)
+                        discovered_services[service_name] = {
+                            'name': service_name,
+                            'container_name': container.name,
+                            'status': container.status,
+                            'ports': str(container.ports)
+                        }
+                    except docker.errors.NotFound:
+                        pass
+        except Exception as e:
+            print(f"Error discovering {service_name}: {e}")
+    
+    return {
+        "discovered_services": discovered_services,
+        "service_registry": SERVICE_REGISTRY,
+        "timestamp": time.time()
+    }
+
 @app.get("/admin/services/status")
 async def get_services_status():
     """Get status of all services"""
@@ -1433,6 +1876,51 @@ async def get_services_status():
             services["redis"] = {"status": "offline", "error": "Redis client not initialized"}
     except Exception as e:
         services["redis"] = {"status": "offline", "error": str(e)}
+    
+    # Check PostgreSQL
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host='localhost',
+            port=5432,
+            database='document_hub',
+            user='hub_user',
+            password='secure_password',
+            connect_timeout=5
+        )
+        cursor = conn.cursor()
+        
+        # Get PostgreSQL version
+        cursor.execute("SELECT version()")
+        version = cursor.fetchone()[0]
+        
+        # Get database size
+        cursor.execute("SELECT pg_size_pretty(pg_database_size('document_hub'))")
+        db_size = cursor.fetchone()[0]
+        
+        # Get connection count
+        cursor.execute("SELECT count(*) FROM pg_stat_activity")
+        connections = cursor.fetchone()[0]
+        
+        # Get table count
+        cursor.execute("""
+            SELECT count(*) FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        table_count = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        services["postgresql"] = {
+            "status": "online",
+            "version": version.split()[1] if len(version.split()) > 1 else "unknown",
+            "database_size": db_size,
+            "active_connections": connections,
+            "table_count": table_count
+        }
+    except Exception as e:
+        services["postgresql"] = {"status": "offline", "error": str(e)}
     
     # Check Gateway (self)
     try:

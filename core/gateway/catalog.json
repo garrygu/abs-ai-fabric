@@ -61,15 +61,20 @@
       "description": "Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports",
       "policy": {
         "allowed_models": [
-          "llama3.2:latest"
+          "llama3.2:3b",
+          "llama3.2:latest",
+          "llama3:8b",
+          "llama4:scout"
         ],
         "allowed_embeddings": [
           "legal-bert",
+          "nomic-embed-text",
+          "mxbai-embed-large",
           "bge-small-en-v1.5"
         ],
         "defaults": {
           "embed_model": "legal-bert",
-          "chat_model": "llama3.2:latest",
+          "chat_model": "llama3.2:3b",
           "provider": "huggingface",
           "dim": 768
         }
@@ -201,14 +206,21 @@
       }
     },
     {
-      "id": "redis",
+      "id": "postgresql",
       "class": "service",
-      "type": "cache",
-      "name": "Redis",
-      "description": "In-memory cache and message broker for high-performance applications",
+      "type": "database",
+      "name": "PostgreSQL Database",
+      "description": "Core metadata and structured data storage for document hub",
+      "lifecycle": {
+        "desired": "running"
+      },
       "metadata": {
-        "container": "abs-redis",
-        "health": "redis://redis:6379"
+        "container": "document-hub-postgres",
+        "health": "/api/health/postgresql",
+        "management": "/api/manage/postgresql",
+        "metrics": "/api/metrics/postgresql",
+        "port": 5432,
+        "database": "document_hub"
       }
     },
     {
@@ -234,6 +246,35 @@
       "metadata": {
         "url": "",
         "provider": "ollama"
+      }
+    },
+    {
+      "id": "contract-reviewer-v2",
+      "class": "app",
+      "name": "Contract Reviewer v2",
+      "description": "Professional AI-powered contract analysis platform with modern three-panel interface",
+      "policy": {
+        "allowed_models": [
+          "llama3.2:3b",
+          "llama3.2:latest",
+          "llama3:8b",
+          "llama4:scout"
+        ],
+        "allowed_embeddings": [
+          "legal-bert",
+          "nomic-embed-text",
+          "mxbai-embed-large",
+          "bge-small-en-v1.5"
+        ],
+        "defaults": {
+          "embed_model": "legal-bert",
+          "chat_model": "llama3.2:3b",
+          "provider": "auto",
+          "dim": 768
+        }
+      },
+      "metadata": {
+        "url": "http://localhost:8082"
       }
     }
   ],

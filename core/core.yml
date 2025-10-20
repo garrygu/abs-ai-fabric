@@ -9,6 +9,7 @@ volumes:
   ollama_models:
   qdrant_storage:
   redis_data:
+  postgres_data:
 
 services:
 
@@ -109,5 +110,33 @@ services:
       - ./gateway/catalog.json:/app/catalog.json
       - ./gateway/registry.json:/app/registry.json
     ports: ["8081:8081"]
-    depends_on: [redis]
+    depends_on: [redis, postgresql]
     networks: [abs-net]
+
+  # ---- Database ----
+  postgresql:
+    image: postgres:15
+    container_name: document-hub-postgres
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      POSTGRES_DB: document_hub
+      POSTGRES_USER: hub_user
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./gateway/postgres-init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks: [abs-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub_user -d document_hub"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "abs.service=postgresql"
+      - "abs.managed-by=gateway"
+      - "abs.environment=production"
