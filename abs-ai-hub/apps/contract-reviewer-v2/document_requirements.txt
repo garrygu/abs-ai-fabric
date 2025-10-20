@@ -1,0 +1,9 @@
+# Document Management Service Dependencies
+# Add these to your existing requirements.txt
+
+# PostgreSQL async driver
+asyncpg==0.29.0
+
+# Additional dependencies for document management
+python-multipart==0.0.6  # For file uploads in FastAPI
+aiofiles==23.2.1         # For async file operations
