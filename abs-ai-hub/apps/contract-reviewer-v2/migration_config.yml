@@ -1,0 +1,165 @@
+# Migration Configuration
+# Configuration file for migrating document cache from Redis to PostgreSQL
+
+# Database Connections
+REDIS_URL: "redis://localhost:6379"
+POSTGRES_URL: "postgresql://hub_user:secure_password@document-hub-postgres:5432/document_hub"
+
+# Migration Settings
+MIGRATION_SETTINGS:
+  # Whether to migrate files along with metadata
+  migrate_files: true
+  
+  # Source directory for files (if migrating files)
+  source_file_directory: "/tmp/contract-reviewer-v2/uploads"
+  
+  # Target directory for files (if migrating files)
+  target_file_directory: "/var/lib/postgresql/data/migrated_files"
+  
+  # Whether to perform a dry run first
+  dry_run: false
+  
+  # Whether to validate migration after completion
+  validate_after_migration: true
+  
+  # Whether to clean up Redis data after successful migration
+  cleanup_redis_after_migration: false
+
+# File Migration Settings
+FILE_MIGRATION:
+  # Whether to preserve file structure
+  preserve_structure: true
+  
+  # Whether to create hash-based filenames
+  use_hash_filenames: true
+  
+  # File extensions to migrate
+  allowed_extensions: [".pdf", ".doc", ".docx", ".txt", ".rtf"]
+  
+  # Maximum file size to migrate (in bytes)
+  max_file_size: 104857600  # 100MB
+
+# Data Mapping
+DATA_MAPPING:
+  # Map Redis document fields to PostgreSQL fields
+  document_fields:
+    redis_key: "redis_key"
+    filename: "original_filename"
+    file_path: "file_path"
+    file_size: "file_size"
+    upload_timestamp: "upload_timestamp"
+    metadata: "metadata"
+  
+  # Map Redis analysis fields to PostgreSQL fields
+  analysis_fields:
+    redis_key: "redis_key"
+    document_id: "document_id"
+    analysis_type: "contract_review"
+    analysis_data: "analysis_data"
+    model_used: "model_used"
+    processing_time_ms: "processing_time_ms"
+
+# Validation Settings
+VALIDATION:
+  # Whether to validate data integrity
+  validate_data_integrity: true
+  
+  # Whether to validate file existence
+  validate_file_existence: true
+  
+  # Whether to validate analysis relationships
+  validate_analysis_relationships: true
+  
+  # Tolerance for missing files (percentage)
+  missing_file_tolerance: 10
+
+# Logging Settings
+LOGGING:
+  # Log level (DEBUG, INFO, WARNING, ERROR)
+  level: "INFO"
+  
+  # Whether to log to file
+  log_to_file: true
+  
+  # Log file path
+  log_file: "migration.log"
+  
+  # Whether to log to console
+  log_to_console: true
+
+# Backup Settings
+BACKUP:
+  # Whether to create backup before migration
+  create_backup: true
+  
+  # Backup directory
+  backup_directory: "/tmp/migration_backup"
+  
+  # Whether to backup Redis data
+  backup_redis: true
+  
+  # Whether to backup files
+  backup_files: true
+
+# Error Handling
+ERROR_HANDLING:
+  # Whether to continue on errors
+  continue_on_error: true
+  
+  # Maximum number of errors before stopping
+  max_errors: 100
+  
+  # Whether to retry failed operations
+  retry_failed_operations: true
+  
+  # Number of retry attempts
+  retry_attempts: 3
+  
+  # Delay between retries (seconds)
+  retry_delay: 5
+
+# Performance Settings
+PERFORMANCE:
+  # Batch size for bulk operations
+  batch_size: 100
+  
+  # Number of concurrent operations
+  concurrency_limit: 10
+  
+  # Whether to use connection pooling
+  use_connection_pooling: true
+  
+  # Connection pool size
+  pool_size: 10
+
+# Migration Phases
+MIGRATION_PHASES:
+  # Phase 1: Discovery and validation
+  phase_1_discovery:
+    enabled: true
+    description: "Discover Redis data and validate structure"
+  
+  # Phase 2: Document migration
+  phase_2_documents:
+    enabled: true
+    description: "Migrate document metadata to PostgreSQL"
+  
+  # Phase 3: Analysis migration
+  phase_3_analyses:
+    enabled: true
+    description: "Migrate analysis results to PostgreSQL"
+  
+  # Phase 4: File migration
+  phase_4_files:
+    enabled: true
+    description: "Migrate files to target directory"
+  
+  # Phase 5: Validation
+  phase_5_validation:
+    enabled: true
+    description: "Validate migration results"
+  
+  # Phase 6: Cleanup (optional)
+  phase_6_cleanup:
+    enabled: false
+    description: "Clean up Redis data after successful migration"
