@@ -353,7 +353,7 @@ async def wait_for_service_ready(service_name: str, timeout: int = 60) -> bool:
                 try:
                     import psycopg2
                     conn = psycopg2.connect(
-                        host='localhost',
+                        host='document-hub-postgres',
                         port=5432,
                         database='document_hub',
                         user='hub_user',
@@ -1427,7 +1427,7 @@ async def health_postgresql():
                     try:
                         import psycopg2
                         conn = psycopg2.connect(
-                            host='localhost',
+                            host='document-hub-postgres',
                             port=5432,
                             database='document_hub',
                             user='hub_user',
@@ -1474,7 +1474,7 @@ async def health_postgresql():
                 try:
                     import psycopg2
                     conn = psycopg2.connect(
-                        host='localhost',
+                        host='document-hub-postgres',
                         port=5432,
                         database='document_hub',
                         user='hub_user',
@@ -1881,7 +1881,7 @@ async def get_services_status():
     try:
         import psycopg2
         conn = psycopg2.connect(
-            host='localhost',
+            host='document-hub-postgres',
             port=5432,
             database='document_hub',
             user='hub_user',
