@@ -1,7 +1,6 @@
-# Contract Reviewer v2 - Single App Deployment
-# This configuration deploys ONLY Contract Reviewer v2 with its own file storage
+# Alternative docker-compose.yml with host directory mounting
+# This version mounts host directories directly for easier data access
 # NOTE: Uses CORE services (Redis, PostgreSQL, Qdrant) managed by gateway
-# LOCATION: abs-ai-hub/apps/contract-reviewer-v2/ (app-specific)
 
 version: '3.8'
 
@@ -35,13 +34,12 @@ services:
       - LOG_LEVEL=INFO
       - ABS_DATA_DIR=/data
     volumes:
-      # File storage for documents, reports, and archives
-      - contract-reviewer-v2-file-storage:/data/file_storage
-      # Legacy data directories for compatibility
-      - contract-reviewer-v2-data:/data/uploads
-      - contract-reviewer-v2-reports:/data/reports
-      - contract-reviewer-v2-templates:/data/templates
-      - contract-reviewer-v2-logs:/data/logs
+      # Mount host directories for direct access
+      - ./data/file_storage:/data/file_storage
+      - ./data/uploads:/data/uploads
+      - ./data/reports:/data/reports
+      - ./data/templates:/data/templates
+      - ./data/logs:/data/logs
       # Static files (read-only)
       - ./static:/app/static:ro
     networks:
@@ -58,19 +56,6 @@ services:
       - "abs.service=contract-reviewer-v2-integrated"
       - "abs.managed-by=gateway"
       - "abs.environment=production"
-
-volumes:
-  # File storage volumes (app-specific)
-  contract-reviewer-v2-file-storage:
-    driver: local
-  contract-reviewer-v2-data:
-    driver: local
-  contract-reviewer-v2-reports:
-    driver: local
-  contract-reviewer-v2-templates:
-    driver: local
-  contract-reviewer-v2-logs:
-    driver: local
 
 networks:
   abs-net:

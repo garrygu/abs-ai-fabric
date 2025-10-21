@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS analysis_results (
     processing_time_ms INTEGER,
     status VARCHAR(20) DEFAULT 'completed',
     metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create document_chunks table for vector storage references

@@ -87,39 +87,121 @@
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-900">
                         <i class="fas fa-folder mr-2"></i>Documents
+                        <i x-show="isLoadingDocuments" class="fas fa-spinner fa-spin ml-2 text-blue-500"></i>
                     </h3>
-                    <span class="text-sm text-gray-500" x-show="totalDocuments > 0">
-                        <span x-text="documents.length"></span>/<span x-text="totalDocuments"></span>
-                    </span>
+                    <div class="flex items-center space-x-2" x-show="totalDocuments > 0">
+                        <span class="text-sm text-gray-500">
+                            <span x-text="(documents || []).length"></span>/<span x-text="totalDocuments"></span>
+                        </span>
+                        <span x-show="documentsWithErrors.length > 0" class="text-sm text-orange-600">
+                            (<span x-text="documentsWithErrors.length"></span> with errors)
+                        </span>
+                    </div>
                 </div>
                 
                 <div class="space-y-2">
-                    <template x-for="doc in documents" :key="doc.document_id">
-                        <div @click="selectDocument(doc)"
-                             class="p-3 border rounded-lg cursor-pointer transition-colors"
-                             :class="currentDocument?.document_id === doc.document_id ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:bg-gray-50'">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center flex-1 min-w-0">
-                                    <i class="fas fa-file-alt text-gray-400 mr-3"></i>
+                    <template x-for="(doc, i) in (documents || []).filter(d => d !== null && d !== undefined)" :key="doc?.id ?? `doc-${i}`">
+                            <div @click="selectDocument(doc)"
+                                 class="p-3 border rounded-lg cursor-pointer transition-colors"
+                                 :class="currentDocument?.id === doc?.id ? 'bg-blue-50 border-blue-300' : 'border-gray-200 hover:bg-gray-50'"
+                                 :style="(doc?.metadata?.file_storage?.error || doc?.metadata?.vector_processing?.error) ? 'opacity: 0.5; cursor: not-allowed;' : ''">
+                            <div class="flex items-start justify-between">
+                                <div class="flex items-start flex-1 min-w-0">
+                                    <i class="fas fa-file-alt text-gray-400 mr-3 mt-1"></i>
                                     <div class="flex-1 min-w-0">
-                                        <div class="flex items-center">
-                                            <p class="text-sm font-medium text-gray-900 truncate" x-text="doc.filename"></p>
-                                            <i x-show="doc.has_analysis" class="fas fa-check-circle text-green-500 ml-2" title="Analysis available"></i>
+                                        <div class="flex items-center mb-1">
+                                            <p class="text-sm font-medium text-gray-900 truncate" x-text="doc?.original_filename || doc?.filename || 'Unknown'"></p>
+                                            <i x-show="doc?.has_analysis" class="fas fa-check-circle text-green-500 ml-2" title="Analysis available"></i>
+                                            <i x-show="doc?.metadata?.file_storage?.error || doc?.metadata?.vector_processing?.error" class="fas fa-exclamation-triangle text-red-500 ml-2" title="Document has errors"></i>
                                         </div>
-                                        <p class="text-xs text-gray-500" x-text="formatFileSize(doc.text_length)"></p>
-                                        <p x-show="doc.has_analysis" class="text-xs text-green-600 mt-1">
-                                            <i class="fas fa-clock mr-1"></i>Analyzed
-                                        </p>
+                                        
+                                        <!-- File metadata -->
+                                        <div class="flex items-center space-x-3 text-xs text-gray-500 mb-1">
+                                            <span class="flex items-center">
+                                                <i class="fas fa-weight-hanging mr-1"></i>
+                                                <span x-text="formatFileSize(doc?.file_size || 0)"></span>
+                                            </span>
+                                            <span x-show="doc?.file_type" class="flex items-center">
+                                                <i class="fas fa-tag mr-1"></i>
+                                                <span x-text="doc?.file_type?.toUpperCase()"></span>
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Timestamps -->
+                                        <div class="flex items-center space-x-3 text-xs text-gray-500">
+                                            <span class="flex items-center">
+                                                <i class="fas fa-upload mr-1"></i>
+                                                <span x-text="formatDate(doc?.upload_timestamp)"></span>
+                                            </span>
+                                            <span x-show="doc?.has_analysis && doc?.analysis_timestamp" class="flex items-center text-green-600">
+                                                <i class="fas fa-chart-line mr-1"></i>
+                                                <span x-text="formatDate(doc?.analysis_timestamp)"></span>
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Status Indicators -->
+                                        <div class="flex items-center flex-wrap gap-1 mt-1">
+                                            <!-- Analysis Status -->
+                                            <span x-show="doc?.has_analysis" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <i class="fas fa-check mr-1"></i>Analysis Complete
+                                            </span>
+                                            <span x-show="!doc?.has_analysis && !doc?.metadata?.file_storage?.error && !doc?.metadata?.vector_processing?.error" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                <i class="fas fa-clock mr-1"></i>Ready for Analysis
+                                            </span>
+                                            
+                                            <!-- File Storage Error -->
+                                            <span x-show="doc?.metadata?.file_storage?.error" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>Storage Error
+                                            </span>
+                                            
+                                            <!-- Vector Processing Error -->
+                                            <span x-show="doc?.metadata?.vector_processing?.error" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>Processing Error
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Error Details and Actions -->
+                                        <div x-show="doc?.metadata?.file_storage?.error || doc?.metadata?.vector_processing?.error" class="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                            <!-- File Storage Error -->
+                                            <div x-show="doc?.metadata?.file_storage?.error" class="mb-2">
+                                                <div class="text-red-600 font-medium mb-1">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>File Storage Error:
+                                                </div>
+                                                <div class="text-red-500 mb-2" x-text="doc?.metadata?.file_storage?.error"></div>
+                                                <button @click="reuploadDocument(doc?.id)" 
+                                                        class="px-2 py-1 bg-red-100 text-red-800 rounded text-xs hover:bg-red-200">
+                                                    <i class="fas fa-upload mr-1"></i>Re-upload
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Vector Processing Error -->
+                                            <div x-show="doc?.metadata?.vector_processing?.error">
+                                                <div class="text-orange-600 font-medium mb-1">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i>Vector Processing Error:
+                                                </div>
+                                                <div class="text-orange-500 mb-2" x-text="doc?.metadata?.vector_processing?.error"></div>
+                                                <div class="flex space-x-2">
+                                                    <button @click="reprocessDocument(doc?.id)" 
+                                                            class="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs hover:bg-orange-200">
+                                                        <i class="fas fa-redo mr-1"></i>Retry Processing
+                                                    </button>
+                                                    <button @click="analyzeDocument(doc?.id)" 
+                                                            class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200">
+                                                        <i class="fas fa-chart-line mr-1"></i>Analyze Anyway
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <button @click.stop="deleteDocument(doc.document_id)"
-                                        class="text-red-500 hover:text-red-700 ml-2">
+                                <button @click.stop="deleteDocument(doc?.id)"
+                                        class="text-red-500 hover:text-red-700 ml-2 p-1">
                                     <i class="fas fa-trash text-xs"></i>
                                 </button>
                             </div>
                         </div>
                     </template>
-                    <div x-show="documents.length === 0" class="text-center text-gray-500 text-sm py-4">
+                    <div x-show="(documents || []).length === 0" class="text-center text-gray-500 text-sm py-4">
                         No documents uploaded yet
                     </div>
                 </div>
@@ -222,7 +304,7 @@
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">
                             <i class="fas fa-list mr-2"></i>Key Points
                         </h3>
-                        <div class="prose max-w-none text-gray-700 leading-relaxed" x-html="formatSummary(currentSession?.summary?.clauses)"></div>
+                        <div class="prose max-w-none text-gray-700 leading-relaxed" x-html="formatKeyPoints(currentSession?.summary?.key_points)"></div>
                     </div>
                 </div>
 
@@ -231,18 +313,18 @@
                     <div x-show="!currentSession" class="text-center text-gray-500 py-8">
                         Please analyze a document first to see risks.
                     </div>
-                    <template x-for="risk in filteredRisks" :key="risk.id">
+                    <template x-for="(risk, i) in filteredRisks" :key="risk.id ?? `risk-${i}`">
                         <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                             <div class="flex items-start justify-between">
                                 <div class="flex-1">
                                     <div class="flex items-center mb-2">
                                         <span class="px-2 py-1 rounded text-xs font-medium mr-3"
                                               :class="getRiskClass(risk.level)"
-                                              x-text="risk.level"></span>
-                                        <h4 class="text-lg font-semibold text-gray-900" x-text="risk.title"></h4>
+                                              x-text="risk.level || 'Unknown'"></span>
+                                        <h4 class="text-lg font-semibold text-gray-900" x-text="risk.title || 'Untitled Risk'"></h4>
                                     </div>
-                                    <p class="text-gray-700 mb-3" x-text="risk.description"></p>
-                                    <div class="text-sm text-gray-500">
+                                    <p class="text-gray-700 mb-3" x-text="risk.description || 'No description available'"></p>
+                                    <div class="text-sm text-gray-500" x-show="risk.location">
                                         <i class="fas fa-map-marker-alt mr-1"></i>
                                         <span x-text="risk.location"></span>
                                     </div>
@@ -258,7 +340,7 @@
                         Please analyze a document first to see recommendations.
                     </div>
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <div class="prose max-w-none text-gray-700 leading-relaxed" x-html="formatSummary(currentSession?.summary?.recommendations)"></div>
+                        <div class="prose max-w-none text-gray-700 leading-relaxed" x-html="formatRecommendations(currentSession?.recommendations)"></div>
                     </div>
                 </div>
 
@@ -417,8 +499,13 @@
 
                 // Computed
                 get filteredRisks() {
-                    if (!this.currentSession?.risks) return [];
+                    // Always return an array, never false or undefined
+                    if (!this.currentSession?.risks || !Array.isArray(this.currentSession.risks)) {
+                        return [];
+                    }
+                    
                     return this.currentSession.risks.filter(risk => {
+                        if (!risk || typeof risk !== 'object') return false;
                         const level = risk.level?.toLowerCase();
                         return (level === 'low' && this.riskFilters.low) ||
                                (level === 'medium' && this.riskFilters.medium) ||
@@ -426,11 +513,18 @@
                     });
                 },
 
+                get documentsWithErrors() {
+                    return (this.documents || []).filter(doc => 
+                        doc?.metadata?.file_storage?.error || 
+                        doc?.metadata?.vector_processing?.error
+                    );
+                },
+
                 // Methods
                 async init() {
                     console.log('✓ Alpine.js initialized');
                     await this.loadModels();
-                    await this.loadDocuments();
+                    await this.loadDocuments(true);
                 },
 
                 async loadModels() {
@@ -446,26 +540,38 @@
 
                 async loadDocuments(reset = false) {
                     try {
+                        console.log(`🔄 loadDocuments called with reset=${reset}, current documents: ${this.documents.length}`);
+                        
                         if (reset) {
                             this.documentsOffset = 0;
                             this.documents = [];
+                            console.log('🔄 Reset documents array');
                         }
                         
                         this.isLoadingDocuments = true;
                         const response = await fetch(`/api/documents?limit=${this.documentsLimit}&offset=${this.documentsOffset}`);
                         const data = await response.json();
                         
+                        // Include all documents, including those with errors
+                        const rawDocuments = data.documents || [];
+                        console.log('📋 Raw documents from API:', rawDocuments);
+                        
+                        // Only filter out completely null/undefined documents
+                        const validDocuments = rawDocuments.filter(doc => doc !== null && doc !== undefined);
+                        console.log('✅ Valid documents after filtering:', validDocuments);
+                        
                         if (reset) {
-                            this.documents = data.documents || [];
+                            this.documents = validDocuments;
                         } else {
-                            this.documents = [...this.documents, ...(data.documents || [])];
+                            this.documents = [...this.documents, ...validDocuments];
                         }
                         
+                        // Set totalDocuments to the total count from API
                         this.totalDocuments = data.total_count || 0;
                         this.hasMoreDocuments = data.has_more || false;
                         this.documentsOffset = this.documents.length;
                         
-                        console.log(`✓ Loaded ${this.documents.length}/${this.totalDocuments} documents`);
+                        console.log(`✓ Loaded ${this.documents.length} documents (total: ${this.totalDocuments} from API)`);
                     } catch (error) {
                         console.error('Error loading documents:', error);
                     } finally {
@@ -511,7 +617,16 @@
                             this.uploadStatus = 'Upload successful!';
                             this.uploadProgress = 100;
                             await this.loadDocuments(true); // Reset to show newest documents
-                            this.selectDocument(result);
+                            
+                            // Auto-select the uploaded document
+                            if (result.document_id) {
+                                // Find the uploaded document in the list
+                                const uploadedDoc = this.documents.find(doc => doc.id === result.document_id);
+                                if (uploadedDoc) {
+                                    await this.selectDocument(uploadedDoc);
+                                }
+                            }
+                            
                             setTimeout(() => {
                                 this.uploadProgress = 0;
                                 this.uploadStatus = '';
@@ -527,14 +642,20 @@
                 },
 
                 async selectDocument(doc) {
+                    // Check if document has errors before selecting
+                    if (doc.metadata?.file_storage?.error || doc.metadata?.vector_processing?.error) {
+                        console.warn('⚠️ Document has errors, skipping selection:', doc.original_filename);
+                        return;
+                    }
+                    
                     this.currentDocument = doc;
                     this.currentSession = null;
                     this.chatMessages = [];
-                    console.log('✓ Document selected:', doc.filename);
+                    console.log('✓ Document selected:', doc.original_filename);
                     
                     // Load saved analysis if available
                     if (doc.has_analysis) {
-                        await this.loadSavedAnalysis(doc.document_id);
+                        await this.loadSavedAnalysis(doc.id);
                     }
                 },
 
@@ -559,7 +680,7 @@
                 },
 
                 async startAnalysis() {
-                    if (!this.currentDocument) {
+                    if (!this.currentDocument || !this.currentDocument.id) {
                         alert('Please select a document first');
                         return;
                     }
@@ -568,16 +689,16 @@
                     console.log('→ Starting analysis...');
                     
                     try {
-                        const response = await fetch('/api/review', {
+                        const response = await fetch(`/api/analyze/${this.currentDocument.id}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
                             },
                             body: JSON.stringify({
-                                document_id: this.currentDocument.document_id,
-                                model: this.selectedModel || null,
                                 analysis_type: 'comprehensive',
-                                include_recommendations: true
+                                include_recommendations: true,
+                                include_risks: true,
+                                include_citations: true
                             })
                         });
 
@@ -588,8 +709,14 @@
                             this.activeTab = 'summary';
                             console.log('✓ Analysis completed');
                             
-                            // Update document list to show analysis is available
-                            await this.loadDocuments();
+                            // Force refresh document list to show updated analysis status
+                            await this.loadDocuments(true);
+                            
+                            // Update current document to reflect analysis status
+                            if (this.currentDocument) {
+                                this.currentDocument.has_analysis = true;
+                                this.currentDocument.analysis_timestamp = new Date().toISOString();
+                            }
                         } else {
                             alert(`Error: ${result.detail}`);
                         }
@@ -655,21 +782,93 @@
                     if (!confirm('Are you sure you want to delete this document?')) return;
 
                     try {
+                        console.log('🗑️ Deleting document:', documentId);
                         const response = await fetch(`/api/documents/${documentId}`, {
                             method: 'DELETE'
                         });
 
                         if (response.ok) {
-                            await this.loadDocuments();
-                            if (this.currentDocument?.document_id === documentId) {
+                            // Clear current document if it was deleted
+                            if (this.currentDocument?.id === documentId) {
                                 this.currentDocument = null;
                                 this.currentSession = null;
+                                this.chatMessages = [];
                             }
+                            
+                            // Refresh the document list with a small delay to ensure cache is cleared
+                            setTimeout(async () => {
+                                await this.loadDocuments(true);
+                                console.log('✅ Document deleted and list refreshed');
+                            }, 100);
                         } else {
-                            alert('Error deleting document');
+                            const errorData = await response.json();
+                            alert(`Error deleting document: ${errorData.detail || 'Unknown error'}`);
                         }
                     } catch (error) {
                         alert(`Error: ${error.message}`);
+                    }
+                },
+
+                // Error recovery methods
+                async reprocessDocument(documentId) {
+                    try {
+                        console.log('🔄 Retrying vector processing for document:', documentId);
+                        const response = await fetch(`/api/reprocess/${documentId}`, {
+                            method: 'POST'
+                        });
+                        
+                        if (response.ok) {
+                            console.log('✅ Document reprocessing started');
+                            // Refresh the document list to show updated status
+                            await this.loadDocuments(true);
+                        } else {
+                            const error = await response.text();
+                            console.error('❌ Failed to reprocess document:', error);
+                            alert(`Failed to reprocess document: ${error}`);
+                        }
+                    } catch (error) {
+                        console.error('❌ Error reprocessing document:', error);
+                        alert(`Error reprocessing document: ${error.message}`);
+                    }
+                },
+
+                async analyzeDocument(documentId) {
+                    try {
+                        console.log('📊 Analyzing document despite processing error:', documentId);
+                        
+                        // Find the document in our list
+                        const doc = this.documents.find(d => d.id === documentId);
+                        if (!doc) {
+                            console.error('❌ Document not found in list');
+                            alert('Document not found in list');
+                            return;
+                        }
+                        
+                        // Select the document first
+                        this.currentDocument = doc;
+                        this.currentSession = null;
+                        this.chatMessages = [];
+                        
+                        // Start analysis
+                        await this.startAnalysis();
+                    } catch (error) {
+                        console.error('❌ Error analyzing document:', error);
+                        alert(`Error analyzing document: ${error.message}`);
+                    }
+                },
+
+                async reuploadDocument(documentId) {
+                    try {
+                        console.log('📤 Re-uploading document:', documentId);
+                        
+                        // For now, just show a message. In a full implementation,
+                        // this would trigger a file upload dialog
+                        if (confirm('Re-upload functionality will be implemented. For now, delete this document and upload it again?')) {
+                            await this.deleteDocument(documentId);
+                        }
+                    } catch (error) {
+                        console.error('❌ Error re-uploading document:', error);
+                        alert(`Error re-uploading document: ${error.message}`);
                     }
                 },
 
@@ -724,7 +923,20 @@
                 },
 
                 formatDate(date) {
-                    return new Date(date).toLocaleString();
+                    if (!date) return 'Unknown';
+                    const now = new Date();
+                    const docDate = new Date(date);
+                    const diffMs = now - docDate;
+                    const diffMins = Math.floor(diffMs / 60000);
+                    const diffHours = Math.floor(diffMs / 3600000);
+                    const diffDays = Math.floor(diffMs / 86400000);
+                    
+                    if (diffMins < 1) return 'Just now';
+                    if (diffMins < 60) return `${diffMins}m ago`;
+                    if (diffHours < 24) return `${diffHours}h ago`;
+                    if (diffDays < 7) return `${diffDays}d ago`;
+                    
+                    return docDate.toLocaleDateString();
                 },
 
                 formatTime(date) {
@@ -751,6 +963,34 @@
                     formatted = formatted.replace(/<p[^>]*>\s*<\/p>/g, '');
                     
                     return formatted;
+                },
+
+                formatKeyPoints(keyPoints) {
+                    if (!keyPoints || !Array.isArray(keyPoints)) {
+                        return '<p class="text-gray-500">No key points available. Click Analyze to start.</p>';
+                    }
+                    
+                    let html = '<ul class="list-disc list-inside space-y-2">';
+                    keyPoints.forEach(point => {
+                        html += `<li class="text-gray-700">${point}</li>`;
+                    });
+                    html += '</ul>';
+                    
+                    return html;
+                },
+
+                formatRecommendations(recommendations) {
+                    if (!recommendations || !Array.isArray(recommendations)) {
+                        return '<p class="text-gray-500">No recommendations available. Click Analyze to start.</p>';
+                    }
+                    
+                    let html = '<ul class="list-disc list-inside space-y-2">';
+                    recommendations.forEach(rec => {
+                        html += `<li class="text-gray-700">${rec}</li>`;
+                    });
+                    html += '</ul>';
+                    
+                    return html;
                 }
             }));
         });

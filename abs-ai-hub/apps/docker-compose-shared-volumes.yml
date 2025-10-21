@@ -1,0 +1,113 @@
+# Centralized Document Hub - Multi-App Shared Volume Configuration
+# This configuration deploys multiple apps with shared document storage
+# NOTE: Uses CORE services (Redis, PostgreSQL, Qdrant) managed by gateway
+# LOCATION: abs-ai-hub/apps/ (root level for multi-app deployment)
+
+version: '3.8'
+
+services:
+  # Contract Reviewer v2 - Integrated
+  contract-reviewer-v2-integrated:
+    build: ./contract-reviewer-v2
+    container_name: abs-contract-reviewer-v2-integrated
+    ports:
+      - "8082:8080"
+    environment:
+      - APP_PORT=8080
+      # Connect to CORE services
+      - POSTGRES_URL=postgresql://hub_user:secure_password@document-hub-postgres:5432/document_hub
+      - QDRANT_HOST=abs-qdrant
+      - QDRANT_PORT=6333
+      - REDIS_URL=redis://abs-redis:6379/0
+      - FILE_STORAGE_PATH=/data/shared/contract_reviewer
+      - MAX_FILE_SIZE=100
+    volumes:
+      # Shared document storage
+      - shared-document-hub:/data/shared
+      # App-specific storage
+      - contract-reviewer-v2-logs:/data/logs
+      - ./contract-reviewer-v2/static:/app/static:ro
+    networks:
+      - abs-net
+    restart: unless-stopped
+    # NO depends_on - relies on CORE services managed by gateway
+
+  # Legal Assistant
+  legal-assistant:
+    build: ./legal-assistant
+    container_name: abs-legal-assistant
+    ports:
+      - "8083:8080"
+    environment:
+      - FILE_STORAGE_PATH=/data/shared/legal_assistant
+      - SHARED_STORAGE_PATH=/data/shared
+    volumes:
+      # Shared document storage
+      - shared-document-hub:/data/shared
+      # App-specific storage
+      - legal-assistant-logs:/data/logs
+    networks:
+      - abs-net
+    restart: unless-stopped
+    # NO depends_on - relies on CORE services managed by gateway
+
+  # RAG PDF Voice
+  rag-pdf-voice:
+    build: ./rag-pdf-voice
+    container_name: abs-rag-pdf-voice
+    ports:
+      - "8084:8080"
+    environment:
+      - PDF_STORAGE_PATH=/data/shared/rag_pdf_voice
+      - SHARED_STORAGE_PATH=/data/shared
+    volumes:
+      # Shared document storage
+      - shared-document-hub:/data/shared
+      # App-specific storage
+      - rag-pdf-voice-logs:/data/logs
+    networks:
+      - abs-net
+    restart: unless-stopped
+    # NO depends_on - relies on CORE services managed by gateway
+
+  # Onyx Suite
+  onyx-suite:
+    build: ./onyx-suite
+    container_name: abs-onyx-suite
+    ports:
+      - "8085:8080"
+    environment:
+      - FILE_STORAGE_PATH=/data/shared/onyx_suite
+      - SHARED_STORAGE_PATH=/data/shared
+    volumes:
+      # Shared document storage
+      - shared-document-hub:/data/shared
+      # App-specific storage
+      - onyx-suite-logs:/data/logs
+    networks:
+      - abs-net
+    restart: unless-stopped
+    # NO depends_on - relies on CORE services managed by gateway
+
+volumes:
+  # Shared document hub volume
+  shared-document-hub:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/shared-document-hub  # Host path for shared storage
+  
+  # App-specific log volumes
+  contract-reviewer-v2-logs:
+    driver: local
+  legal-assistant-logs:
+    driver: local
+  rag-pdf-voice-logs:
+    driver: local
+  onyx-suite-logs:
+    driver: local
+
+networks:
+  abs-net:
+    external: true

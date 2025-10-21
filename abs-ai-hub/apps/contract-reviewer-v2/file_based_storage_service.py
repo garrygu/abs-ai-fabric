@@ -140,6 +140,11 @@ class FileBasedStorageService:
             Path object for the file
         """
         try:
+            # Ensure file_type is an enum, not a string
+            if isinstance(file_type, str):
+                # Convert string to enum
+                file_type = FileType(file_type)
+            
             # Base directory based on file type
             base_dir = self.base_path / file_type.value
             
@@ -265,6 +270,10 @@ class FileBasedStorageService:
             FileMetadata object
         """
         try:
+            # Ensure file_type is an enum, not a string
+            if isinstance(file_type, str):
+                file_type = FileType(file_type)
+            
             logger.info(f"Storing file: {original_filename} (type: {file_type.value})")
             
             # Generate file path
@@ -376,6 +385,56 @@ class FileBasedStorageService:
             logger.error(f"❌ Error retrieving file: {e}")
             raise
     
+    async def delete_document_files(self, document_id: str) -> bool:
+        """
+        Delete all files associated with a document
+        
+        Args:
+            document_id: Document identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"🗑️ Deleting all files for document: {document_id}")
+            
+            # Find all files for this document
+            deleted_count = 0
+            
+            # Search through all file types
+            for file_type in FileType:
+                type_dir = self.base_path / file_type.value
+                if not type_dir.exists():
+                    continue
+                
+                # Search recursively for files with this document_id
+                for file_path in type_dir.rglob("*"):
+                    if file_path.is_file() and file_path.suffix == '.json':
+                        # Check if this is a metadata file for our document
+                        try:
+                            async with aiofiles.open(file_path, 'r') as f:
+                                metadata = json.loads(await f.read())
+                                if metadata.get('document_id') == document_id:
+                                    # Delete the metadata file and associated data file
+                                    data_file_path = file_path.with_suffix('')
+                                    if data_file_path.exists():
+                                        data_file_path.unlink()
+                                        logger.info(f"  - Deleted data file: {data_file_path}")
+                                    
+                                    file_path.unlink()
+                                    logger.info(f"  - Deleted metadata file: {file_path}")
+                                    deleted_count += 1
+                        except Exception as e:
+                            logger.warning(f"  - Error reading metadata file {file_path}: {e}")
+                            continue
+            
+            logger.info(f"✅ Deleted {deleted_count} files for document: {document_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error deleting files for document {document_id}: {e}")
+            return False
+
     async def delete_file(self, file_id: str, permanent: bool = False) -> bool:
         """
         Delete file
@@ -716,7 +775,11 @@ class FileBasedStorageService:
                         
                         # Add metadata file
                         metadata_filename = f"{file_metadata.original_filename}.metadata.json"
-                        metadata_content = json.dumps(asdict(file_metadata), indent=2, default=str)
+                        metadata_dict = asdict(file_metadata)
+                        # Convert enum to string for JSON serialization
+                        metadata_dict["file_type"] = file_metadata.file_type.value
+                        metadata_dict["storage_tier"] = file_metadata.storage_tier.value
+                        metadata_content = json.dumps(metadata_dict, indent=2, default=str)
                         zipf.writestr(f"metadata/{metadata_filename}", metadata_content)
                 
                 # Read archive content
@@ -818,6 +881,9 @@ class FileBasedStorageService:
         metadata_path = self.base_path / "metadata" / f"{file_metadata.file_id}.json"
         
         metadata_dict = asdict(file_metadata)
+        # Convert enums to strings for JSON serialization
+        metadata_dict["file_type"] = file_metadata.file_type.value
+        metadata_dict["storage_tier"] = file_metadata.storage_tier.value
         metadata_dict["created_at"] = file_metadata.created_at.isoformat()
         metadata_dict["modified_at"] = file_metadata.modified_at.isoformat()
         metadata_dict["accessed_at"] = file_metadata.accessed_at.isoformat()
@@ -840,6 +906,12 @@ class FileBasedStorageService:
             metadata_dict["created_at"] = datetime.fromisoformat(metadata_dict["created_at"])
             metadata_dict["modified_at"] = datetime.fromisoformat(metadata_dict["modified_at"])
             metadata_dict["accessed_at"] = datetime.fromisoformat(metadata_dict["accessed_at"])
+            
+            # Convert string enums back to enum objects
+            if isinstance(metadata_dict.get("file_type"), str):
+                metadata_dict["file_type"] = FileType(metadata_dict["file_type"])
+            if isinstance(metadata_dict.get("storage_tier"), str):
+                metadata_dict["storage_tier"] = StorageTier(metadata_dict["storage_tier"])
             
             return FileMetadata(**metadata_dict)
             

@@ -99,11 +99,22 @@ class DocumentService:
                         INSERT INTO document_hub.audit_logs 
                         (user_id, action, resource_type, resource_id, details)
                         VALUES ($1, $2, $3, $4, $5)
-                    """, user_id, 'document_created', 'document', document_id, 
+                    """, user_id, 'document_created', 'document', str(document_id), 
                     json.dumps({"filename": original_filename, "file_size": file_size}))
                     
-                    # Return the created document
-                    return await self.get_document_by_id(document_id)
+                    # Retrieve the created document within the same transaction
+                    row = await conn.fetchrow("""
+                        SELECT id, filename, original_filename, file_path, file_size,
+                               file_type, mime_type, upload_timestamp, analysis_timestamp,
+                               status, metadata, created_at, updated_at
+                        FROM document_hub.documents
+                        WHERE id = $1
+                    """, document_id)
+                    
+                    if row:
+                        return self._row_to_dict(row)
+                    else:
+                        return None
                     
         except Exception as e:
             print(f"❌ Error creating document: {e}")
@@ -256,7 +267,7 @@ class DocumentService:
                             INSERT INTO document_hub.audit_logs 
                             (user_id, action, resource_type, resource_id, details)
                             VALUES ($1, $2, $3, $4, $5)
-                        """, user_id, 'document_updated', 'document', document_id, 
+                        """, user_id, 'document_updated', 'document', str(document_id), 
                         json.dumps({"updated_fields": list(update_fields.keys())}))
                         
                         return await self.get_document_by_id(document_id)
@@ -303,7 +314,7 @@ class DocumentService:
                             INSERT INTO document_hub.audit_logs 
                             (user_id, action, resource_type, resource_id, details)
                             VALUES ($1, $2, $3, $4, $5)
-                        """, user_id, 'document_deleted', 'document', document_id, 
+                        """, user_id, 'document_deleted', 'document', str(document_id), 
                         json.dumps({"filename": document['original_filename']}))
                         
                         # Delete physical file if requested
@@ -339,14 +350,22 @@ class DocumentService:
         try:
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
-                    # Insert analysis result
-                    analysis_id = await conn.fetchval("""
+                    # Insert analysis result and get the full record
+                    analysis_row = await conn.fetchrow("""
                         INSERT INTO document_hub.analysis_results
                         (document_id, analysis_type, analysis_data, model_used, processing_time_ms)
                         VALUES ($1, $2, $3, $4, $5)
-                        RETURNING id
+                        RETURNING id, document_id, analysis_type, analysis_data,
+                                 analysis_timestamp, model_used, processing_time_ms,
+                                 status, metadata, created_at, updated_at
                     """, document_id, analysis_type, json.dumps(analysis_data), 
                     model_used, processing_time_ms)
+                    
+                    if not analysis_row:
+                        print(f"❌ Failed to insert analysis result for document {document_id}")
+                        return None
+                    
+                    analysis_id = analysis_row['id']
                     
                     # Update document status and analysis timestamp
                     await conn.execute("""
@@ -360,10 +379,11 @@ class DocumentService:
                         INSERT INTO document_hub.audit_logs 
                         (user_id, action, resource_type, resource_id, details)
                         VALUES ($1, $2, $3, $4, $5)
-                    """, user_id, 'analysis_created', 'analysis_result', analysis_id, 
+                    """, user_id, 'analysis_created', 'analysis_result', str(analysis_id), 
                     json.dumps({"analysis_type": analysis_type, "model_used": model_used}))
                     
-                    return await self.get_analysis_result_by_id(analysis_id)
+                    # Return the analysis result directly from the INSERT
+                    return self._row_to_dict(analysis_row)
                     
         except Exception as e:
             print(f"❌ Error creating analysis result: {e}")
@@ -376,7 +396,7 @@ class DocumentService:
                 row = await conn.fetchrow("""
                     SELECT id, document_id, analysis_type, analysis_data,
                            analysis_timestamp, model_used, processing_time_ms,
-                           status, created_at
+                           status, metadata, created_at, updated_at
                     FROM document_hub.analysis_results
                     WHERE id = $1
                 """, analysis_id)
@@ -400,7 +420,7 @@ class DocumentService:
                 query = """
                     SELECT id, document_id, analysis_type, analysis_data,
                            analysis_timestamp, model_used, processing_time_ms,
-                           status, created_at
+                           status, metadata, created_at, updated_at
                     FROM document_hub.analysis_results
                     WHERE document_id = $1
                 """
@@ -444,7 +464,7 @@ class DocumentService:
                             INSERT INTO document_hub.audit_logs 
                             (user_id, action, resource_type, resource_id, details)
                             VALUES ($1, $2, $3, $4, $5)
-                        """, user_id, 'analysis_deleted', 'analysis_result', analysis_id, 
+                        """, user_id, 'analysis_deleted', 'analysis_result', str(analysis_id), 
                         json.dumps({"analysis_type": analysis['analysis_type']}))
                         
                         return True
@@ -453,6 +473,82 @@ class DocumentService:
                     
         except Exception as e:
             print(f"❌ Error deleting analysis result {analysis_id}: {e}")
+            raise
+    
+    async def update_analysis_result(
+        self,
+        analysis_id: str,
+        updates: Dict[str, Any],
+        user_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Update an analysis result"""
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    # Get current analysis
+                    current_analysis = await self.get_analysis_result_by_id(analysis_id)
+                    if not current_analysis:
+                        return None
+                    
+                    # Build update query dynamically
+                    set_clauses = []
+                    values = []
+                    param_count = 1
+                    
+                    for key, value in updates.items():
+                        if key == "analysis_data":
+                            set_clauses.append(f"analysis_data = ${param_count}")
+                            values.append(json.dumps(value))
+                        elif key == "metadata":
+                            set_clauses.append(f"metadata = ${param_count}")
+                            values.append(json.dumps(value))
+                        elif key == "status":
+                            set_clauses.append(f"status = ${param_count}")
+                            values.append(value)
+                        elif key == "processing_time_ms":
+                            set_clauses.append(f"processing_time_ms = ${param_count}")
+                            values.append(value)
+                        elif key == "model_used":
+                            set_clauses.append(f"model_used = ${param_count}")
+                            values.append(value)
+                        param_count += 1
+                    
+                    if not set_clauses:
+                        return current_analysis
+                    
+                    # Add updated_at timestamp
+                    set_clauses.append(f"updated_at = ${param_count}")
+                    values.append(datetime.now())
+                    param_count += 1
+                    
+                    # Add analysis_id for WHERE clause
+                    values.append(analysis_id)
+                    
+                    # Execute update
+                    query = f"""
+                        UPDATE document_hub.analysis_results 
+                        SET {', '.join(set_clauses)}
+                        WHERE id = ${param_count}
+                        RETURNING *
+                    """
+                    
+                    row = await conn.fetchrow(query, *values)
+                    
+                    if row:
+                        # Log the update
+                        await conn.execute("""
+                            INSERT INTO document_hub.audit_logs 
+                            (user_id, action, resource_type, resource_id, details)
+                            VALUES ($1, $2, $3, $4, $5)
+                        """, user_id, 'analysis_updated', 'analysis_result', str(analysis_id), 
+                        json.dumps({"updated_fields": list(updates.keys())}))
+                        
+                        return self._row_to_dict(row)
+                    
+                    return None
+                    
+        except Exception as e:
+            print(f"❌ Error updating analysis result {analysis_id}: {e}")
             raise
     
     # ==================== UTILITY METHODS ====================
@@ -488,6 +584,12 @@ class DocumentService:
                 result[key] = value.isoformat()
             elif isinstance(value, uuid.UUID):
                 result[key] = str(value)
+            elif key in ['metadata', 'details', 'analysis_data'] and isinstance(value, str):
+                # Parse JSON fields
+                try:
+                    result[key] = json.loads(value)
+                except (json.JSONDecodeError, TypeError):
+                    result[key] = value
             else:
                 result[key] = value
         

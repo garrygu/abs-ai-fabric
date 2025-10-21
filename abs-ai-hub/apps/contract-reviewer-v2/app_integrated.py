@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 import redis as redislib
+import httpx
 import io
 
 # Import our services
@@ -69,6 +70,69 @@ app.add_middleware(
 # Static files for frontend
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Serve frontend at root
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend application"""
+    return FileResponse("static/index.html")
+
+# Redirect old upload endpoint to new one for compatibility
+@app.post("/api/upload")
+async def upload_file_redirect(file: UploadFile = File(...)):
+    """Redirect upload requests to the new endpoint"""
+    return await upload_document(
+        file=file,
+        client_id=None,
+        document_type="contract",
+        metadata=None,
+        process_for_search=True,
+        generate_report=False,
+        report_format="pdf"
+    )
+
+# Add models endpoint for frontend compatibility
+@app.get("/api/models")
+async def get_models():
+    """Get available models from the hub gateway"""
+    try:
+        # Get models from the hub gateway admin endpoint
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{HUB_GATEWAY_URL}/admin/models")
+            if response.status_code == 200:
+                data = response.json()
+                # Transform the admin format to frontend format
+                models = []
+                for model in data.get("models", []):
+                    if model.get("type") == "llm" and model.get("available", False):
+                        models.append({
+                            "name": model["name"],
+                            "provider": "ollama",  # Default provider
+                            "status": model.get("status", "unknown"),
+                            "is_default": model.get("is_default_chat", False)
+                        })
+                return {"models": models}
+            else:
+                # Fallback to basic models if gateway is not available
+                return {
+                    "models": [
+                        {"name": "gpt-3.5-turbo", "provider": "openai"},
+                        {"name": "gpt-4", "provider": "openai"},
+                        {"name": "claude-3-sonnet", "provider": "anthropic"},
+                        {"name": "claude-3-haiku", "provider": "anthropic"}
+                    ]
+                }
+    except Exception as e:
+        logger.warning(f"Failed to get models from gateway: {e}")
+        # Fallback to basic models
+        return {
+            "models": [
+                {"name": "gpt-3.5-turbo", "provider": "openai"},
+                {"name": "gpt-4", "provider": "openai"},
+                {"name": "claude-3-sonnet", "provider": "anthropic"},
+                {"name": "claude-3-haiku", "provider": "anthropic"}
+            ]
+        }
+
 # Global services
 doc_service: Optional[DocumentService] = None
 vector_service: Optional[VectorStorageService] = None
@@ -87,7 +151,6 @@ class DocumentUploadRequest(BaseModel):
     report_format: str = "pdf"
 
 class AnalysisRequest(BaseModel):
-    document_id: str
     analysis_type: str = "comprehensive"
     include_risks: bool = True
     include_recommendations: bool = True
@@ -222,7 +285,7 @@ async def upload_document(
         
         # Parse metadata
         parsed_metadata = {}
-        if metadata:
+        if metadata and isinstance(metadata, str):
             try:
                 parsed_metadata = json.loads(metadata)
             except json.JSONDecodeError:
@@ -233,7 +296,8 @@ async def upload_document(
         file_size = len(file_content)
         
         # Create temporary file for processing
-        temp_file_path = Path(FILE_STORAGE_PATH) / "temp" / f"upload_{uuid.uuid4().hex}.tmp"
+        original_extension = Path(file.filename).suffix
+        temp_file_path = Path(FILE_STORAGE_PATH) / "temp" / f"upload_{uuid.uuid4().hex}{original_extension}"
         temp_file_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:
@@ -256,6 +320,11 @@ async def upload_document(
                     "report_generation_enabled": generate_report
                 }
             )
+            
+            if not document:
+                raise HTTPException(status_code=500, detail="Failed to create document record")
+            
+            logger.info(f"✅ Document created in PostgreSQL: {document['id']}")
             
             # Store file in file-based storage
             file_storage_result = None
@@ -415,6 +484,18 @@ async def upload_document(
             
             logger.info(f"✅ Document uploaded successfully: {document['id']}")
             
+            # Clear document list cache to ensure fresh data
+            if redis_client:
+                try:
+                    # Clear all document list cache keys
+                    cache_pattern = "documents:list:*"
+                    keys = redis_client.keys(cache_pattern)
+                    if keys:
+                        redis_client.delete(*keys)
+                        logger.info(f"✅ Cleared {len(keys)} document list cache entries")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to clear document list cache: {e}")
+            
             return DocumentResponse(
                 document_id=document["id"],
                 filename=file.filename,
@@ -435,6 +516,219 @@ async def upload_document(
     except Exception as e:
         logger.error(f"❌ Error uploading document: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analysis/{document_id}")
+async def get_analysis(document_id: str):
+    """Get saved analysis for a document"""
+    try:
+        if not doc_service:
+            raise HTTPException(status_code=500, detail="Document service not initialized")
+        
+        logger.info(f"🔍 Getting analysis for document: {document_id}")
+        
+        # Get analysis results for the document
+        analysis_results = await doc_service.get_analysis_results_by_document(
+            document_id=document_id,
+            analysis_type="comprehensive"
+        )
+        
+        if not analysis_results:
+            raise HTTPException(status_code=404, detail="Analysis not found")
+        
+        # Get the most recent analysis
+        analysis = analysis_results[0]
+        
+        # Parse the analysis_data if it's a string
+        analysis_data = analysis.get("analysis_data", {})
+        if isinstance(analysis_data, str):
+            try:
+                analysis_data = json.loads(analysis_data)
+            except json.JSONDecodeError:
+                analysis_data = {}
+        
+        # Return the analysis in the format expected by the frontend
+        return {
+            "analysis_id": analysis["id"],
+            "document_id": document_id,
+            "summary": analysis_data.get("summary", {}),
+            "risks": analysis_data.get("risks", []),
+            "recommendations": analysis_data.get("recommendations", []),
+            "citations": analysis_data.get("citations", []),
+            "compliance": analysis_data.get("compliance", {}),
+            "analysis_timestamp": analysis["analysis_timestamp"],
+            "model_used": analysis.get("model_used"),
+            "processing_time_ms": analysis.get("processing_time_ms"),
+            "status": analysis.get("status", "completed")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting analysis for document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str):
+    """Delete a document and all its associated data"""
+    try:
+        if not doc_service:
+            raise HTTPException(status_code=500, detail="Document service not initialized")
+        
+        logger.info(f"🗑️ Deleting document: {document_id}")
+        
+        # Get document details before deletion
+        document = await doc_service.get_document_by_id(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Delete from PostgreSQL (this will cascade to analysis_results and document_chunks)
+        await doc_service.delete_document(document_id)
+        
+        # Delete from file storage
+        if storage_service:
+            try:
+                await storage_service.delete_document_files(document_id)
+                logger.info(f"✅ Deleted files for document: {document_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to delete files for document {document_id}: {e}")
+        
+        # Delete from vector storage
+        if vector_service:
+            try:
+                await vector_service.delete_document_chunks(document_id)
+                logger.info(f"✅ Deleted vectors for document: {document_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to delete vectors for document {document_id}: {e}")
+        
+        # Clear related cache
+        if redis_client:
+            try:
+                # Clear document cache
+                cache_keys = [
+                    f"document:{document_id}",
+                    f"analysis:{document_id}",
+                    f"documents:list:*"
+                ]
+                for pattern in cache_keys:
+                    keys = redis_client.keys(pattern)
+                    if keys:
+                        redis_client.delete(*keys)
+                logger.info(f"✅ Cleared cache for document: {document_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to clear cache for document {document_id}: {e}")
+        
+        logger.info(f"✅ Document deleted successfully: {document_id}")
+        return {"message": "Document deleted successfully", "document_id": document_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/reprocess/{document_id}")
+async def reprocess_document(document_id: str):
+    """Retry vector processing for a document that had processing errors"""
+    try:
+        if not doc_service:
+            raise HTTPException(status_code=500, detail="Document service not initialized")
+        
+        logger.info(f"🔄 Retrying vector processing for document: {document_id}")
+        
+        # Get the document
+        document = await doc_service.get_document_by_id(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Check if document has vector processing error
+        if not document.get("metadata", {}).get("vector_processing", {}).get("error"):
+            raise HTTPException(status_code=400, detail="Document does not have vector processing errors")
+        
+        # Get the file path
+        file_path = document.get("file_path")
+        if not file_path:
+            raise HTTPException(status_code=400, detail="Document file path not found")
+        
+        # Retry vector processing
+        if not processing_service:
+            raise HTTPException(status_code=500, detail="Processing service not initialized")
+        
+        try:
+            processing_result = await processing_service.process_document(
+                document_id=document_id,
+                file_path=file_path,
+                metadata={
+                    "client": document.get("metadata", {}).get("client", "Unknown"),
+                    "document_type": document.get("metadata", {}).get("document_type", "contract"),
+                    "upload_source": "contract-reviewer-v2-integrated",
+                    "retry": True
+                }
+            )
+            
+            # Update document metadata to clear the error
+            await doc_service.update_document(
+                document_id=document_id,
+                updates={
+                    "metadata": {
+                        **document.get("metadata", {}),
+                        "vector_processing": {
+                            "chunks_created": processing_result["chunks_created"],
+                            "vector_ids": processing_result["vector_ids"],
+                            "processing_status": processing_result["processing_status"],
+                            "processed_at": processing_result["processed_at"],
+                            "retried_at": datetime.now().isoformat(),
+                            "retry_successful": True,
+                            "error": None
+                        }
+                    }
+                }
+            )
+            
+            # Clear document list cache
+            if redis_client:
+                try:
+                    cache_pattern = "documents:list:*"
+                    keys = redis_client.keys(cache_pattern)
+                    if keys:
+                        redis_client.delete(*keys)
+                        logger.info(f"✅ Cleared document list cache after reprocessing")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to clear cache after reprocessing: {e}")
+            
+            logger.info(f"✅ Successfully reprocessed document {document_id}")
+            return {
+                "message": "Document reprocessed successfully",
+                "processing_result": processing_result
+            }
+            
+        except Exception as processing_error:
+            logger.error(f"❌ Reprocessing failed for document {document_id}: {processing_error}")
+            
+            # Update metadata to record the retry failure
+            await doc_service.update_document(
+                document_id=document_id,
+                updates={
+                    "metadata": {
+                        **document.get("metadata", {}),
+                        "vector_processing": {
+                            **document.get("metadata", {}).get("vector_processing", {}),
+                            "retried_at": datetime.now().isoformat(),
+                            "retry_successful": False,
+                            "retry_error": str(processing_error)
+                        }
+                    }
+                }
+            )
+            
+            raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(processing_error)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error reprocessing document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess document: {str(e)}")
 
 
 @app.get("/api/documents")
@@ -469,10 +763,54 @@ async def list_documents(
             order_direction="DESC"
         )
         
+        logger.info(f"📋 Loaded {len(documents)} documents from database (total_count: {total_count})")
+        
+        # Debug: Log each document's key fields
+        for i, doc in enumerate(documents):
+            logger.info(f"Document {i}: id={doc.get('id')}, filename={doc.get('filename')}, original_filename={doc.get('original_filename')}, has_id={bool(doc.get('id'))}")
+        
         # Filter by client_id if provided
         if client_id:
             documents = [doc for doc in documents if doc.get("metadata", {}).get("client_id") == client_id]
             total_count = len(documents)
+        
+        # Add analysis status to each document and ensure required fields
+        valid_documents = []
+        logger.info(f"🔍 Validating {len(documents)} documents...")
+        
+        for i, doc in enumerate(documents):
+            # Only skip documents that are completely null/undefined
+            if doc is None:
+                logger.warning(f"⚠️ Skipping null document at index {i}")
+                continue
+            
+            # Ensure document has an ID (this is the only critical requirement)
+            if not doc.get("id"):
+                logger.warning(f"⚠️ Skipping document {i} with missing ID: {doc}")
+                continue
+            
+            # Ensure required fields have default values (don't skip if missing)
+            doc.setdefault("original_filename", doc.get("filename", "Unknown"))
+            doc.setdefault("file_size", 0)
+            doc.setdefault("file_type", "Unknown")
+            doc.setdefault("mime_type", "application/octet-stream")
+            doc.setdefault("metadata", {})
+            doc.setdefault("status", "uploaded")
+            
+            # Add analysis status (with error handling - don't skip if this fails)
+            try:
+                analysis_results = await doc_service.get_analysis_results_by_document(doc["id"])
+                doc["has_analysis"] = len(analysis_results) > 0
+            except Exception as analysis_error:
+                logger.warning(f"⚠️ Could not get analysis results for document {doc['id']}: {analysis_error}")
+                doc["has_analysis"] = False
+            
+            # Always add the document to valid_documents (we only skip if completely broken)
+            valid_documents.append(doc)
+            logger.info(f"✅ Document {i} validated: {doc.get('original_filename')} (ID: {doc.get('id')})")
+        
+        documents = valid_documents
+        logger.info(f"✅ Validated {len(documents)} documents for API response")
         
         # Add vector processing information if requested
         if include_vectors and processing_service:
@@ -591,14 +929,28 @@ async def analyze_document(
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to cache analysis in Redis: {e}")
             
-            return AnalysisResponse(
-                analysis_id=analysis["id"],
-                document_id=document_id,
-                summary=analysis["analysis_data"],
-                status="completed",
-                processing_time_ms=analysis.get("processing_time_ms", 0),
-                model_used=analysis.get("model_used", "llama3.2:3b")
-            )
+            # Parse the analysis_data if it's a string
+            analysis_data = analysis.get("analysis_data", {})
+            if isinstance(analysis_data, str):
+                try:
+                    analysis_data = json.loads(analysis_data)
+                except json.JSONDecodeError:
+                    analysis_data = {}
+            
+            # Return the analysis in the same format as the get analysis endpoint
+            return {
+                "analysis_id": analysis["id"],
+                "document_id": document_id,
+                "summary": analysis_data.get("summary", {}),
+                "risks": analysis_data.get("risks", []),
+                "recommendations": analysis_data.get("recommendations", []),
+                "citations": analysis_data.get("citations", []),
+                "compliance": analysis_data.get("compliance", {}),
+                "analysis_timestamp": analysis["analysis_timestamp"],
+                "model_used": analysis.get("model_used", "llama3.2:3b"),
+                "processing_time_ms": analysis.get("processing_time_ms", 0),
+                "status": "completed"
+            }
         
         # Perform analysis (simplified for demo - in production, integrate with AI models)
         start_time = datetime.now()
@@ -655,6 +1007,10 @@ async def analyze_document(
             processing_time_ms=int(processing_time)
         )
         
+        if not analysis:
+            logger.error(f"❌ Failed to create analysis result for document {document_id}")
+            raise HTTPException(status_code=500, detail="Failed to save analysis result")
+        
         # Store analysis result in file-based storage
         try:
             analysis_file_metadata = await storage_service.store_analysis_result(
@@ -671,13 +1027,14 @@ async def analyze_document(
             logger.error(f"❌ Error storing analysis result in file system: {e}")
         
         # Cache analysis result in Redis
-        if redis_client:
+        if redis_client and analysis:
             try:
                 redis_client.setex(
                     f"analysis:{analysis['id']}", 
                     86400 * 7,  # 7 days cache
                     json.dumps(analysis)
                 )
+                logger.info(f"✅ Analysis result cached in Redis: {analysis['id']}")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to cache analysis in Redis: {e}")
         
@@ -695,8 +1052,9 @@ async def analyze_document(
                         file_content, file_metadata = await storage_service.retrieve_file(
                             document.get("metadata", {}).get("file_storage", {}).get("file_id")
                         )
-                        # Create temporary file
-                        temp_file_path = Path(FILE_STORAGE_PATH) / "temp" / f"analysis_{uuid.uuid4().hex}.tmp"
+                        # Create temporary file with original extension
+                        original_extension = Path(file_metadata.file_path).suffix
+                        temp_file_path = Path(FILE_STORAGE_PATH) / "temp" / f"analysis_{uuid.uuid4().hex}{original_extension}"
                         temp_file_path.parent.mkdir(parents=True, exist_ok=True)
                         with open(temp_file_path, "wb") as f:
                             f.write(file_content)
@@ -715,14 +1073,24 @@ async def analyze_document(
                     }
                 )
                 
+                # Handle case where processing_result might be None
+                if processing_result is None:
+                    logger.warning("⚠️ Processing result is None, using default values")
+                    processing_result = {
+                        "chunks_created": 0,
+                        "vector_ids": [],
+                        "processing_status": "failed",
+                        "processed_at": datetime.now().isoformat()
+                    }
+                
                 vector_processing = {
-                    "chunks_created": processing_result["chunks_created"],
-                    "vector_ids": processing_result["vector_ids"],
-                    "processing_status": processing_result["processing_status"],
-                    "processed_at": processing_result["processed_at"]
+                    "chunks_created": processing_result.get("chunks_created", 0),
+                    "vector_ids": processing_result.get("vector_ids", []),
+                    "processing_status": processing_result.get("processing_status", "failed"),
+                    "processed_at": processing_result.get("processed_at", datetime.now().isoformat())
                 }
                 
-                logger.info(f"✅ Document processed for vector search: {processing_result['chunks_created']} chunks")
+                logger.info(f"✅ Document processed for vector search: {processing_result.get('chunks_created', 0)} chunks")
                 
             except Exception as e:
                 logger.error(f"❌ Failed to process document for vector search: {e}")
@@ -788,16 +1156,53 @@ async def analyze_document(
         
         logger.info(f"✅ Analysis completed for document {document_id}")
         
-        return AnalysisResponse(
-            analysis_id=analysis["id"],
-            document_id=document_id,
-            summary=analysis_data,
-            status="completed",
-            processing_time_ms=int(processing_time),
-            model_used="llama3.2:3b",
-            vector_processing=vector_processing,
-            report_generation=report_generation
-        )
+        # Update document status to "analyzed" - CRITICAL for consistency
+        try:
+            await doc_service.update_document(
+                document_id=document_id,
+                updates={
+                    "status": "analyzed",
+                    "analysis_timestamp": datetime.now()
+                }
+            )
+            logger.info(f"✅ Updated document status to 'analyzed' for {document_id}")
+        except Exception as e:
+            logger.error(f"❌ CRITICAL: Failed to update document status: {e}")
+            # If status update fails, we should clean up the analysis result to maintain consistency
+            try:
+                await doc_service.delete_analysis_result(analysis["id"])
+                logger.info(f"✅ Cleaned up analysis result {analysis['id']} due to status update failure")
+            except Exception as cleanup_error:
+                logger.error(f"❌ Failed to clean up analysis result: {cleanup_error}")
+            raise HTTPException(status_code=500, detail="Analysis completed but failed to update document status")
+        
+        # Clear document list cache to reflect updated analysis status
+        if redis_client:
+            try:
+                cache_pattern = "documents:list:*"
+                keys = redis_client.keys(cache_pattern)
+                if keys:
+                    redis_client.delete(*keys)
+                    logger.info(f"✅ Cleared {len(keys)} document list cache entries after analysis")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to clear document list cache after analysis: {e}")
+        
+        # Return the analysis in the same format as the get analysis endpoint
+        return {
+            "analysis_id": analysis["id"],
+            "document_id": document_id,
+            "summary": analysis_data.get("summary", {}),
+            "risks": analysis_data.get("risks", []),
+            "recommendations": analysis_data.get("recommendations", []),
+            "citations": analysis_data.get("citations", []),
+            "compliance": analysis_data.get("compliance", {}),
+            "analysis_timestamp": analysis["analysis_timestamp"],
+            "model_used": analysis.get("model_used", "llama3.2:3b"),
+            "processing_time_ms": analysis.get("processing_time_ms", int(processing_time)),
+            "status": "completed",
+            "vector_processing": vector_processing,
+            "report_generation": report_generation
+        }
         
     except HTTPException:
         raise
@@ -996,10 +1401,18 @@ async def health_check():
     # Check Qdrant
     if vector_service:
         try:
-            await vector_service.get_collection_stats()
-            health_status["services"]["qdrant"] = "healthy"
-        except:
+            # Test Qdrant connection by checking if we can get collections
+            # This avoids the optimizer_status parsing error
+            collections = vector_service.qdrant_client.get_collections()
+            if collections:
+                health_status["services"]["qdrant"] = "healthy"
+            else:
+                health_status["services"]["qdrant"] = "unhealthy"
+        except Exception as e:
+            logger.warning(f"Qdrant health check failed: {e}")
             health_status["services"]["qdrant"] = "unhealthy"
+    else:
+        health_status["services"]["qdrant"] = "unhealthy"
     
     # Check Redis
     if redis_client:

@@ -113,7 +113,7 @@ class DocumentProcessingService:
     def _extract_text_from_docx(self, file_path: str) -> Dict[str, Any]:
         """Extract text from DOCX file"""
         try:
-            doc = Document(file_path)
+            doc = DocxDocument(file_path)
             text_content = ""
             paragraph_texts = []
             
