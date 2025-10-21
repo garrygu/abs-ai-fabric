@@ -1,29 +1,153 @@
 services:
-  contract-reviewer-v2:
+  contract-reviewer-v2-integrated:
     build: .
-    container_name: abs-contract-reviewer-v2
+    container_name: abs-contract-reviewer-v2-integrated
     ports:
       - "8082:8080"
     environment:
+      # Application Configuration
       - APP_PORT=8080
       - HUB_GATEWAY_URL=http://hub-gateway:8081
+      
+      # Database Configuration
+      - POSTGRES_URL=postgresql://hub_user:secure_password@document-hub-postgres:5432/document_hub
+      
+      # Vector Database Configuration
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      
+      # Cache Configuration
       - REDIS_URL=redis://redis:6379/0
+      
+      # File Storage Configuration
+      - FILE_STORAGE_PATH=/data/file_storage
+      - MAX_FILE_SIZE=100
+      
+      # Optional Configuration
+      - ENABLE_COMPRESSION=true
+      - LOG_LEVEL=INFO
       - ABS_DATA_DIR=/data
     volumes:
-      - contract-reviewer-v2-data:/data
+      # File storage for documents, reports, and archives
+      - contract-reviewer-v2-file-storage:/data/file_storage
+      # Legacy data directories for compatibility
+      - contract-reviewer-v2-data:/data/uploads
+      - contract-reviewer-v2-reports:/data/reports
+      - contract-reviewer-v2-templates:/data/templates
+      - contract-reviewer-v2-logs:/data/logs
+      # Static files (read-only)
       - ./static:/app/static:ro
     networks:
       - abs-net
     restart: unless-stopped
+    depends_on:
+      - postgresql
+      - qdrant
+      - redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "abs.service=contract-reviewer-v2-integrated"
+      - "abs.managed-by=gateway"
+      - "abs.environment=production"
+
+  # PostgreSQL service for document metadata and analysis results
+  postgresql:
+    image: postgres:15
+    container_name: document-hub-postgres
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+      - POSTGRES_DB=document_hub
+      - POSTGRES_USER=hub_user
+      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - abs-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hub_user -d document_hub"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "abs.service=postgresql"
+      - "abs.managed-by=gateway"
+      - "abs.environment=production"
+
+  # Qdrant vector database for semantic search
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-storage:/qdrant/storage
+    networks:
+      - abs-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "abs.service=qdrant"
+      - "abs.managed-by=gateway"
+      - "abs.environment=production"
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - abs-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "abs.service=redis"
+      - "abs.managed-by=gateway"
+      - "abs.environment=production"
 
 volumes:
+  # File storage volumes
+  contract-reviewer-v2-file-storage:
+    driver: local
   contract-reviewer-v2-data:
+    driver: local
+  contract-reviewer-v2-reports:
+    driver: local
+  contract-reviewer-v2-templates:
+    driver: local
+  contract-reviewer-v2-logs:
+    driver: local
+  
+  # Database volumes
+  postgres-data:
+    driver: local
+  qdrant-storage:
+    driver: local
+  redis-data:
     driver: local
 
 networks:
