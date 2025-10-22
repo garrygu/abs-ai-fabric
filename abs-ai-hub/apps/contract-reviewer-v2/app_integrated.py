@@ -12,7 +12,7 @@ from typing import List, Dict, Optional, Any, Union
 from datetime import datetime
 import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Query, BackgroundTasks
-from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -39,6 +39,12 @@ logger = logging.getLogger(__name__)
 # Configuration
 APP_PORT = int(os.getenv("APP_PORT", "8080"))
 HUB_GATEWAY_URL = os.getenv("HUB_GATEWAY_URL", "http://hub-gateway:8081")
+
+# Framework Configuration
+ABS_FRAMEWORK_PATH = os.getenv("ABS_FRAMEWORK_PATH", "/static/unified-framework.js")
+ABS_GATEWAY_URL = os.getenv("ABS_GATEWAY_URL", "http://localhost:8081")
+ABS_APP_REGISTRY_URL = os.getenv("ABS_APP_REGISTRY_URL", "http://localhost:8081/api/apps")
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql://hub_user:secure_password@document-hub-postgres:5432/document_hub")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
@@ -73,8 +79,24 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Serve frontend at root
 @app.get("/")
 async def serve_frontend():
-    """Serve the frontend application"""
-    return FileResponse("static/index.html")
+    """Serve the frontend application with environment variables"""
+    # Read the HTML file
+    with open("static/index.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
+    
+    # Inject environment variables
+    env_script = f"""
+    <script>
+        window.ABS_FRAMEWORK_PATH = "{ABS_FRAMEWORK_PATH}";
+        window.ABS_GATEWAY_URL = "{ABS_GATEWAY_URL}";
+        window.ABS_APP_REGISTRY_URL = "{ABS_APP_REGISTRY_URL}";
+    </script>
+    """
+    
+    # Insert the script before the closing head tag
+    html_content = html_content.replace("</head>", f"{env_script}</head>")
+    
+    return HTMLResponse(content=html_content)
 
 # Redirect old upload endpoint to new one for compatibility
 @app.post("/api/upload")

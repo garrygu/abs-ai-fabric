@@ -1,0 +1,137 @@
+{
+  "apps": {
+    "contract-reviewer": {
+      "name": "Contract Reviewer",
+      "description": "AI Contract Analysis",
+      "icon": "fas fa-file-contract",
+      "colorClass": "bg-blue-600",
+      "url": "/contract-reviewer",
+      "status": "active",
+      "version": "1.0.0",
+      "category": "legal",
+      "tags": ["contracts", "ai", "analysis"],
+      "permissions": ["read", "write"],
+      "config": {
+        "enableExport": false,
+        "enableSettings": true,
+        "customMenuItems": []
+      }
+    },
+    "contract-reviewer-v2": {
+      "name": "Contract Reviewer v2",
+      "description": "Professional AI Contract Analysis",
+      "icon": "fas fa-file-contract",
+      "colorClass": "bg-blue-600",
+        "url": "/",
+      "status": "active",
+      "version": "2.0.0",
+      "category": "legal",
+      "tags": ["contracts", "ai", "analysis", "professional"],
+      "permissions": ["read", "write", "export"],
+      "config": {
+        "enableExport": true,
+        "enableSettings": true,
+        "customMenuItems": [
+          {
+            "id": "export",
+            "label": "Export",
+            "icon": "fas fa-download",
+            "action": "exportResults"
+          },
+          {
+            "id": "help",
+            "label": "Help",
+            "icon": "fas fa-question-circle",
+            "action": "showHelp"
+          }
+        ]
+      }
+    },
+    "legal-assistant": {
+      "name": "Legal Assistant",
+      "description": "AI Legal Research Assistant",
+      "icon": "fas fa-gavel",
+      "colorClass": "bg-green-600",
+      "url": "/legal-assistant",
+      "status": "active",
+      "version": "1.0.0",
+      "category": "legal",
+      "tags": ["research", "ai", "legal"],
+      "permissions": ["read", "write"],
+      "config": {
+        "enableExport": false,
+        "enableSettings": true,
+        "customMenuItems": []
+      }
+    },
+    "onyx": {
+      "name": "Onyx",
+      "description": "AI Document Processing",
+      "icon": "fas fa-brain",
+      "colorClass": "bg-purple-600",
+      "url": "/onyx",
+      "status": "active",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": ["document", "processing", "ai"],
+      "permissions": ["read", "write"],
+      "config": {
+        "enableExport": false,
+        "enableSettings": true,
+        "customMenuItems": []
+      }
+    },
+    "rag-pdf-voice": {
+      "name": "RAG PDF Voice",
+      "description": "Voice-Enabled Document Search",
+      "icon": "fas fa-microphone",
+      "colorClass": "bg-red-600",
+      "url": "/rag-pdf-voice",
+      "status": "active",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": ["voice", "search", "pdf"],
+      "permissions": ["read", "write"],
+      "config": {
+        "enableExport": false,
+        "enableSettings": true,
+        "customMenuItems": []
+      }
+    },
+    "whisper-server": {
+      "name": "Whisper Server",
+      "description": "Speech-to-Text Service",
+      "icon": "fas fa-volume-up",
+      "colorClass": "bg-orange-600",
+      "url": "/whisper-server",
+      "status": "active",
+      "version": "1.0.0",
+      "category": "ai",
+      "tags": ["speech", "text", "service"],
+      "permissions": ["read"],
+      "config": {
+        "enableExport": false,
+        "enableSettings": false,
+        "customMenuItems": []
+      }
+    }
+  },
+  "categories": {
+    "legal": {
+      "name": "Legal",
+      "description": "Legal analysis and research tools",
+      "color": "blue"
+    },
+    "ai": {
+      "name": "AI",
+      "description": "Artificial intelligence and machine learning tools",
+      "color": "purple"
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2025-01-21T21:30:00Z",
+    "total_apps": 6,
+    "active_apps": 6
+  }
+}
