@@ -1,8 +1,9 @@
 import os, json, hashlib, time, subprocess, asyncio
 from typing import Optional, List, Dict, Any
+from datetime import datetime
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -191,6 +192,36 @@ class EmbedReq(BaseModel):
     input: List[str]
     override_model: Optional[str] = None
 
+# ---- Tri-Store Inspector Schemas ----
+class StoreSnapshot(BaseModel):
+    found: bool
+    store_type: str  # 'postgres' | 'redis' | 'qdrant'
+    key: str
+    payload: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None
+    checksum: Optional[str] = None
+    updated_at: Optional[str] = None
+    ttl_seconds: Optional[int] = None  # Redis only
+
+class TriStoreSnapshot(BaseModel):
+    doc_id: str
+    requested_at: str
+    env: str = 'prod'
+    postgres: Optional[StoreSnapshot] = None
+    redis: Optional[StoreSnapshot] = None
+    qdrant: Optional[StoreSnapshot] = None
+    consistency: Dict[str, Any]
+
+class ConsistencyReport(BaseModel):
+    status: str  # 'OK' | 'WARNING' | 'ERROR'
+    problems: List[Dict[str, str]]
+    field_diff: List[Dict[str, Any]]
+    embeddings_diff: List[Dict[str, Any]]
+
+class BatchInspectRequest(BaseModel):
+    doc_ids: List[str]
+    env: str = 'prod'
+
 # ---- Helpers ----
 async def detect_provider() -> str:
     # Prefer OpenAI/vLLM if reachable
@@ -228,6 +259,244 @@ def pick_app_cfg(app_id: Optional[str]):
     
     # Last resort: registry defaults (for backward compatibility)
     return REG.get("defaults", {})
+
+# ---- Tri-Store Inspector Functions ----
+def compute_checksum(data: Dict[str, Any]) -> str:
+    """Compute stable checksum for data comparison"""
+    # Sort keys for consistent hashing
+    sorted_data = {k: data[k] for k in sorted(data.keys())}
+    json_str = json.dumps(sorted_data, sort_keys=True, default=str)
+    return hashlib.sha256(json_str.encode()).hexdigest()[:16]
+
+async def fetch_postgres_doc(doc_id: str) -> Optional[StoreSnapshot]:
+    """Fetch document from PostgreSQL"""
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host='document-hub-postgres',
+            port=5432,
+            database='document_hub',
+            user='hub_user',
+            password='secure_password',
+            connect_timeout=5
+        )
+        cursor = conn.cursor()
+        
+        # Query document
+        cursor.execute("""
+            SELECT id, filename, original_filename, file_path, file_size,
+                   file_type, mime_type, upload_timestamp, analysis_timestamp,
+                   status, metadata, created_at, updated_at
+            FROM document_hub.documents 
+            WHERE id = %s
+        """, (doc_id,))
+        
+        row = cursor.fetchone()
+        if not row:
+            return StoreSnapshot(found=False, store_type='postgres', key=doc_id)
+        
+        # Build payload
+        payload = {
+            'id': row[0],
+            'filename': row[1],
+            'original_filename': row[2],
+            'file_path': row[3],
+            'file_size': row[4],
+            'file_type': row[5],
+            'mime_type': row[6],
+            'upload_timestamp': row[7].isoformat() if row[7] else None,
+            'analysis_timestamp': row[8].isoformat() if row[8] else None,
+            'status': row[9],
+            'metadata': row[10],
+            'created_at': row[11].isoformat() if row[11] else None,
+            'updated_at': row[12].isoformat() if row[12] else None
+        }
+        
+        # Compute checksum
+        checksum = compute_checksum(payload)
+        
+        cursor.close()
+        conn.close()
+        
+        return StoreSnapshot(
+            found=True,
+            store_type='postgres',
+            key=doc_id,
+            payload=payload,
+            checksum=checksum,
+            updated_at=payload['updated_at']
+        )
+        
+    except Exception as e:
+        print(f"PostgreSQL fetch error: {e}")
+        return StoreSnapshot(found=False, store_type='postgres', key=doc_id)
+
+async def fetch_redis_doc(doc_id: str) -> Optional[StoreSnapshot]:
+    """Fetch document from Redis"""
+    try:
+        if rds is None:
+            return StoreSnapshot(found=False, store_type='redis', key=f"document:{doc_id}")
+        
+        key = f"document:{doc_id}"
+        
+        # Check if key exists
+        if not rds.exists(key):
+            return StoreSnapshot(found=False, store_type='redis', key=key)
+        
+        # Get TTL
+        ttl = rds.ttl(key)
+        
+        # Get all fields
+        fields = rds.hgetall(key)
+        if not fields:
+            return StoreSnapshot(found=False, store_type='redis', key=key)
+        
+        # Decode bytes to strings
+        payload = {k.decode(): v.decode() for k, v in fields.items()}
+        
+        # Compute checksum
+        checksum = compute_checksum(payload)
+        
+        return StoreSnapshot(
+            found=True,
+            store_type='redis',
+            key=key,
+            payload=payload,
+            checksum=checksum,
+            ttl_seconds=ttl,
+            updated_at=payload.get('updated_at')
+        )
+        
+    except Exception as e:
+        print(f"Redis fetch error: {e}")
+        return StoreSnapshot(found=False, store_type='redis', key=f"doc:{doc_id}")
+
+async def fetch_qdrant_doc(doc_id: str) -> Optional[StoreSnapshot]:
+    """Fetch document from Qdrant"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Try to retrieve point
+            response = await client.post(
+                f"http://qdrant:6333/collections/legal_documents/points/retrieve",
+                json={
+                    "ids": [doc_id],
+                    "with_payload": True,
+                    "with_vector": False
+                },
+                timeout=5.0
+            )
+            
+            if response.status_code != 200:
+                return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
+            
+            data = response.json()
+            points = data.get('result', {}).get('points', [])
+            
+            if not points:
+                return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
+            
+            point = points[0]
+            payload = point.get('payload', {})
+            
+            # Compute checksum
+            checksum = compute_checksum(payload)
+            
+            return StoreSnapshot(
+                found=True,
+                store_type='qdrant',
+                key=doc_id,
+                payload=payload,
+                checksum=checksum,
+                updated_at=payload.get('updated_at')
+            )
+            
+    except Exception as e:
+        print(f"Qdrant fetch error: {e}")
+        return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
+
+def analyze_consistency(postgres: StoreSnapshot, redis: StoreSnapshot, qdrant: StoreSnapshot) -> Dict[str, Any]:
+    """Analyze consistency across all three stores"""
+    problems = []
+    field_diff = []
+    
+    # Check presence
+    stores = {
+        'postgres': postgres,
+        'redis': redis, 
+        'qdrant': qdrant
+    }
+    
+    found_stores = [name for name, store in stores.items() if store and store.found]
+    
+    if len(found_stores) == 0:
+        problems.append({
+            'code': 'MISSING_ALL',
+            'message': f'Document not found in any store',
+            'severity': 'ERROR'
+        })
+    elif len(found_stores) < 3:
+        missing = [name for name, store in stores.items() if not store or not store.found]
+        problems.append({
+            'code': 'MISSING_STORES',
+            'message': f'Document missing from: {", ".join(missing)}',
+            'severity': 'WARNING'
+        })
+    
+    # Check checksums
+    checksums = {}
+    for name, store in stores.items():
+        if store and store.found and store.checksum:
+            checksums[name] = store.checksum
+    
+    if len(set(checksums.values())) > 1:
+        problems.append({
+            'code': 'CHECKSUM_MISMATCH',
+            'message': f'Data checksums differ across stores',
+            'severity': 'WARNING'
+        })
+    
+    # Check field differences
+    common_fields = ['title', 'lang', 'version', 'updated_at']
+    for field in common_fields:
+        values = {}
+        for name, store in stores.items():
+            if store and store.found and store.payload:
+                values[name] = store.payload.get(field)
+        
+        # Check if values differ
+        non_null_values = {k: v for k, v in values.items() if v is not None}
+        if len(set(str(v) for v in non_null_values.values())) > 1:
+            field_diff.append({
+                'field': field,
+                'postgres': values.get('postgres'),
+                'redis': values.get('redis'),
+                'qdrant': values.get('qdrant')
+            })
+    
+    # Check Redis TTL
+    if redis and redis.found and redis.ttl_seconds is not None:
+        if redis.ttl_seconds < 3600:  # Less than 1 hour
+            problems.append({
+                'code': 'REDIS_TTL_LOW',
+                'message': f'Redis TTL is low: {redis.ttl_seconds} seconds',
+                'severity': 'WARNING'
+            })
+    
+    # Determine overall status
+    if any(p['severity'] == 'ERROR' for p in problems):
+        status = 'ERROR'
+    elif problems or field_diff:
+        status = 'WARNING'
+    else:
+        status = 'OK'
+    
+    return {
+        'status': status,
+        'problems': problems,
+        'field_diff': field_diff,
+        'found_stores': found_stores,
+        'checksums': checksums
+    }
 
 # ---- Auto-Wake Helpers ----
 async def check_service_status(service_name: str) -> str:
@@ -2431,6 +2700,303 @@ async def get_service_logs(service_name: str, lines: int = 100):
         raise HTTPException(404, f"Container not found for service: {service_name}")
     except Exception as e:
         raise HTTPException(500, f"Error getting logs: {str(e)}")
+
+# ---- Tri-Store Inspector API Endpoints ----
+@app.get("/admin/inspector/{doc_id}", response_model=TriStoreSnapshot)
+async def inspect_document(doc_id: str, env: str = Query('prod')):
+    """Inspect a document across all three stores"""
+    
+    # Parallel fetch from all stores
+    postgres, redis, qdrant = await asyncio.gather(
+        fetch_postgres_doc(doc_id),
+        fetch_redis_doc(doc_id),
+        fetch_qdrant_doc(doc_id)
+    )
+    
+    # Analyze consistency
+    consistency = analyze_consistency(postgres, redis, qdrant)
+    
+    return TriStoreSnapshot(
+        doc_id=doc_id,
+        requested_at=datetime.utcnow().isoformat() + "Z",
+        env=env,
+        postgres=postgres,
+        redis=redis,
+        qdrant=qdrant,
+        consistency=consistency
+    )
+
+@app.get("/admin/inspector/diff/{doc_id}")
+async def get_document_diff(doc_id: str, env: str = Query('prod')):
+    """Get only the consistency analysis for a document"""
+    snapshot = await inspect_document(doc_id, env)
+    return snapshot.consistency
+
+@app.post("/admin/inspector/batch")
+async def inspect_batch_documents(request: BatchInspectRequest):
+    """Inspect multiple documents in batch"""
+    results = []
+    
+    for doc_id in request.doc_ids:
+        try:
+            snapshot = await inspect_document(doc_id, request.env)
+            results.append(snapshot)
+        except Exception as e:
+            results.append({
+                'doc_id': doc_id,
+                'error': str(e),
+                'consistency': {'status': 'ERROR', 'problems': [{'code': 'FETCH_ERROR', 'message': str(e)}]}
+            })
+    
+    return {'results': results, 'total': len(results)}
+
+@app.get("/admin/inspector/health")
+async def inspector_health():
+    """Health check for all data stores"""
+    health = {}
+    
+    # Test PostgreSQL
+    try:
+        pg_snapshot = await fetch_postgres_doc("health_check_test")
+        health['postgres'] = {'status': 'healthy', 'error': None}
+    except Exception as e:
+        health['postgres'] = {'status': 'unhealthy', 'error': str(e)}
+    
+    # Test Redis
+    try:
+        redis_snapshot = await fetch_redis_doc("health_check_test")
+        health['redis'] = {'status': 'healthy', 'error': None}
+    except Exception as e:
+        health['redis'] = {'status': 'unhealthy', 'error': str(e)}
+    
+    # Test Qdrant
+    try:
+        qdrant_snapshot = await fetch_qdrant_doc("health_check_test")
+        health['qdrant'] = {'status': 'healthy', 'error': None}
+    except Exception as e:
+        health['qdrant'] = {'status': 'unhealthy', 'error': str(e)}
+    
+    return health
+
+# UI is served by hub-ui, not gateway
+
+# ---- Tri-Store Inspector Export Endpoints ----
+@app.get("/admin/inspector/export/{doc_id}")
+async def export_document_inspection(doc_id: str, format: str = Query('json', regex='^(json|csv)$'), env: str = Query('prod')):
+    """Export document inspection results in JSON or CSV format"""
+    snapshot = await inspect_document(doc_id, env)
+    
+    if format == 'csv':
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Field', 'PostgreSQL', 'Redis', 'Qdrant', 'Status'])
+        
+        # Write consistency status
+        writer.writerow(['Overall Status', '', '', '', snapshot.consistency['status']])
+        
+        # Write field differences
+        for diff in snapshot.consistency.get('field_diff', []):
+            writer.writerow([
+                diff['field'],
+                diff.get('postgres', ''),
+                diff.get('redis', ''),
+                diff.get('qdrant', ''),
+                'DIFFERENT' if len(set([str(v) for v in [diff.get('postgres'), diff.get('redis'), diff.get('qdrant')] if v is not None])) > 1 else 'SAME'
+            ])
+        
+        # Write problems
+        for problem in snapshot.consistency.get('problems', []):
+            writer.writerow(['Problem', problem['message'], '', '', problem['severity']])
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=inspection_{doc_id}.csv"}
+        )
+    
+    else:  # JSON format
+        from fastapi.responses import Response
+        import json
+        
+        json_content = json.dumps(snapshot.model_dump(), indent=2, default=str)
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=inspection_{doc_id}.json"}
+        )
+
+@app.post("/admin/inspector/export/batch")
+async def export_batch_inspection(request: BatchInspectRequest, format: str = Query('json', regex='^(json|csv)$')):
+    """Export batch inspection results"""
+    results = []
+    
+    for doc_id in request.doc_ids:
+        try:
+            snapshot = await inspect_document(doc_id, request.env)
+            results.append(snapshot)
+        except Exception as e:
+            results.append({
+                'doc_id': doc_id,
+                'error': str(e),
+                'consistency': {'status': 'ERROR', 'problems': [{'code': 'FETCH_ERROR', 'message': str(e)}]}
+            })
+    
+    if format == 'csv':
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Document ID', 'Status', 'PostgreSQL Found', 'Redis Found', 'Qdrant Found', 'Problems'])
+        
+        # Write results
+        for result in results:
+            if hasattr(result, 'consistency'):
+                consistency = result.consistency
+            else:
+                consistency = result.get('consistency', {})
+            
+            writer.writerow([
+                result.doc_id if hasattr(result, 'doc_id') else result.get('doc_id', ''),
+                consistency.get('status', 'ERROR'),
+                'Yes' if hasattr(result, 'postgres') and result.postgres and result.postgres.found else 'No',
+                'Yes' if hasattr(result, 'redis') and result.redis and result.redis.found else 'No',
+                'Yes' if hasattr(result, 'qdrant') and result.qdrant and result.qdrant.found else 'No',
+                '; '.join([p['message'] for p in consistency.get('problems', [])])
+            ])
+        
+        csv_content = output.getvalue()
+        output.close()
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=batch_inspection_{len(request.doc_ids)}_docs.csv"}
+        )
+    
+    else:  # JSON format
+        from fastapi.responses import Response
+        import json
+        
+        json_content = json.dumps([r.model_dump() if hasattr(r, 'model_dump') else r for r in results], indent=2, default=str)
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=batch_inspection_{len(request.doc_ids)}_docs.json"}
+        )
+
+# ---- Tri-Store Inspector Vector Analysis ----
+@app.get("/admin/inspector/vectors/{doc_id}")
+async def analyze_vector_neighborhood(doc_id: str, limit: int = Query(5, ge=1, le=20), env: str = Query('prod')):
+    """Analyze vector neighborhood for a document"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get the document's vector
+            response = await client.post(
+                f"http://qdrant:6333/collections/legal_documents/points/retrieve",
+                json={
+                    "ids": [doc_id],
+                    "with_payload": True,
+                    "with_vector": True
+                },
+                timeout=10.0
+            )
+            
+            if response.status_code != 200:
+                return {"error": "Document not found in Qdrant", "doc_id": doc_id}
+            
+            data = response.json()
+            points = data.get('result', {}).get('points', [])
+            
+            if not points:
+                return {"error": "Document not found in Qdrant", "doc_id": doc_id}
+            
+            point = points[0]
+            vector = point.get('vector', [])
+            
+            if not vector:
+                return {"error": "No vector found for document", "doc_id": doc_id}
+            
+            # Search for similar vectors
+            search_response = await client.post(
+                f"http://qdrant:6333/collections/legal_documents/points/search",
+                json={
+                    "vector": vector,
+                    "limit": limit + 1,  # +1 to exclude the original document
+                    "with_payload": True,
+                    "with_vector": False
+                },
+                timeout=10.0
+            )
+            
+            if search_response.status_code != 200:
+                return {"error": "Vector search failed", "doc_id": doc_id}
+            
+            search_data = search_response.json()
+            neighbors = search_data.get('result', [])
+            
+            # Filter out the original document
+            neighbors = [n for n in neighbors if n.get('id') != doc_id]
+            
+            # Get document info from other stores for neighbors
+            neighbor_analysis = []
+            for neighbor in neighbors[:limit]:
+                neighbor_id = neighbor.get('id')
+                neighbor_payload = neighbor.get('payload', {})
+                
+                # Quick check in other stores
+                neighbor_info = {
+                    'id': neighbor_id,
+                    'score': neighbor.get('score', 0),
+                    'payload': neighbor_payload,
+                    'stores': {
+                        'qdrant': True,
+                        'postgres': False,
+                        'redis': False
+                    }
+                }
+                
+                # Check PostgreSQL
+                try:
+                    pg_snapshot = await fetch_postgres_doc(neighbor_id)
+                    neighbor_info['stores']['postgres'] = pg_snapshot.found if pg_snapshot else False
+                except:
+                    pass
+                
+                # Check Redis
+                try:
+                    redis_snapshot = await fetch_redis_doc(neighbor_id)
+                    neighbor_info['stores']['redis'] = redis_snapshot.found if redis_snapshot else False
+                except:
+                    pass
+                
+                neighbor_analysis.append(neighbor_info)
+            
+            return {
+                'doc_id': doc_id,
+                'vector_dimensions': len(vector),
+                'neighbors': neighbor_analysis,
+                'analysis': {
+                    'total_neighbors_found': len(neighbors),
+                    'neighbors_in_all_stores': len([n for n in neighbor_analysis if all(n['stores'].values())]),
+                    'neighbors_missing_from_stores': len([n for n in neighbor_analysis if not all(n['stores'].values())])
+                }
+            }
+            
+    except Exception as e:
+        return {"error": f"Vector analysis failed: {str(e)}", "doc_id": doc_id}
 
 # ---- Onyx RAG/Agent Endpoints ----
 
