@@ -2,65 +2,88 @@
 
 ## Overview
 
-The ABS Unified Framework provides a consistent, Microsoft 365-style app launcher and unified header across all ABS applications. It eliminates the need to hardcode framework components in each app and provides centralized configuration management.
+The ABS Unified Framework provides a consistent, Microsoft 365-style app launcher and unified header across all ABS applications. It uses a **centralized architecture** where framework files are served from the Hub UI (port 3000) and dynamically loaded by individual applications, eliminating code duplication and providing centralized configuration management.
 
 ## Architecture
 
-### Components
+### Centralized Components
 
-1. **Unified Framework JavaScript** (`unified-framework.js`)
+1. **Hub UI (Port 3000)** - Centralized Framework Server
+   - Serves `unified-framework.js` from `/usr/share/nginx/html/`
+   - Serves `apps-registry.json` for dynamic app discovery
+   - Provides CORS headers for cross-origin requests
+   - Single source of truth for all framework assets
+
+2. **Individual Applications** - Framework Consumers
+   - Load framework dynamically from Hub UI
+   - Use `framework-config.js` for app-specific configuration
+   - No local framework files (eliminates duplication)
+   - Environment variable configuration for flexible deployment
+
+### Framework Files
+
+1. **Unified Framework JavaScript** (`hub-ui/assets/unified-framework.js`)
    - Core framework functionality
    - App launcher with search
    - Unified header with customizable menu items
    - App switching and navigation
+   - Alpine.js integration and HTML injection
 
-2. **App Registry API** (`app-registry-api.py`)
-   - Dynamic app list management
-   - App configuration storage
-   - Category and permission management
-
-3. **App Configuration** (`framework-config.js`)
-   - App-specific framework configuration
-   - Custom menu items
-   - App-specific callbacks
-
-4. **App Registry JSON** (`apps-registry.json`)
+2. **App Registry JSON** (`hub-ui/assets/apps-registry.json`)
    - Centralized app definitions
    - App metadata and configuration
    - Category and tag management
+   - Single source of truth for all apps
+
+3. **App Configuration Template** (`apps/*/static/framework-config.js`)
+   - Generic configuration template
+   - Dynamic framework loading from Hub UI
+   - Fallback mechanisms for reliability
+   - Environment variable integration
 
 ## Usage
 
 ### For New Apps
 
-1. **Include Framework Script**
+1. **Include Framework Configuration Script**
    ```html
    <script src="/static/framework-config.js"></script>
    ```
 
-2. **Configure App**
-   ```javascript
-   window.ABS_FRAMEWORK_CONFIG = {
-       currentApp: {
-           id: 'your-app-id',
-           name: 'Your App Name',
-           description: 'Your app description',
-           icon: 'fas fa-your-icon',
-           colorClass: 'bg-your-color',
-           url: '/your-app-url'
-       },
-       customMenuItems: [
-           {
-               id: 'custom-action',
-               label: 'Custom Action',
-               icon: 'fas fa-icon',
-               action: () => { /* your action */ }
-           }
-       ]
-   };
+2. **Configure Environment Variables** (in `docker-compose.yml`)
+   ```yaml
+   environment:
+     - ABS_FRAMEWORK_PATH=http://localhost:3000/unified-framework.js
+     - ABS_GATEWAY_URL=http://localhost:8081
+     - ABS_APP_REGISTRY_URL=http://localhost:3000/apps-registry.json
    ```
 
-3. **Implement App-Specific Functions**
+3. **Add App to Registry** (in `hub-ui/assets/apps-registry.json`)
+   ```json
+   {
+     "apps": {
+       "your-app-id": {
+         "name": "Your App Name",
+         "description": "Your app description",
+         "icon": "fas fa-your-icon",
+         "colorClass": "bg-your-color",
+         "url": "/your-app-url",
+         "status": "active",
+         "version": "1.0.0",
+         "category": "your-category",
+         "tags": ["tag1", "tag2"],
+         "permissions": ["read", "write"],
+         "config": {
+           "enableExport": true,
+           "enableSettings": true,
+           "customMenuItems": []
+         }
+       }
+     }
+   }
+   ```
+
+4. **Implement App-Specific Functions** (in your app's HTML)
    ```javascript
    window.openAppSettings = () => {
        // Your settings logic
@@ -73,61 +96,81 @@ The ABS Unified Framework provides a consistent, Microsoft 365-style app launche
 
 ### For Existing Apps
 
-1. **Remove Hardcoded Framework**
-   - Remove app launcher HTML
-   - Remove unified header HTML
-   - Remove framework data from Alpine.js
+1. **Remove Local Framework Files**
+   - Delete `static/unified-framework.js` (if exists)
+   - Delete `static/apps-registry.json` (if exists)
+   - Remove hardcoded framework HTML from your app
 
-2. **Add Framework Script**
+2. **Add Framework Configuration Script**
    ```html
    <script src="/static/framework-config.js"></script>
    ```
 
-3. **Configure App-Specific Settings**
-   - Define custom menu items
-   - Set up app-specific callbacks
-   - Configure framework options
+3. **Configure Environment Variables** (in `docker-compose.yml`)
+   ```yaml
+   environment:
+     - ABS_FRAMEWORK_PATH=http://localhost:3000/unified-framework.js
+     - ABS_GATEWAY_URL=http://localhost:8081
+     - ABS_APP_REGISTRY_URL=http://localhost:3000/apps-registry.json
+   ```
+
+4. **Update Backend** (in your FastAPI app)
+   ```python
+   # Inject environment variables into HTML
+   ABS_FRAMEWORK_PATH = os.getenv("ABS_FRAMEWORK_PATH", "http://localhost:3000/unified-framework.js")
+   ABS_GATEWAY_URL = os.getenv("ABS_GATEWAY_URL", "http://localhost:8081")
+   ABS_APP_REGISTRY_URL = os.getenv("ABS_APP_REGISTRY_URL", "http://localhost:3000/apps-registry.json")
+   
+   @app.get("/")
+   async def serve_frontend():
+       with open("static/index.html", "r", encoding="utf-8") as f:
+           html_content = f.read()
+       
+       env_script = f"""
+       <script>
+           window.ABS_FRAMEWORK_PATH = "{ABS_FRAMEWORK_PATH}";
+           window.ABS_GATEWAY_URL = "{ABS_GATEWAY_URL}";
+           window.ABS_APP_REGISTRY_URL = "{ABS_APP_REGISTRY_URL}";
+       </script>
+       """
+       html_content = html_content.replace("</head>", f"{env_script}</head>")
+       
+       return HTMLResponse(content=html_content)
+   ```
+
+5. **Add App to Registry** (in `hub-ui/assets/apps-registry.json`)
+   - Add your app definition to the centralized registry
 
 ## Configuration Options
 
-### App Configuration
+### Environment Variables
 
-```javascript
-{
-    // Required: Current app information
-    currentApp: {
-        id: 'app-id',
-        name: 'App Name',
-        description: 'App Description',
-        icon: 'fas fa-icon',
-        colorClass: 'bg-color',
-        url: '/app-url'
-    },
+The framework uses environment variables for configuration:
+
+```yaml
+# docker-compose.yml
+environment:
+  - ABS_FRAMEWORK_PATH=http://localhost:3000/unified-framework.js
+  - ABS_GATEWAY_URL=http://localhost:8081
+  - ABS_APP_REGISTRY_URL=http://localhost:3000/apps-registry.json
+```
+
+### Hub UI Configuration
+
+The Hub UI nginx configuration includes CORS headers:
+
+```nginx
+# hub-ui/nginx.conf
+location / {
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+    try_files $uri $uri/ /index.html;
     
-    // Optional: Framework settings
-    gatewayUrl: '/',
-    appRegistryUrl: '/api/apps',
-    enableNotifications: true,
-    enableSettings: true,
-    enableExport: false,
-    
-    // Optional: Custom menu items
-    customMenuItems: [
-        {
-            id: 'unique-id',
-            label: 'Menu Label',
-            icon: 'fas fa-icon',
-            class: 'custom-css-class',
-            action: () => { /* function */ },
-            url: '/custom-url',
-            disabled: false
-        }
-    ],
-    
-    // Optional: App-specific callbacks
-    onAppSwitch: (app) => { /* callback */ },
-    onSettingsOpen: () => { /* callback */ },
-    onNotification: (notification) => { /* callback */ }
+    # Add CORS headers for cross-origin requests from apps
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
+    add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range' always;
+    add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
 }
 ```
 
@@ -210,11 +253,14 @@ onSettingsOpen: () => {
 
 ## Benefits
 
-1. **Consistency**: Unified look and feel across all apps
-2. **Maintainability**: Single source of truth for framework code
-3. **Configurability**: App-specific customization without code duplication
-4. **Scalability**: Easy to add new apps and features
-5. **User Experience**: Familiar Microsoft 365-style navigation
+1. **Centralized Architecture**: Single source of truth for framework files
+2. **Zero Duplication**: No local framework files in individual apps
+3. **Consistency**: Unified look and feel across all apps
+4. **Maintainability**: Update framework once, affects all apps
+5. **Scalability**: Easy to add new apps and features
+6. **CORS-Safe**: Proper cross-origin resource sharing
+7. **Environment-Driven**: Flexible configuration via environment variables
+8. **User Experience**: Familiar Microsoft 365-style navigation
 
 ## Migration Guide
 
@@ -262,37 +308,38 @@ onSettingsOpen: () => {
 ### Common Issues
 
 1. **Framework Not Loading**
-   - Check script path: `/static/framework-config.js`
-   - Verify `ABS_FRAMEWORK_CONFIG` is defined
-   - Check browser console for errors
+   - Check environment variables in `docker-compose.yml`
+   - Verify Hub UI is running on port 3000
+   - Check browser console for CORS errors
+   - Verify `framework-config.js` is included
 
-2. **App Not Appearing in Launcher**
-   - Verify app is in `apps-registry.json`
+2. **CORS Errors**
+   - Ensure Hub UI nginx has CORS headers configured
+   - Check that `Access-Control-Allow-Origin` header is present
+   - Verify Hub UI container is restarted after nginx changes
+
+3. **App Not Appearing in Launcher**
+   - Verify app is in `hub-ui/assets/apps-registry.json`
    - Check app status is "active"
-   - Verify app registry API is working
+   - Verify app registry is accessible at `http://localhost:3000/apps-registry.json`
 
-3. **Custom Menu Items Not Working**
-   - Check `customMenuItems` configuration
-   - Verify action functions are defined
-   - Check browser console for errors
+4. **Environment Variables Not Working**
+   - Check backend HTML injection is working
+   - Verify environment variables are set in `docker-compose.yml`
+   - Check browser console for `window.ABS_FRAMEWORK_PATH` values
 
-4. **App Switching Not Working**
-   - Verify app URLs are correct
+5. **App Switching Not Working**
+   - Verify app URLs are correct in registry
    - Check for JavaScript errors
-   - Verify app is accessible
+   - Verify target app is accessible
 
 ### Debug Mode
 
-Enable debug mode by adding to your app configuration:
-
-```javascript
-window.ABS_FRAMEWORK_CONFIG = {
-    // ... other config
-    debug: true
-};
-```
-
-This will enable console logging for framework operations.
+The framework includes comprehensive console logging. Check browser console for:
+- `🔧 Framework path: ...`
+- `🔧 Gateway URL: ...`
+- `🔍 Attempting to load hub app registry...`
+- `✅ ABS Unified Framework initialized`
 
 ## Future Enhancements
 
