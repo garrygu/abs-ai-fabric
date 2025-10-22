@@ -17,9 +17,9 @@ services:
       - HUB_GATEWAY_URL=http://hub-gateway:8081
       
       # Framework Configuration
-      - ABS_FRAMEWORK_PATH=/static/unified-framework.js
+      - ABS_FRAMEWORK_PATH=http://localhost:3000/unified-framework.js
       - ABS_GATEWAY_URL=http://localhost:8081
-      - ABS_APP_REGISTRY_URL=http://localhost:8081/api/apps
+      - ABS_APP_REGISTRY_URL=http://localhost:3000/apps-registry.json
       
       # Database Configuration - Connect to CORE PostgreSQL service
       - POSTGRES_URL=postgresql://hub_user:secure_password@document-hub-postgres:5432/document_hub

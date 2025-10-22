@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

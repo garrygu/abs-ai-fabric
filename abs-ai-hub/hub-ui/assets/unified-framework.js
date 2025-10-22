@@ -71,21 +71,38 @@ class ABSUnifiedFramework {
     
     async loadAppRegistry() {
         try {
-            // Try gateway UI app registry API first
-            const response = await fetch('/hub-ui/api/apps');
+        // Try hub app registry first (centralized)
+        console.log('🔍 Attempting to load hub app registry from http://localhost:3000/apps-registry.json');
+        const response = await fetch('http://localhost:3000/apps-registry.json');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
             const data = await response.json();
-            this.state.availableApps = data.apps || [];
-            console.log(`📋 Loaded ${this.state.availableApps.length} apps from gateway UI registry`);
+            console.log('📋 Raw registry data:', data);
+            
+            // Convert apps object to array
+            if (data.apps && typeof data.apps === 'object') {
+                this.state.availableApps = Object.entries(data.apps).map(([id, app]) => ({
+                    id,
+                    ...app
+                }));
+            } else {
+                this.state.availableApps = data.apps || [];
+            }
+            
+            console.log(`📋 Loaded ${this.state.availableApps.length} apps from hub registry:`, this.state.availableApps);
         } catch (error) {
-            console.warn('⚠️ Failed to load app registry from gateway UI, trying fallback:', error);
+            console.warn('⚠️ Failed to load app registry from hub, trying gateway API:', error);
             try {
-                // Fallback: try the configured URL
-                const response = await fetch(this.config.appRegistryUrl);
+                // Fallback: try gateway UI app registry API
+                const response = await fetch('http://localhost:8081/api/apps');
                 const data = await response.json();
                 this.state.availableApps = data.apps || [];
-                console.log(`📋 Loaded ${this.state.availableApps.length} apps from fallback registry`);
+                console.log(`📋 Loaded ${this.state.availableApps.length} apps from gateway API`);
             } catch (fallbackError) {
-                console.warn('⚠️ Failed to load app registry, using hardcoded apps:', fallbackError);
+                console.warn('⚠️ Failed to load app registry from gateway API, using hardcoded apps:', fallbackError);
                 this.state.availableApps = this.getFallbackApps();
             }
         }
@@ -205,7 +222,7 @@ class ABSUnifiedFramework {
     injectFrameworkHTML() {
         const frameworkHTML = `
             <!-- ABS Unified Framework -->
-            <div id="abs-unified-framework">
+            <div id="abs-unified-framework" x-data="contractReviewer">
                 <!-- App Launcher Overlay -->
                 <div x-show="absFramework.showAppLauncher" 
                      x-transition:enter="transition ease-out duration-200"
@@ -365,12 +382,28 @@ class ABSUnifiedFramework {
     }
     
     initAlpineData() {
+        console.log('🔧 Initializing Alpine.js data...');
+        
+        // Wait for Alpine.js to be available
+        if (!window.Alpine || !window.Alpine.data) {
+            console.warn('⚠️ Alpine.js not available yet, retrying in 100ms...');
+            setTimeout(() => this.initAlpineData(), 100);
+            return;
+        }
+        
         // Extend existing Alpine.js data or create new
-        if (window.Alpine && window.Alpine.data) {
-            const existingData = window.Alpine.data('contractReviewer') || (() => ({}));
+        const existingData = window.__originalContractReviewer || (() => ({}));
+        
+        window.Alpine.data('contractReviewer', () => {
+            const originalData = existingData();
+            console.log('🔧 Extending Alpine.js data with absFramework:', {
+                currentApp: this.config.currentApp,
+                availableApps: this.state.availableApps.length,
+                customMenuItems: this.config.customMenuItems.length
+            });
             
-            window.Alpine.data('contractReviewer', () => ({
-                ...existingData(),
+            return {
+                ...originalData,
                 absFramework: {
                     showAppLauncher: false,
                     appSearchQuery: '',
@@ -451,7 +484,16 @@ class ABSUnifiedFramework {
                         }
                     }
                 }
-            }));
+            };
+        });
+        
+        console.log('✅ Alpine.js data initialized');
+        
+        // Mount the just-injected framework subtree
+        const el = document.getElementById('abs-unified-framework');
+        if (window.Alpine && el) {
+            window.Alpine.initTree(el);
+            console.log('✅ Alpine.js framework subtree initialized');
         }
     }
     

@@ -41,7 +41,7 @@ APP_PORT = int(os.getenv("APP_PORT", "8080"))
 HUB_GATEWAY_URL = os.getenv("HUB_GATEWAY_URL", "http://hub-gateway:8081")
 
 # Framework Configuration
-ABS_FRAMEWORK_PATH = os.getenv("ABS_FRAMEWORK_PATH", "/static/unified-framework.js")
+ABS_FRAMEWORK_PATH = os.getenv("ABS_FRAMEWORK_PATH", "http://localhost:3000/unified-framework.js")
 ABS_GATEWAY_URL = os.getenv("ABS_GATEWAY_URL", "http://localhost:8081")
 ABS_APP_REGISTRY_URL = os.getenv("ABS_APP_REGISTRY_URL", "http://localhost:8081/api/apps")
 

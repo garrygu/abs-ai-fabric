@@ -51,9 +51,9 @@ window.exportAppResults = () => {
 
 // Initialize the framework
 document.addEventListener('DOMContentLoaded', () => {
-    // Get framework path from environment or use defaults
-    const frameworkPath = window.ABS_FRAMEWORK_PATH || '/static/unified-framework.js';
-    const gatewayUrl = window.ABS_GATEWAY_URL || 'http://localhost:8081';
+// Get framework path from environment or use defaults
+const frameworkPath = window.ABS_FRAMEWORK_PATH || 'http://localhost:3000/unified-framework.js';
+const gatewayUrl = window.ABS_GATEWAY_URL || 'http://localhost:8081';
     
     console.log(`🔧 Framework path: ${frameworkPath}`);
     console.log(`🔧 Gateway URL: ${gatewayUrl}`);
@@ -91,11 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
     script.onerror = () => {
         console.error(`❌ Failed to load unified framework from: ${frameworkPath}`);
         
-        // Fallback strategies
+        // Fallback strategies - prioritize hub URLs
         const fallbacks = [
-            '/static/unified-framework.js',
-            `${gatewayUrl}/hub-ui/assets/unified-framework.js`,
-            '/hub-ui/assets/unified-framework.js'
+            'http://localhost:3000/unified-framework.js', // Hub UI URL
+            'http://localhost:3000/unified-framework.js', // Hub UI URL (duplicate for safety)
+            'http://localhost:3000/unified-framework.js'  // Hub UI URL (triple safety)
         ];
         
         let fallbackIndex = 0;

@@ -22,7 +22,7 @@
       "description": "Professional AI Contract Analysis",
       "icon": "fas fa-file-contract",
       "colorClass": "bg-blue-600",
-      "url": "/contract-reviewer-v2",
+        "url": "/",
       "status": "active",
       "version": "2.0.0",
       "category": "legal",
