@@ -29,22 +29,9 @@
       "tags": ["contracts", "ai", "analysis", "professional"],
       "permissions": ["read", "write", "export"],
       "config": {
-        "enableExport": true,
+        "enableExport": false,
         "enableSettings": true,
-        "customMenuItems": [
-          {
-            "id": "export",
-            "label": "Export",
-            "icon": "fas fa-download",
-            "action": "exportResults"
-          },
-          {
-            "id": "help",
-            "label": "Help",
-            "icon": "fas fa-question-circle",
-            "action": "showHelp"
-          }
-        ]
+        "customMenuItems": []
       }
     },
     "legal-assistant": {

@@ -1519,6 +1519,33 @@ async def shutdown_event():
             logger.warning(f"⚠️ Error closing Redis client: {e}")
 
 
+# ==================== SETTINGS ROUTE ====================
+
+@app.get("/settings")
+async def settings_page():
+    """Serve the Operations Console settings page"""
+    # Try multiple possible paths
+    possible_paths = [
+        Path("static/settings.html"),
+        Path("./static/settings.html"),
+        Path(__file__).parent / "static" / "settings.html"
+    ]
+    
+    for settings_path in possible_paths:
+        if settings_path.exists():
+            return FileResponse(str(settings_path))
+    
+    # If none found, return error with debug info
+    raise HTTPException(
+        status_code=404, 
+        detail=f"Settings page not found. Checked paths: {[str(p) for p in possible_paths]}"
+    )
+
+@app.get("/test-settings")
+async def test_settings():
+    """Test route to verify settings page is accessible"""
+    return {"message": "Settings route is working", "path": str(Path("static/settings.html").absolute())}
+
 # ==================== MAIN ====================
 
 if __name__ == "__main__":

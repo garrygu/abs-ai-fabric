@@ -294,26 +294,28 @@ class ABSUnifiedFramework {
                 </div>
 
                 <!-- Unified Header -->
-                <header class="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-40">
+                <header class="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg border-b border-blue-800 fixed top-0 left-0 right-0 z-40">
                     <div class="px-6 py-4">
                         <div class="flex items-center justify-between">
                             <!-- Left Side: App Launcher + App Info -->
                             <div class="flex items-center">
                                 <!-- App Launcher Button -->
                                 <button @click="absFramework.showAppLauncher = !absFramework.showAppLauncher" 
-                                        class="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <i class="fas fa-th text-gray-600"></i>
+                                        class="mr-4 p-2 rounded-lg hover:bg-blue-500 transition-colors text-white">
+                                    <i class="fas fa-th"></i>
                                 </button>
                                 
                                 <!-- Current App Info -->
-                                <div class="flex items-center">
-                                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3"
+                                <div class="flex items-center cursor-pointer hover:opacity-80 transition-opacity" 
+                                     @click="absFramework.goToAppHome()"
+                                     title="Click to go to app homepage">
+                                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 bg-white bg-opacity-20"
                                          :class="absFramework.currentApp.colorClass">
                                         <i :class="absFramework.currentApp.icon" class="text-white text-sm"></i>
                                     </div>
                                     <div>
-                                        <h1 class="text-xl font-bold text-gray-900" x-text="absFramework.currentApp.name"></h1>
-                                        <p class="text-sm text-gray-500" x-text="absFramework.currentApp.description"></p>
+                                        <h1 class="text-xl font-bold text-white" x-text="absFramework.currentApp.name"></h1>
+                                        <p class="text-sm text-blue-100" x-text="absFramework.currentApp.description"></p>
                                     </div>
                                 </div>
                             </div>
@@ -327,7 +329,7 @@ class ABSUnifiedFramework {
                                         <select x-show="item.type === 'select'" 
                                                 x-model="absFramework.selectedModel"
                                                 @change="absFramework.handleModelChange($event)"
-                                                class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                class="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                                             <option value="">Auto Select</option>
                                             <template x-for="model in absFramework.availableModels" :key="model.name">
                                                 <option :value="model.name" x-text="model.name"></option>
@@ -337,7 +339,7 @@ class ABSUnifiedFramework {
                                         <!-- Regular Button -->
                                         <button x-show="item.type !== 'select'" 
                                                 @click="absFramework.handleCustomAction(item)" 
-                                                :class="item.class || 'px-3 py-2 text-gray-600 hover:text-gray-900'"
+                                                :class="item.class || 'px-3 py-2 text-blue-100 hover:text-white hover:bg-blue-500 rounded-lg transition-colors'"
                                                 :disabled="item.disabled">
                                             <i :class="item.icon" class="mr-2"></i>
                                             <span x-text="item.label"></span>
@@ -347,25 +349,26 @@ class ABSUnifiedFramework {
                                 
                                 <!-- Notifications -->
                                 <button x-show="absFramework.config.enableNotifications" 
-                                        class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <i class="fas fa-bell text-gray-600"></i>
+                                        class="relative p-2 rounded-lg hover:bg-blue-500 transition-colors text-white">
+                                    <i class="fas fa-bell"></i>
                                     <span x-show="absFramework.notifications.length > 0" 
                                           class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
                                 </button>
                                 
                                 <!-- Settings -->
                                 <button x-show="absFramework.config.enableSettings" 
-                                        @click="absFramework.openSettings()" 
-                                        class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                    <i class="fas fa-cog text-gray-600"></i>
+                                        @click="absFramework.openSettings(); console.log('Settings button clicked')" 
+                                        class="p-2 rounded-lg hover:bg-blue-500 transition-colors text-white"
+                                        title="Settings">
+                                    <i class="fas fa-cog"></i>
                                 </button>
                                 
                                 <!-- User Profile -->
                                 <div class="flex items-center space-x-2">
-                                    <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                    <div class="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                                         <i class="fas fa-user text-white text-sm"></i>
                                     </div>
-                                    <span class="text-sm font-medium text-gray-700" x-text="absFramework.user.name"></span>
+                                    <span class="text-sm font-medium text-white" x-text="absFramework.user.name"></span>
                                 </div>
                             </div>
                         </div>
@@ -445,6 +448,18 @@ class ABSUnifiedFramework {
                         window.location.href = this.config.gatewayUrl;
                     },
                     
+                    goToAppHome() {
+                        console.log('🏠 Navigating to App Home');
+                        this.showAppLauncher = false;
+                        // Navigate to the current app's home URL
+                        if (this.currentApp && this.currentApp.url) {
+                            window.location.href = this.currentApp.url;
+                        } else {
+                            // Fallback to root if no URL is set
+                            window.location.href = '/';
+                        }
+                    },
+                    
                     handleCustomAction(item) {
                         if (item.action && typeof item.action === 'function') {
                             item.action();
@@ -454,8 +469,10 @@ class ABSUnifiedFramework {
                     },
                     
                     openSettings() {
+                        console.log('🔧 absFramework.openSettings() called');
                         // Trigger app-specific settings
                         if (window.openAppSettings && typeof window.openAppSettings === 'function') {
+                            console.log('🔧 Calling window.openAppSettings()');
                             window.openAppSettings();
                         } else {
                             console.log('⚙️ Settings clicked - implement openAppSettings() function');

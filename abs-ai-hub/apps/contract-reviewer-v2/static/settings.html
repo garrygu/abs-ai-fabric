@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operations Console - Contract Reviewer v2</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- ABS Unified Framework -->
+    <script src="/static/framework-config.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans" x-data="operationsConsole" x-init="init()" x-cloak>
+    <!-- Main Content -->
+    <div class="flex h-screen">
+        <!-- Left Sidebar -->
+        <div class="w-64 bg-white border-r border-gray-200 flex flex-col">
+            <!-- Header -->
+            <div class="p-6 border-b border-gray-200">
+                <h1 class="text-xl font-bold text-gray-900">
+                    <i class="fas fa-cogs mr-2 text-blue-600"></i>Operations Console
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">Contract Reviewer v2</p>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="p-4">
+                <div class="space-y-2">
+                    <button @click="activeTab = 'overview'" 
+                            :class="activeTab === 'overview' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-tachometer-alt mr-3"></i>Overview
+                    </button>
+                    <button @click="activeTab = 'models'" 
+                            :class="activeTab === 'models' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-robot mr-3"></i>Models
+                    </button>
+                    <button @click="activeTab = 'processing'" 
+                            :class="activeTab === 'processing' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-cogs mr-3"></i>Processing
+                    </button>
+                    <button @click="activeTab = 'vectordb'" 
+                            :class="activeTab === 'vectordb' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-database mr-3"></i>Vector DB
+                    </button>
+                    <button @click="activeTab = 'cache'" 
+                            :class="activeTab === 'cache' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-memory mr-3"></i>Cache
+                    </button>
+                    <button @click="activeTab = 'database'" 
+                            :class="activeTab === 'database' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-server mr-3"></i>Database
+                    </button>
+                    <button @click="activeTab = 'storage'" 
+                            :class="activeTab === 'storage' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-hdd mr-3"></i>Storage
+                    </button>
+                    <button @click="activeTab = 'observability'" 
+                            :class="activeTab === 'observability' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'text-gray-600 hover:bg-gray-50'"
+                            class="w-full text-left px-3 py-2 rounded-lg border border-transparent transition-colors">
+                        <i class="fas fa-chart-line mr-3"></i>Observability
+                    </button>
+                </div>
+                
+                <!-- Back to App Button - Always Visible -->
+                <div class="mt-6 pt-4 border-t border-gray-200">
+                    <button @click="goBack()" 
+                            class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Contract Reviewer
+                    </button>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col">
+            <!-- Overview Tab -->
+            <div x-show="activeTab === 'overview'" class="flex-1 overflow-y-auto p-6">
+                <div class="max-w-7xl mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">
+                        <i class="fas fa-tachometer-alt mr-2"></i>System Overview
+                    </h2>
+                    
+                    <!-- Top KPI Strip -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-blue-100 rounded-lg">
+                                    <i class="fas fa-upload text-blue-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500">Documents Uploaded</p>
+                                    <div class="flex items-baseline">
+                                        <p class="text-2xl font-semibold text-gray-900" x-text="metrics.documentsUploaded.total"></p>
+                                        <p class="ml-2 text-sm text-gray-500">total</p>
+                                    </div>
+                                    <div class="flex space-x-4 text-xs text-gray-500 mt-1">
+                                        <span>24h: <span x-text="metrics.documentsUploaded.last24h"></span></span>
+                                        <span>7d: <span x-text="metrics.documentsUploaded.last7d"></span></span>
+                                        <span>30d: <span x-text="metrics.documentsUploaded.last30d"></span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-green-100 rounded-lg">
+                                    <i class="fas fa-chart-line text-green-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500">Documents Analyzed</p>
+                                    <div class="flex items-baseline">
+                                        <p class="text-2xl font-semibold text-gray-900" x-text="metrics.documentsAnalyzed.completed"></p>
+                                        <p class="ml-2 text-sm text-gray-500">completed</p>
+                                    </div>
+                                    <div class="text-xs text-red-500 mt-1">
+                                        Failed: <span x-text="metrics.documentsAnalyzed.failed"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-yellow-100 rounded-lg">
+                                    <i class="fas fa-clock text-yellow-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500">Avg Analysis Time</p>
+                                    <div class="flex items-baseline">
+                                        <p class="text-2xl font-semibold text-gray-900" x-text="metrics.avgAnalysisTime.p50"></p>
+                                        <p class="ml-2 text-sm text-gray-500">p50</p>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        p95: <span x-text="metrics.avgAnalysisTime.p95"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-purple-100 rounded-lg">
+                                    <i class="fas fa-percentage text-purple-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500">Document Coverage</p>
+                                    <div class="flex items-baseline">
+                                        <p class="text-2xl font-semibold text-gray-900" x-text="metrics.docCoverage"></p>
+                                        <p class="ml-2 text-sm text-gray-500">%</p>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        Analyzed ÷ Uploaded
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- System Health Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <!-- System Health -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                <i class="fas fa-heartbeat mr-2"></i>System Health
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-circle text-green-500 mr-2"></i>
+                                        <span class="text-sm font-medium">PostgreSQL</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="metrics.systemHealth.postgresql.latency"></span>ms p95
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-circle text-green-500 mr-2"></i>
+                                        <span class="text-sm font-medium">Qdrant</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="metrics.systemHealth.qdrant.vectors"></span> vectors
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-circle text-green-500 mr-2"></i>
+                                        <span class="text-sm font-medium">Redis</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="metrics.systemHealth.redis.hitRate"></span>% hit rate
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-circle text-green-500 mr-2"></i>
+                                        <span class="text-sm font-medium">File Storage</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="metrics.systemHealth.storage.used"></span>GB used
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-circle text-green-500 mr-2"></i>
+                                        <span class="text-sm font-medium">LLM Provider</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span x-text="metrics.systemHealth.llm.latency"></span>ms p95
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Document Lifecycle Funnel -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                <i class="fas fa-funnel-dollar mr-2"></i>Document Lifecycle Funnel
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm">Uploaded</span>
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium mr-2" x-text="metrics.funnel.uploaded"></span>
+                                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-blue-600 h-2 rounded-full" style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm">Chunked</span>
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium mr-2" x-text="metrics.funnel.chunked"></span>
+                                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-green-600 h-2 rounded-full" :style="`width: ${(metrics.funnel.chunked / metrics.funnel.uploaded * 100)}%`"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm">Embedded</span>
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium mr-2" x-text="metrics.funnel.embedded"></span>
+                                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-yellow-600 h-2 rounded-full" :style="`width: ${(metrics.funnel.embedded / metrics.funnel.uploaded * 100)}%`"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm">Indexed</span>
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium mr-2" x-text="metrics.funnel.indexed"></span>
+                                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-purple-600 h-2 rounded-full" :style="`width: ${(metrics.funnel.indexed / metrics.funnel.uploaded * 100)}%`"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm">Analyzed</span>
+                                    <div class="flex items-center">
+                                        <span class="text-sm font-medium mr-2" x-text="metrics.funnel.analyzed"></span>
+                                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                                            <div class="bg-red-600 h-2 rounded-full" :style="`width: ${(metrics.funnel.analyzed / metrics.funnel.uploaded * 100)}%`"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                            <i class="fas fa-history mr-2"></i>Recent Activity
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <template x-for="activity in recentActivity" :key="activity.id">
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="activity.job"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                      :class="activity.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                                              activity.status === 'failed' ? 'bg-red-100 text-red-800' : 
+                                                              'bg-yellow-100 text-yellow-800'"
+                                                      x-text="activity.status"></span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="activity.duration"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="activity.document"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="activity.user"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <button class="text-blue-600 hover:text-blue-900 mr-2">Retry</button>
+                                                <button class="text-gray-600 hover:text-gray-900">View Logs</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Models Tab -->
+            <div x-show="activeTab === 'models'" class="flex-1 overflow-y-auto p-6">
+                <div class="max-w-7xl mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6">
+                        <i class="fas fa-robot mr-2"></i>Model Configuration
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Current Models -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Current Models</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">LLM Model</label>
+                                    <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">Select LLM model</option>
+                                        <option value="llama3.2:3b">llama3.2:3b</option>
+                                        <option value="llama3.2:7b">llama3.2:7b</option>
+                                        <option value="gpt-4">GPT-4</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Embedding Model</label>
+                                    <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="legal-bert">legal-bert</option>
+                                        <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Embedding Backlog -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Embedding Backlog</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Queued</span>
+                                    <span class="text-sm font-medium" x-text="embeddingBacklog.queued"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Running</span>
+                                    <span class="text-sm font-medium" x-text="embeddingBacklog.running"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Completed</span>
+                                    <span class="text-sm font-medium" x-text="embeddingBacklog.completed"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Other tabs will be added here -->
+            <div x-show="activeTab !== 'overview' && activeTab !== 'models'" class="flex-1 overflow-y-auto p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg shadow p-6 text-center">
+                        <i class="fas fa-tools text-4xl text-gray-400 mb-4"></i>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">
+                            <span x-text="activeTab.charAt(0).toUpperCase() + activeTab.slice(1)"></span> Tab
+                        </h3>
+                        <p class="text-gray-500">This tab is under development and will be available soon.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('operationsConsole', () => ({
+                activeTab: 'overview',
+                
+                // Mock data - in real implementation, this would come from API calls
+                metrics: {
+                    documentsUploaded: {
+                        total: 1247,
+                        last24h: 23,
+                        last7d: 156,
+                        last30d: 487
+                    },
+                    documentsAnalyzed: {
+                        completed: 1189,
+                        failed: 12
+                    },
+                    avgAnalysisTime: {
+                        p50: '2.3s',
+                        p95: '8.7s'
+                    },
+                    docCoverage: '95.3',
+                    systemHealth: {
+                        postgresql: { latency: '12ms' },
+                        qdrant: { vectors: '45,231' },
+                        redis: { hitRate: '87.2' },
+                        storage: { used: '2.3GB' },
+                        llm: { latency: '1.2s' }
+                    },
+                    funnel: {
+                        uploaded: 1247,
+                        chunked: 1247,
+                        embedded: 1240,
+                        indexed: 1235,
+                        analyzed: 1189
+                    }
+                },
+                
+                embeddingBacklog: {
+                    queued: 7,
+                    running: 2,
+                    completed: 1235
+                },
+                
+                recentActivity: [
+                    { id: 1, job: 'Document Analysis', status: 'completed', duration: '2.1s', document: 'contract-001.pdf', user: 'admin' },
+                    { id: 2, job: 'Vector Embedding', status: 'completed', duration: '0.8s', document: 'contract-002.pdf', user: 'admin' },
+                    { id: 3, job: 'Document Analysis', status: 'failed', duration: '15.2s', document: 'contract-003.pdf', user: 'user1' },
+                    { id: 4, job: 'Vector Embedding', status: 'running', duration: '0.3s', document: 'contract-004.pdf', user: 'user2' },
+                    { id: 5, job: 'Document Analysis', status: 'completed', duration: '1.9s', document: 'contract-005.pdf', user: 'admin' }
+                ],
+                
+                init() {
+                    console.log('Operations Console initialized');
+                    this.loadMetrics();
+                },
+                
+                async loadMetrics() {
+                    // In real implementation, this would make API calls to get live metrics
+                    console.log('Loading metrics...');
+                },
+                
+                goBack() {
+                    // Navigate back to the main Contract Reviewer application
+                    window.location.href = '/';
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

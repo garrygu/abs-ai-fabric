@@ -10,7 +10,7 @@ window.ABS_FRAMEWORK_CONFIG = {
     appRegistryUrl: '/static/apps-registry.json',
     enableNotifications: true,
     enableSettings: true,
-    enableExport: false, // Will be overridden by registry
+    enableExport: false, // Disabled - export moved to analysis header
     
     // App-specific callbacks (implemented by each app)
     onAppSwitch: (app) => {
@@ -36,18 +36,18 @@ console.log('🔧 ABS_FRAMEWORK_CONFIG set:', window.ABS_FRAMEWORK_CONFIG);
 
 // App-specific functions that the framework can call
 window.openAppSettings = () => {
-    // Contract Reviewer v2 specific settings logic
-    if (window.contractReviewer) {
-        window.contractReviewer.mainTab = 'settings';
-    }
+    console.log('🔧 openAppSettings called - navigating to settings page');
+    // Navigate to settings page instead of showing modal
+    window.location.href = '/settings';
 };
 
-window.exportAppResults = () => {
-    // Contract Reviewer v2 specific export logic
-    if (window.contractReviewer && window.contractReviewer.exportResults) {
-        window.contractReviewer.exportResults();
-    }
-};
+// Export functionality moved to analysis header - no longer needed in top menu
+// window.exportAppResults = () => {
+//     // Contract Reviewer v2 specific export logic
+//     if (window.contractReviewer && window.contractReviewer.exportResults) {
+//         window.contractReviewer.exportResults();
+//     }
+// };
 
 // Initialize the framework
 document.addEventListener('DOMContentLoaded', () => {
@@ -72,6 +72,13 @@ const gatewayUrl = window.ABS_GATEWAY_URL || 'http://localhost:8081';
             try {
                 const framework = new window.ABSUnifiedFramework(window.ABS_FRAMEWORK_CONFIG);
                 console.log('✅ ABSUnifiedFramework instance created immediately:', framework);
+                
+                // Test if settings function is available
+                setTimeout(() => {
+                    console.log('🔧 Testing settings availability...');
+                    console.log('window.openAppSettings available:', typeof window.openAppSettings === 'function');
+                    console.log('Framework config enableSettings:', window.ABS_FRAMEWORK_CONFIG.enableSettings);
+                }, 1000);
             } catch (error) {
                 console.error('❌ Error creating ABSUnifiedFramework instance immediately:', error);
             }
