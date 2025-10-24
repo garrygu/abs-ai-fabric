@@ -97,7 +97,7 @@ services:
   # ---- Hub Gateway ----
   hub-gateway:
     build: ./gateway
-    container_name: abs-hub-gateway
+    container_name: abs-core-hub-gateway
     environment:
       REDIS_URL: redis://redis:6379/0
       OLLAMA_BASE_URL: http://ollama:11434

@@ -1,17 +1,19 @@
-import os, json, hashlib, time, subprocess, asyncio
+﻿import os, json, hashlib, time, subprocess, asyncio, logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, WebSocket, Query
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import redis as redislib
 from sentence_transformers import SentenceTransformer
 import psutil
 import docker
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # ---- Config ----
 PORT = int(os.getenv("GATEWAY_PORT", "8081"))
@@ -52,24 +54,23 @@ try:
 except Exception:
     CATALOG = {"version": "1.0", "assets": [], "tools": [], "datasets": [], "secrets": []}
 
+
+# --- CORS Middleware (Consolidated) ---
 app = FastAPI(title="ABS Hub Gateway")
-# Enable CORS so the Hub UI (different port) can call POST/OPTIONS endpoints
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://localhost:3001",
+        "http://localhost:8150",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Add CORS middleware for Admin UI and Onyx Suite
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://localhost:3001", "http://localhost:8150"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Startup and shutdown events
 @app.on_event("startup")
@@ -337,78 +338,159 @@ async def fetch_redis_doc(doc_id: str) -> Optional[StoreSnapshot]:
         if rds is None:
             return StoreSnapshot(found=False, store_type='redis', key=f"document:{doc_id}")
         
+        # Try multiple Redis key patterns used by Contract Reviewer
+        analysis_data = None
+        analysis_id = None
+        
+        # First, try to get the analysis ID mapping (if it exists)
+        analysis_id_key = f"document_analysis:{doc_id}"
+        analysis_id = rds.get(analysis_id_key)
+        if analysis_id:
+            analysis_id = analysis_id.decode('utf-8')
+            # Get the actual analysis data
+            analysis_key = f"analysis:{analysis_id}"
+            analysis_data = rds.get(analysis_key)
+            if analysis_data:
+                analysis_data = json.loads(analysis_data.decode('utf-8'))
+        
+        # If we didn't find via mapping, search through all analysis keys
+        if not analysis_data:
+            # Get all analysis keys
+            analysis_keys = rds.keys("analysis:*")
+            for key in analysis_keys:
+                key_str = key.decode('utf-8')
+                analysis_content = rds.get(key_str)
+                if analysis_content:
+                    try:
+                        analysis_json = json.loads(analysis_content.decode('utf-8'))
+                        if analysis_json.get('document_id') == doc_id:
+                            analysis_data = analysis_json
+                            analysis_id = analysis_json.get('id')
+                            break
+                    except json.JSONDecodeError:
+                        continue
+        
+        # If we found analysis data, use it
+        if analysis_data:
+            # Get TTL for the analysis key
+            ttl = rds.ttl(f"analysis:{analysis_id}")
+            
+            # Compute checksum
+            checksum = compute_checksum(analysis_data)
+            
+            return StoreSnapshot(
+                found=True,
+                store_type='redis',
+                key=f"analysis:{analysis_id}",
+                payload=analysis_data,
+                checksum=checksum,
+                ttl_seconds=ttl,
+                updated_at=analysis_data.get('created_at')
+            )
+            
+        # Fallback: try legacy document cache format
         key = f"document:{doc_id}"
-        
-        # Check if key exists
-        if not rds.exists(key):
-            return StoreSnapshot(found=False, store_type='redis', key=key)
-        
-        # Get TTL
+        # Get TTL directly - returns -2 if key doesn't exist
         ttl = rds.ttl(key)
+        if ttl != -2:  # Key exists
+            # Get all fields
+            fields = rds.hgetall(key)
+            if fields:
+                # Decode bytes to strings
+                payload = {k.decode(): v.decode() for k, v in fields.items()}
+                
+                # Compute checksum
+                checksum = compute_checksum(payload)
+                
+                return StoreSnapshot(
+                    found=True,
+                    store_type='redis',
+                    key=key,
+                    payload=payload,
+                    checksum=checksum,
+                    ttl_seconds=ttl,
+                    updated_at=payload.get('updated_at')
+                )
         
-        # Get all fields
-        fields = rds.hgetall(key)
-        if not fields:
-            return StoreSnapshot(found=False, store_type='redis', key=key)
-        
-        # Decode bytes to strings
-        payload = {k.decode(): v.decode() for k, v in fields.items()}
-        
-        # Compute checksum
-        checksum = compute_checksum(payload)
-        
-        return StoreSnapshot(
-            found=True,
-            store_type='redis',
-            key=key,
-            payload=payload,
-            checksum=checksum,
-            ttl_seconds=ttl,
-            updated_at=payload.get('updated_at')
-        )
-        
+        # Not found in any format
+        return StoreSnapshot(found=False, store_type='redis', key=f"document:{doc_id}")
+    
     except Exception as e:
         print(f"Redis fetch error: {e}")
-        return StoreSnapshot(found=False, store_type='redis', key=f"doc:{doc_id}")
+        return StoreSnapshot(found=False, store_type='redis', key=f"document:{doc_id}")
 
 async def fetch_qdrant_doc(doc_id: str) -> Optional[StoreSnapshot]:
     """Fetch document from Qdrant"""
     try:
         async with httpx.AsyncClient() as client:
-            # Try to retrieve point
-            response = await client.post(
-                f"http://qdrant:6333/collections/legal_documents/points/retrieve",
+            # Search by document_id in payload (this is the correct approach)
+            search_response = await client.post(
+                f"http://qdrant:6333/collections/legal_documents/points/scroll",
                 json={
-                    "ids": [doc_id],
+                    "filter": {
+                        "must": [
+                            {
+                                "key": "document_id",
+                                "match": {"value": doc_id}
+                            }
+                        ]
+                    },
+                    "limit": 10,  # Get all chunks for this document
                     "with_payload": True,
                     "with_vector": False
                 },
                 timeout=5.0
             )
             
-            if response.status_code != 200:
-                return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
+            if search_response.status_code == 200:
+                search_data = search_response.json()
+                search_points = search_data.get('result', {}).get('points', [])
+                
+                if search_points:
+                    # Combine all chunks into a single payload
+                    combined_payload = {
+                        "document_id": doc_id,
+                        "chunks": [],
+                        "total_chunks": len(search_points),
+                        "chunk_summary": {}
+                    }
+                    
+                    for point in search_points:
+                        payload = point.get('payload', {})
+                        chunk_info = {
+                            "point_id": point.get('id'),
+                            "chunk_index": payload.get('chunk_index'),
+                            "chunk_type": payload.get('chunk_type'),
+                            "chunk_text": payload.get('chunk_text', '')[:200] + '...' if len(payload.get('chunk_text', '')) > 200 else payload.get('chunk_text', ''),
+                            "word_count": payload.get('word_count'),
+                            "start_position": payload.get('start_position'),
+                            "end_position": payload.get('end_position'),
+                            "created_at": payload.get('created_at')
+                        }
+                        combined_payload["chunks"].append(chunk_info)
+                        
+                        # Add to summary
+                        chunk_type = payload.get('chunk_type', 'unknown')
+                        if chunk_type not in combined_payload["chunk_summary"]:
+                            combined_payload["chunk_summary"][chunk_type] = 0
+                        combined_payload["chunk_summary"][chunk_type] += 1
+                    
+                    # Sort chunks by index
+                    combined_payload["chunks"].sort(key=lambda x: x.get('chunk_index', 0))
+                    
+                    # Compute checksum
+                    checksum = compute_checksum(combined_payload)
+                    
+                    return StoreSnapshot(
+                        found=True,
+                        store_type='qdrant',
+                        key=doc_id,
+                        payload=combined_payload,
+                        checksum=checksum,
+                        updated_at=search_points[0].get('payload', {}).get('created_at')
+                    )
             
-            data = response.json()
-            points = data.get('result', {}).get('points', [])
-            
-            if not points:
-                return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
-            
-            point = points[0]
-            payload = point.get('payload', {})
-            
-            # Compute checksum
-            checksum = compute_checksum(payload)
-            
-            return StoreSnapshot(
-                found=True,
-                store_type='qdrant',
-                key=doc_id,
-                payload=payload,
-                checksum=checksum,
-                updated_at=payload.get('updated_at')
-            )
+            return StoreSnapshot(found=False, store_type='qdrant', key=doc_id)
             
     except Exception as e:
         print(f"Qdrant fetch error: {e}")
@@ -513,6 +595,9 @@ async def check_service_status(service_name: str) -> str:
                 return "running" if "Up" in result.stdout else "stopped"
             return "stopped"
         else:
+            # Use docker library
+            if docker_client is None:
+                return "unknown"
             container = docker_client.containers.get(container_name)
             return "running" if container.status == "running" else "stopped"
     except Exception:
@@ -593,6 +678,9 @@ async def start_service(service_name: str) -> bool:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             return result.returncode == 0
         else:
+            # Use docker library
+            if docker_client is None:
+                return False
             container = docker_client.containers.get(container_name)
             container.start()
             return True
@@ -755,6 +843,9 @@ async def stop_service(service_name: str) -> bool:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             return result.returncode == 0
         else:
+            # Use docker library
+            if docker_client is None:
+                return False
             container = docker_client.containers.get(container_name)
             container.stop()
             return True
@@ -1342,7 +1433,7 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
             raise HTTPException(r.status_code, r.text)
         out = r.json()
     else:
-        # Ollama chat → normalize to OpenAI-like response
+        # Ollama chat â†’ normalize to OpenAI-like response
         payload = {
             "model": model,
             "messages": [m.model_dump() for m in req.messages],
@@ -1738,6 +1829,12 @@ async def health_postgresql():
                 }, 503
         else:
             # Use docker library
+            if docker_client is None:
+                return {
+                    'status': 'error',
+                    'service': 'postgresql',
+                    'error': 'Docker client not available'
+                }, 503
             container = docker_client.containers.get(container_name)
             if container.status == "running":
                 # Check database connectivity
@@ -1821,6 +1918,8 @@ async def manage_postgresql(request: Request):
                 }, 500
         else:
             # Use docker library
+            if docker_client is None:
+                return {"error": "Docker client not available"}, 500
             container = docker_client.containers.get(container_name)
             
             if action == "start":
@@ -1870,6 +1969,8 @@ async def metrics_postgresql():
                     }
         else:
             # Use docker library for stats
+            if docker_client is None:
+                return {"error": "Docker client not available"}, 500
             container = docker_client.containers.get(container_name)
             stats = container.stats(stream=False)
             
@@ -1981,6 +2082,8 @@ def discover_postgresql_service():
                 return None
         else:
             # Use docker library
+            if docker_client is None:
+                return None
             try:
                 container = docker_client.containers.get(container_name)
                 service_info = {
@@ -2035,6 +2138,8 @@ async def discover_services():
                         }
                 else:
                     try:
+                        if docker_client is None:
+                            continue
                         container = docker_client.containers.get(container_name)
                         discovered_services[service_name] = {
                             'name': service_name,
@@ -2395,6 +2500,8 @@ async def control_service(service_name: str, action: str):
                 raise Exception(f"Docker command failed: {result.stderr}")
         else:
             # Use docker library
+            if docker_client is None:
+                raise Exception("Docker client not available")
             container = docker_client.containers.get(container_name)
             
             if action == "start":
@@ -2782,7 +2889,7 @@ async def inspector_health():
 
 # ---- Tri-Store Inspector Export Endpoints ----
 @app.get("/admin/inspector/export/{doc_id}")
-async def export_document_inspection(doc_id: str, format: str = Query('json', regex='^(json|csv)$'), env: str = Query('prod')):
+async def export_document_inspection(doc_id: str, format: str = Query('json', pattern='^(json|csv)$'), env: str = Query('prod')):
     """Export document inspection results in JSON or CSV format"""
     snapshot = await inspect_document(doc_id, env)
     
@@ -2835,7 +2942,7 @@ async def export_document_inspection(doc_id: str, format: str = Query('json', re
         )
 
 @app.post("/admin/inspector/export/batch")
-async def export_batch_inspection(request: BatchInspectRequest, format: str = Query('json', regex='^(json|csv)$')):
+async def export_batch_inspection(request: BatchInspectRequest, format: str = Query('json', pattern='^(json|csv)$')):
     """Export batch inspection results"""
     results = []
     
