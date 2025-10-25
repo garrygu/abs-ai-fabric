@@ -1629,6 +1629,9 @@
                         <li class="admin-sub-tab">
                             <button onclick="showAdminSubTab('system')">📈 System</button>
                         </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAdminSubTab('inspector')">🔍 Data Inspector</button>
+                        </li>
                     </ul>
             </div>
             
@@ -2147,6 +2150,45 @@
                             <div style="margin-top: 15px;">
                                 <button class="btn btn-primary" onclick="refreshCollections()">Refresh Collections</button>
                                 <button class="btn btn-secondary" onclick="showCreateCollection()">Create Collection</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Inspector Sub-Tab -->
+                    <div id="inspector-sub" class="admin-sub-content">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2>🔍 Tri-Store Data Inspector</h2>
+                            <button onclick="openInspector()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                                🔍 Open Inspector
+                            </button>
+                        </div>
+                        <div class="inspector-info">
+                            <div class="info-card">
+                                <h3>About the Data Inspector</h3>
+                                <p>The Tri-Store Data Inspector allows you to inspect and compare document data across all three storage systems:</p>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li><strong>PostgreSQL:</strong> Primary metadata and structured data</li>
+                                    <li><strong>Redis:</strong> Cached data with TTL information</li>
+                                    <li><strong>Qdrant:</strong> Vector embeddings and search data</li>
+                                </ul>
+                                <p>Use this tool to:</p>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li>Verify data consistency across stores</li>
+                                    <li>Debug missing or inconsistent data</li>
+                                    <li>Monitor Redis TTL expiration</li>
+                                    <li>Compare checksums and field differences</li>
+                                </ul>
+                            </div>
+                            <div class="info-card">
+                                <h3>Quick Actions</h3>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button onclick="openInspector()" class="btn btn-primary">
+                                        🔍 Open Inspector
+                                    </button>
+                                    <button onclick="checkInspectorHealth()" class="btn btn-secondary">
+                                        ❤️ Health Check
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3935,6 +3977,31 @@
                     ` : ''}
                 </div>
             `;
+        }
+
+        // Inspector Functions
+        function openInspector() {
+            window.open('inspector.html', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        }
+
+        async function checkInspectorHealth() {
+            try {
+                const response = await fetch('http://localhost:8081/admin/inspector/health');
+                const health = await response.json();
+                
+                let message = 'Data Store Health Check:\n\n';
+                message += `PostgreSQL: ${health.postgres?.status || 'Unknown'}\n`;
+                message += `Redis: ${health.redis?.status || 'Unknown'}\n`;
+                message += `Qdrant: ${health.qdrant?.status || 'Unknown'}\n`;
+                
+                if (health.postgres?.error) message += `\nPostgreSQL Error: ${health.postgres.error}\n`;
+                if (health.redis?.error) message += `Redis Error: ${health.redis.error}\n`;
+                if (health.qdrant?.error) message += `Qdrant Error: ${health.qdrant.error}\n`;
+                
+                alert(message);
+            } catch (error) {
+                alert('Failed to check inspector health: ' + error.message);
+            }
         }
     </script>
     

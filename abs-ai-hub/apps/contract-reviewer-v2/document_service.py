@@ -344,6 +344,7 @@ class DocumentService:
         analysis_data: Dict[str, Any],
         model_used: Optional[str] = None,
         processing_time_ms: Optional[int] = None,
+        confidence_score: Optional[float] = None,
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create a new analysis result"""
@@ -353,13 +354,13 @@ class DocumentService:
                     # Insert analysis result and get the full record
                     analysis_row = await conn.fetchrow("""
                         INSERT INTO document_hub.analysis_results
-                        (document_id, analysis_type, analysis_data, model_used, processing_time_ms)
-                        VALUES ($1, $2, $3, $4, $5)
+                        (document_id, analysis_type, analysis_data, model_used, processing_time_ms, confidence_score)
+                        VALUES ($1, $2, $3, $4, $5, $6)
                         RETURNING id, document_id, analysis_type, analysis_data,
                                  analysis_timestamp, model_used, processing_time_ms,
-                                 status, metadata, created_at, updated_at
+                                 confidence_score, status, metadata, created_at, updated_at
                     """, document_id, analysis_type, json.dumps(analysis_data), 
-                    model_used, processing_time_ms)
+                    model_used, processing_time_ms, confidence_score)
                     
                     if not analysis_row:
                         print(f"❌ Failed to insert analysis result for document {document_id}")

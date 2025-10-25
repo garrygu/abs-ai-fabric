@@ -17,6 +17,7 @@
 ### **4. Operational Documentation**
 - **`Document_CRUD_Operations_Guide.md`** - How to perform CRUD operations
 - **`Centralized_Document_Hub_Complete_Guide.md`** - Complete architecture guide
+- **`Citation_Feature_Documentation.md`** - Detailed citation functionality guide
 
 Let me show you the current database schema from the SQL file:
 

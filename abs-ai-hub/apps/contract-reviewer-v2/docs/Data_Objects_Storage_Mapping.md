@@ -29,8 +29,9 @@ CREATE TABLE analysis_results (
     analysis_id UUID PRIMARY KEY,           -- Unique analysis identifier
     document_id UUID REFERENCES documents(document_id), -- Link to document
     analysis_type VARCHAR(50),              -- comprehensive, quick, risk-focused
+    analysis_data JSONB NOT NULL,          -- Complete analysis with citations
     model_used VARCHAR(100),               -- AI model used for analysis
-    confidence_score FLOAT,                 -- Analysis confidence (0.0-1.0)
+    confidence_score FLOAT DEFAULT 0.0,    -- Analysis confidence (0.0-1.0)
     created_at TIMESTAMP DEFAULT NOW(),    -- Analysis completion time
     analyst_id VARCHAR(100),               -- User who requested analysis
     file_path TEXT,                        -- Path to complete analysis file
@@ -40,6 +41,76 @@ CREATE TABLE analysis_results (
     cost_usd DECIMAL(10,4)                -- Analysis cost
 );
 ```
+
+#### Enhanced Analysis Data Structure (JSONB)
+The `analysis_data` field contains a comprehensive analysis with detailed citations:
+
+```json
+{
+    "summary": {
+        "summary": "Executive summary text",
+        "document_type": "Contract|NDA|Agreement|etc",
+        "key_points": [
+            {
+                "point": "Key point description",
+                "citation": "Section 3.2, Clause 5.1",
+                "importance": "high|medium|low",
+                "text_excerpt": "Exact text from document"
+            }
+        ]
+    },
+    "risks": [
+        {
+            "level": "high|medium|low",
+            "description": "Risk description",
+            "section": "Relevant section or clause",
+            "citation": "Specific text excerpt or reference",
+            "impact": "Potential impact description",
+            "text_excerpt": "Exact text from document"
+        }
+    ],
+    "recommendations": [
+        {
+            "recommendation": "Specific recommendation",
+            "rationale": "Why this recommendation is important",
+            "citation": "Relevant section that supports this recommendation",
+            "priority": "high|medium|low",
+            "text_excerpt": "Supporting text from document"
+        }
+    ],
+    "key_clauses": [
+        {
+            "clause": "Clause description",
+            "type": "liability|termination|payment|confidentiality|etc",
+            "citation": "Exact text or section reference",
+            "significance": "Why this clause is important",
+            "text_excerpt": "Full clause text"
+        }
+    ],
+    "compliance": {
+        "gdpr_compliant": true|false,
+        "ccpa_compliant": true|false,
+        "industry_standards": ["Standard 1", "Standard 2"],
+        "compliance_issues": [
+            {
+                "issue": "Compliance issue description",
+                "standard": "GDPR|CCPA|SOX|etc",
+                "citation": "Specific section or clause",
+                "severity": "high|medium|low",
+                "text_excerpt": "Relevant text from document"
+            }
+        ]
+    },
+    "confidence_score": 0.85
+}
+```
+
+#### Citation Standards
+Each citation includes:
+- **Section References**: "Section 3.2", "Clause 5.1", "Page 3"
+- **Text Excerpts**: Exact quotes from the document
+- **Location Data**: Specific paragraph or line references
+- **Context**: Supporting rationale for each finding
 
 ### Document Chunks Table
 ```sql
@@ -184,53 +255,65 @@ PointStruct(
         "file_size": 125000,
         "word_count": 2500
     },
-    "executive_summary": {
-        "summary": "This NDA agreement between ABC Corp and XYZ Inc establishes...",
-        "key_parties": ["ABC Corp", "XYZ Inc"],
-        "effective_date": "2024-01-15",
-        "expiration_date": "2025-01-15",
-        "governing_law": "Delaware"
+    "summary": {
+        "summary": "This NDA agreement between ABC Corp and XYZ Inc establishes mutual confidentiality obligations with potential liability exposure issues.",
+        "document_type": "NDA",
+        "key_points": [
+            {
+                "point": "Mutual confidentiality obligations established",
+                "citation": "Section 2.1, Page 2",
+                "importance": "high",
+                "text_excerpt": "Each party agrees to maintain confidentiality of all proprietary information disclosed during the term of this agreement."
+            },
+            {
+                "point": "Unlimited liability exposure for ABC Corp",
+                "citation": "Section 4.2, Page 3",
+                "importance": "high",
+                "text_excerpt": "ABC Corp shall be liable for all damages arising from breach of confidentiality obligations without limitation."
+            }
+        ]
     },
-    "risk_analysis": [
+    "risks": [
         {
-            "risk_id": "risk-001",
-            "title": "High Liability Exposure",
-            "description": "Section 4.2 creates unlimited liability for ABC Corp",
-            "severity": "high",
-            "category": "liability",
-            "location": "Section 4.2, Page 3",
-            "recommendation": "Add liability cap of $100,000",
-            "confidence": 0.92
-        }
-    ],
-    "clause_analysis": [
-        {
-            "clause_id": "clause-001",
-            "title": "Confidentiality Obligations",
-            "type": "confidentiality",
-            "text": "Each party agrees to maintain confidentiality...",
-            "location": "Section 2.1",
-            "compliance_status": "compliant",
-            "notes": "Standard confidentiality language"
+            "level": "high",
+            "description": "Unlimited liability exposure for ABC Corp",
+            "section": "Section 4.2",
+            "citation": "Section 4.2, Page 3",
+            "impact": "Potential unlimited financial exposure",
+            "text_excerpt": "ABC Corp shall be liable for all damages arising from breach of confidentiality obligations without limitation."
         }
     ],
     "recommendations": [
         {
-            "recommendation_id": "rec-001",
+            "recommendation": "Add liability cap of $100,000",
+            "rationale": "Protects against unlimited financial exposure",
+            "citation": "Section 4.2",
             "priority": "high",
-            "category": "liability",
-            "title": "Add Liability Cap",
-            "description": "Recommend adding liability limitation clause",
-            "suggested_language": "Neither party's liability shall exceed $100,000",
-            "rationale": "Protects against unlimited exposure"
+            "text_excerpt": "Neither party's liability shall exceed $100,000 for any breach of confidentiality obligations."
         }
     ],
-    "compliance_check": {
-        "sox_compliant": true,
+    "key_clauses": [
+        {
+            "clause": "Confidentiality Obligations",
+            "type": "confidentiality",
+            "citation": "Section 2.1, Page 2",
+            "significance": "Core purpose of the agreement",
+            "text_excerpt": "Each party agrees to maintain confidentiality of all proprietary information disclosed during the term of this agreement."
+        }
+    ],
+    "compliance": {
         "gdpr_compliant": true,
+        "ccpa_compliant": true,
         "industry_standards": ["ISO-27001"],
-        "missing_clauses": ["data retention policy"],
-        "compliance_score": 0.78
+        "compliance_issues": [
+            {
+                "issue": "Missing data retention policy",
+                "standard": "GDPR",
+                "citation": "Article 5(1)(e) - data minimization principle",
+                "severity": "medium",
+                "text_excerpt": "Personal data shall be kept in a form which permits identification of data subjects for no longer than is necessary for the purposes for which the personal data are processed."
+            }
+        ]
     },
     "extracted_data": {
         "parties": [

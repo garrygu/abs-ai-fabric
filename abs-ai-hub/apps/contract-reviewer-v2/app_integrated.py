@@ -27,6 +27,7 @@ from vector_storage_service import VectorStorageService
 from document_processing_service import DocumentProcessingService
 from file_based_storage_service import FileBasedStorageService, StorageConfig, FileType
 from report_generation_service import ReportGenerationService, ReportRequest, ReportFormat, ReportType
+from document_history_service import DocumentHistoryService
 from file_management_api import integrate_file_management
 
 # Configure logging
@@ -161,6 +162,7 @@ vector_service: Optional[VectorStorageService] = None
 processing_service: Optional[DocumentProcessingService] = None
 storage_service: Optional[FileBasedStorageService] = None
 report_service: Optional[ReportGenerationService] = None
+history_service: Optional[DocumentHistoryService] = None
 redis_client: Optional[redislib.Redis] = None
 
 # Pydantic models
@@ -178,6 +180,7 @@ class AnalysisRequest(BaseModel):
     include_recommendations: bool = True
     include_citations: bool = True
     process_for_search: bool = True
+    force_reanalysis: bool = False  # New parameter to force re-analysis
     generate_report: bool = False
     report_format: str = "pdf"
 
@@ -218,7 +221,7 @@ class SearchResponse(BaseModel):
 
 async def initialize_services():
     """Initialize all services"""
-    global doc_service, vector_service, processing_service, storage_service, report_service, redis_client
+    global doc_service, vector_service, processing_service, storage_service, report_service, history_service, redis_client
     
     try:
         logger.info("🚀 Initializing Contract Reviewer v2 - Integrated Services")
@@ -228,6 +231,11 @@ async def initialize_services():
         doc_service = DocumentService(POSTGRES_URL)
         await doc_service.initialize()
         logger.info("✅ PostgreSQL document service initialized")
+        
+        # Initialize document history service
+        logger.info("🔧 Initializing document history service...")
+        history_service = DocumentHistoryService(doc_service.pool)
+        logger.info("✅ Document history service initialized")
         
         # Initialize Qdrant vector service
         logger.info("🔧 Initializing Qdrant vector service...")
@@ -348,6 +356,18 @@ async def upload_document(
             
             logger.info(f"✅ Document created in PostgreSQL: {document['id']}")
             
+            # Log upload event to history
+            if history_service:
+                try:
+                    await history_service.log_upload(
+                        document_id=document['id'],
+                        filename=file.filename,
+                        file_size=file_size,
+                        processing_time_ms=None  # Will be calculated later
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to log upload event: {e}")
+            
             # Store file in file-based storage
             file_storage_result = None
             try:
@@ -373,6 +393,16 @@ async def upload_document(
                 }
                 
                 logger.info(f"✅ File stored in file-based storage: {file_metadata.file_id}")
+                
+                # Update document record with permanent file path
+                try:
+                    await doc_service.update_document(
+                        document_id=document["id"],
+                        updates={"file_path": file_metadata.file_path}
+                    )
+                    logger.info(f"✅ Updated document file path: {file_metadata.file_path}")
+                except Exception as update_error:
+                    logger.warning(f"⚠️ Failed to update document file path: {update_error}")
                 
             except Exception as e:
                 logger.error(f"❌ Error storing file in file-based storage: {e}")
@@ -415,12 +445,37 @@ async def upload_document(
                     
                     logger.info(f"✅ Document processed for vector search: {processing_result['chunks_created']} chunks")
                     
+                    # Log vector processing event
+                    if history_service:
+                        try:
+                            await history_service.log_vector_processing(
+                                document_id=document['id'],
+                                chunk_count=processing_result["chunks_created"],
+                                vector_count=len(processing_result["vector_ids"]),
+                                processing_time_ms=None  # Could be calculated from processing_result
+                            )
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to log vector processing event: {e}")
+                    
                 except Exception as e:
                     logger.error(f"❌ Failed to process document for vector search: {e}")
                     vector_processing = {
                         "error": str(e),
                         "processing_status": "failed"
                     }
+                    
+                    # Log vector processing error
+                    if history_service:
+                        try:
+                            await history_service.log_event(
+                                document_id=document['id'],
+                                event_type="vector_processing_error",
+                                event_status="error",
+                                event_description="Vector processing failed",
+                                error_message=str(e)
+                            )
+                        except Exception as log_error:
+                            logger.warning(f"⚠️ Failed to log vector processing error: {log_error}")
             
             # Generate initial report if requested
             report_generation = None
@@ -581,6 +636,7 @@ async def get_analysis(document_id: str):
             "analysis_timestamp": analysis["analysis_timestamp"],
             "model_used": analysis.get("model_used"),
             "processing_time_ms": analysis.get("processing_time_ms"),
+            "confidence_score": analysis.get("confidence_score", 0.0),
             "status": analysis.get("status", "completed")
         }
         
@@ -588,6 +644,92 @@ async def get_analysis(document_id: str):
         raise
     except Exception as e:
         logger.error(f"❌ Error getting analysis for document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents/{document_id}/content")
+async def get_document_content(document_id: str):
+    """Get the text content of a document for display in the document viewer"""
+    try:
+        logger.info(f"📄 Getting document content for: {document_id}")
+        
+        # Get document from database
+        document = await doc_service.get_document_by_id(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Extract text from the document file
+        try:
+            file_path = document['file_path']
+            logger.info(f"📄 File path: {file_path}")
+            logger.info(f"📄 File exists: {os.path.exists(file_path)}")
+            
+            text_extraction_result = processing_service.extract_text_from_file(file_path)
+            document_text = text_extraction_result.get('text', '')
+            
+            logger.info(f"📄 Extracted text length: {len(document_text)}")
+            
+            if not document_text:
+                return {
+                    "document_id": document_id,
+                    "content": "No text content available",
+                    "filename": document.get("original_filename", "Unknown"),
+                    "status": "empty",
+                    "file_path": file_path,
+                    "file_exists": os.path.exists(file_path)
+                }
+            
+            return {
+                "document_id": document_id,
+                "content": document_text,
+                "filename": document.get("original_filename", "Unknown"),
+                "status": "success",
+                "file_path": file_path,
+                "text_length": len(document_text)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to extract text from document {document_id}: {e}")
+            return {
+                "document_id": document_id,
+                "content": f"Error extracting text: {str(e)}",
+                "filename": document.get("original_filename", "Unknown"),
+                "status": "error",
+                "file_path": document.get('file_path', 'Unknown'),
+                "file_exists": os.path.exists(document.get('file_path', '')) if document.get('file_path') else False
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting document content for {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents/{document_id}/download")
+async def download_document(document_id: str):
+    """Download the original document file"""
+    try:
+        logger.info(f"📥 Downloading document: {document_id}")
+        
+        # Get document from database
+        document = await doc_service.get_document_by_id(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        file_path = document.get('file_path')
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Document file not found")
+        
+        # Return the file
+        return FileResponse(
+            path=file_path,
+            filename=document.get('original_filename', 'document'),
+            media_type='application/octet-stream'
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error downloading document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/documents/{document_id}")
@@ -603,6 +745,17 @@ async def delete_document(document_id: str):
         document = await doc_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Log document deletion event
+        if history_service:
+            try:
+                await history_service.log_document_delete(
+                    document_id=document_id,
+                    filename=document.get('original_filename', 'Unknown'),
+                    user_id=None
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to log document deletion event: {e}")
         
         # Delete from PostgreSQL (this will cascade to analysis_results and document_chunks)
         await doc_service.delete_document(document_id)
@@ -925,98 +1078,344 @@ async def analyze_document(
         
         logger.info(f"🔍 Analyzing document: {document_id}")
         
+        # Log analysis start event
+        if history_service:
+            try:
+                await history_service.log_analysis_start(
+                    document_id=document_id,
+                    analysis_type="comprehensive",
+                    user_id=None  # Could be extracted from request context
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to log analysis start event: {e}")
+        
         # Get document
         document = await doc_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
-        # Check if analysis already exists
-        existing_analyses = await doc_service.get_analysis_results_by_document(
-            document_id=document_id,
-            analysis_type=request.analysis_type
-        )
-        
-        if existing_analyses:
-            logger.info(f"✅ Analysis already exists for document {document_id}")
-            analysis = existing_analyses[0]
+        # Check if analysis already exists (unless force re-analysis is requested)
+        if not request.force_reanalysis:
+            existing_analyses = await doc_service.get_analysis_results_by_document(
+                document_id=document_id,
+                analysis_type=request.analysis_type
+            )
             
-            # Cache in Redis for quick access
-            if redis_client:
-                try:
-                    redis_client.setex(
-                        f"analysis:{analysis['id']}", 
-                        86400 * 7,  # 7 days cache
-                        json.dumps(analysis)
-                    )
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to cache analysis in Redis: {e}")
-            
-            # Parse the analysis_data if it's a string
-            analysis_data = analysis.get("analysis_data", {})
-            if isinstance(analysis_data, str):
-                try:
-                    analysis_data = json.loads(analysis_data)
-                except json.JSONDecodeError:
-                    analysis_data = {}
-            
-            # Return the analysis in the same format as the get analysis endpoint
-            return {
-                "analysis_id": analysis["id"],
-                "document_id": document_id,
-                "summary": analysis_data.get("summary", {}),
-                "risks": analysis_data.get("risks", []),
-                "recommendations": analysis_data.get("recommendations", []),
-                "citations": analysis_data.get("citations", []),
-                "compliance": analysis_data.get("compliance", {}),
-                "analysis_timestamp": analysis["analysis_timestamp"],
-                "model_used": analysis.get("model_used", "llama3.2:3b"),
-                "processing_time_ms": analysis.get("processing_time_ms", 0),
-                "status": "completed"
-            }
+            if existing_analyses:
+                logger.info(f"✅ Analysis already exists for document {document_id}")
+                analysis = existing_analyses[0]
+                
+                # Cache in Redis for quick access
+                if redis_client:
+                    try:
+                        redis_client.setex(
+                            f"analysis:{analysis['id']}", 
+                            86400 * 7,  # 7 days cache
+                            json.dumps(analysis)
+                        )
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to cache analysis in Redis: {e}")
+                
+                # Parse the analysis_data if it's a string
+                analysis_data = analysis.get("analysis_data", {})
+                if isinstance(analysis_data, str):
+                    try:
+                        analysis_data = json.loads(analysis_data)
+                    except json.JSONDecodeError:
+                        analysis_data = {}
+                
+                # Return the analysis in the same format as the get analysis endpoint
+                return {
+                    "analysis_id": analysis["id"],
+                    "document_id": document_id,
+                    "summary": analysis_data.get("summary", {}),
+                    "risks": analysis_data.get("risks", []),
+                    "recommendations": analysis_data.get("recommendations", []),
+                    "citations": analysis_data.get("citations", []),
+                    "compliance": analysis_data.get("compliance", {}),
+                    "analysis_timestamp": analysis["analysis_timestamp"],
+                    "model_used": analysis.get("model_used", "llama3.2:3b"),
+                    "processing_time_ms": analysis.get("processing_time_ms", 0),
+                    "confidence_score": analysis.get("confidence_score", 0.0),
+                    "status": "completed"
+                }
+        else:
+            logger.info(f"🔄 Force re-analysis requested for document {document_id}")
         
         # Perform analysis (simplified for demo - in production, integrate with AI models)
         start_time = datetime.now()
         
-        # Simulate analysis processing
-        await asyncio.sleep(2)  # Simulate processing time
+        # Perform real AI analysis using Hub Gateway
+        start_time = datetime.now()
         
-        # Generate comprehensive analysis
-        analysis_data = {
-            "summary": {
-                "summary": f"Comprehensive analysis of {document['original_filename']}",
-                "document_type": document.get("metadata", {}).get("document_type", "Contract"),
-                "key_points": [
-                    "Confidentiality period: 2 years",
-                    "Governing law: California",
-                    "Dispute resolution: Arbitration",
-                    "Termination clauses: Standard",
-                    "Intellectual property: Protected"
-                ]
-            },
-            "risks": [
-                {"level": "low", "description": "Standard confidentiality clause", "section": "2.1"},
-                {"level": "medium", "description": "Consider adding return of materials clause", "section": "3.2"},
-                {"level": "low", "description": "Appropriate governing law selection", "section": "5.1"}
-            ],
-            "recommendations": [
-                "Review confidentiality period for appropriateness",
-                "Consider adding return of materials clause",
-                "Verify governing law jurisdiction",
-                "Review termination notice periods",
-                "Ensure IP protection is comprehensive"
-            ],
-            "citations": [
-                "Section 2.1: Confidentiality obligations",
-                "Section 3.2: Use of confidential information",
-                "Section 4.2: Term and termination",
-                "Section 5.1: Governing law and jurisdiction"
-            ],
-            "compliance": {
-                "gdpr_compliant": True,
-                "ccpa_compliant": True,
-                "industry_standards": ["ISO 27001", "SOC 2"]
+        try:
+            # Extract text from the document for analysis
+            text_extraction_result = processing_service.extract_text_from_file(document['file_path'])
+            document_text = text_extraction_result.get('text', '')
+            
+            # Prepare analysis prompt
+            analysis_prompt = f"""
+            Analyze the following legal document and provide a comprehensive review with specific citations:
+            
+            Document: {document['original_filename']}
+            
+            Document Content:
+            {document_text[:4000]}  # Limit to first 4000 chars for API limits
+            
+            Please provide detailed analysis with specific citations for each finding. For every key point, risk, and recommendation, include:
+            - Exact section/clause references
+            - Page numbers or paragraph numbers where available
+            - Specific text excerpts
+            - Line references when possible
+            
+            Format your response as JSON with the following structure:
+            {{
+                "summary": {{
+                    "summary": "Executive summary text",
+                    "document_type": "Document type",
+                    "key_points": [
+                        {{
+                            "point": "Key point description",
+                            "citation": "Specific section, clause, or page reference",
+                            "importance": "high|medium|low",
+                            "text_excerpt": "Relevant text from document"
+                        }}
+                    ]
+                }},
+                "risks": [
+                    {{
+                        "level": "high|medium|low",
+                        "description": "Risk description",
+                        "section": "Relevant section or clause",
+                        "citation": "Specific text excerpt or reference",
+                        "impact": "Potential impact description",
+                        "text_excerpt": "Exact text from document"
+                    }}
+                ],
+                "recommendations": [
+                    {{
+                        "recommendation": "Specific recommendation",
+                        "rationale": "Why this recommendation is important",
+                        "citation": "Relevant section that supports this recommendation",
+                        "priority": "high|medium|low",
+                        "text_excerpt": "Supporting text from document"
+                    }}
+                ],
+                "key_clauses": [
+                    {{
+                        "clause": "Clause description",
+                        "type": "Type of clause (liability, termination, payment, etc.)",
+                        "citation": "Exact text or section reference",
+                        "significance": "Why this clause is important",
+                        "text_excerpt": "Full clause text"
+                    }}
+                ],
+                "compliance": {{
+                    "gdpr_compliant": true/false,
+                    "ccpa_compliant": true/false,
+                    "industry_standards": ["Standard 1", "Standard 2"],
+                    "compliance_issues": [
+                        {{
+                            "issue": "Compliance issue description",
+                            "standard": "Which standard/regulation",
+                            "citation": "Specific section or clause",
+                            "severity": "high|medium|low",
+                            "text_excerpt": "Relevant text from document"
+                        }}
+                    ]
+                }},
+                "confidence_score": 0.85
+            }}
+            
+            IMPORTANT: Provide specific citations for every finding including:
+            - Section numbers (e.g., "Section 3.2", "Clause 5.1")
+            - Page numbers if available
+            - Exact text excerpts in quotes
+            - Paragraph or line references
+            - Specific clause identifiers
+            """
+            
+            # Call Hub Gateway for AI analysis
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://hub-gateway:8081/v1/chat/completions",
+                    json={
+                        "model": "llama3.2:3b",
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a legal document analysis expert. Provide accurate, professional analysis of legal documents."
+                            },
+                            {
+                                "role": "user", 
+                                "content": analysis_prompt
+                            }
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 2000
+                    },
+                    timeout=60.0
+                )
+                
+            if response.status_code == 200:
+                ai_response = response.json()
+                ai_content = ai_response['choices'][0]['message']['content']
+                
+                # Debug: Log the raw AI response
+                logger.info(f"🔍 Raw AI response: {ai_content[:200]}...")
+                
+                # Parse AI response - handle markdown-wrapped JSON
+                try:
+                    # Remove markdown code blocks if present
+                    cleaned_content = ai_content.strip()
+                    if cleaned_content.startswith('```json'):
+                        cleaned_content = cleaned_content[7:]  # Remove ```json
+                    if cleaned_content.startswith('```'):
+                        cleaned_content = cleaned_content[3:]   # Remove ```
+                    if cleaned_content.endswith('```'):
+                        cleaned_content = cleaned_content[:-3]  # Remove trailing ```
+                    
+                    cleaned_content = cleaned_content.strip()
+                    
+                    # Find the first complete JSON object by looking for the closing brace
+                    # This handles cases where there's extra content after the JSON
+                    json_start = cleaned_content.find('{')
+                    if json_start != -1:
+                        # Find the matching closing brace
+                        brace_count = 0
+                        json_end = json_start
+                        for i, char in enumerate(cleaned_content[json_start:], json_start):
+                            if char == '{':
+                                brace_count += 1
+                            elif char == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    json_end = i + 1
+                                    break
+                        
+                        if brace_count == 0:  # Found complete JSON object
+                            cleaned_content = cleaned_content[json_start:json_end]
+                    
+                    logger.info(f"🔍 Cleaned content: {cleaned_content[:200]}...")
+                    analysis_data = json.loads(cleaned_content)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"⚠️ Failed to parse AI JSON response: {e}")
+                    # Fallback if AI doesn't return valid JSON
+                    analysis_data = {
+                        "summary": {
+                            "summary": ai_content[:200] + "...",
+                            "document_type": "Contract",
+                            "key_points": [
+                                {
+                                    "point": "AI analysis completed - manual review recommended",
+                                    "citation": "AI-generated analysis",
+                                    "importance": "medium",
+                                    "text_excerpt": "Analysis generated by AI system"
+                                }
+                            ]
+                        },
+                        "risks": [
+                            {
+                                "level": "medium", 
+                                "description": "Manual review recommended", 
+                                "section": "N/A",
+                                "citation": "AI-generated analysis",
+                                "impact": "Analysis may require human verification",
+                                "text_excerpt": "AI-generated risk assessment"
+                            }
+                        ],
+                        "recommendations": [
+                            {
+                                "recommendation": "Review AI analysis manually",
+                                "rationale": "Ensure accuracy of AI-generated analysis",
+                                "citation": "AI-generated recommendation",
+                                "priority": "high",
+                                "text_excerpt": "Manual review recommended"
+                            }
+                        ],
+                        "key_clauses": [],
+                        "compliance": {
+                            "gdpr_compliant": True, 
+                            "ccpa_compliant": True, 
+                            "industry_standards": [],
+                            "compliance_issues": []
+                        },
+                        "confidence_score": 0.1
+                    }
+            else:
+                raise Exception(f"AI analysis failed: {response.status_code}")
+                    
+        except Exception as e:
+            logger.warning(f"⚠️ AI analysis failed, using fallback: {e}")
+            # Fallback to enhanced mock data
+            analysis_data = {
+                "summary": {
+                    "summary": f"Analysis of {document['original_filename']} - AI service unavailable, using template analysis",
+                    "document_type": document.get("metadata", {}).get("document_type", "Contract"),
+                    "key_points": [
+                        {
+                            "point": "Document uploaded and processed successfully",
+                            "citation": "System status",
+                            "importance": "high",
+                            "text_excerpt": "Document processing completed"
+                        },
+                        {
+                            "point": "AI analysis service temporarily unavailable",
+                            "citation": "System status",
+                            "importance": "high",
+                            "text_excerpt": "AI service unavailable"
+                        },
+                        {
+                            "point": "Template analysis provided for demonstration",
+                            "citation": "System fallback",
+                            "importance": "medium",
+                            "text_excerpt": "Fallback analysis mode"
+                        }
+                    ]
+                },
+                "risks": [
+                    {
+                        "level": "medium", 
+                        "description": "AI analysis unavailable - manual review recommended", 
+                        "section": "System",
+                        "citation": "System status",
+                        "impact": "Manual review required",
+                        "text_excerpt": "AI service unavailable"
+                    },
+                    {
+                        "level": "low", 
+                        "description": "Template analysis may not reflect actual document content", 
+                        "section": "Analysis",
+                        "citation": "System limitation",
+                        "impact": "Analysis accuracy reduced",
+                        "text_excerpt": "Template-based analysis"
+                    }
+                ],
+                "recommendations": [
+                    {
+                        "recommendation": "Retry analysis when AI service is available",
+                        "rationale": "AI service may be temporarily down",
+                        "citation": "System recommendation",
+                        "priority": "high",
+                        "text_excerpt": "Retry analysis"
+                    },
+                    {
+                        "recommendation": "Perform manual document review",
+                        "rationale": "Ensure document is properly analyzed",
+                        "citation": "System recommendation",
+                        "priority": "high",
+                        "text_excerpt": "Manual review required"
+                    }
+                ],
+                "key_clauses": [],
+                "compliance": {
+                    "gdpr_compliant": True,
+                    "ccpa_compliant": True, 
+                    "industry_standards": ["Manual review recommended"],
+                    "compliance_issues": []
+                },
+                "confidence_score": 0.1  # Low confidence due to fallback
             }
-        }
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
@@ -1026,7 +1425,8 @@ async def analyze_document(
             analysis_type=request.analysis_type,
             analysis_data=analysis_data,
             model_used="llama3.2:3b",
-            processing_time_ms=int(processing_time)
+            processing_time_ms=int(processing_time),
+            confidence_score=analysis_data.get("confidence_score", 0.5)
         )
         
         if not analysis:
@@ -1178,6 +1578,20 @@ async def analyze_document(
         
         logger.info(f"✅ Analysis completed for document {document_id}")
         
+        # Log analysis completion event
+        if history_service:
+            try:
+                await history_service.log_analysis_complete(
+                    document_id=document_id,
+                    analysis_id=analysis.get("analysis_id", "unknown"),
+                    analysis_type="comprehensive",
+                    confidence_score=analysis_data.get("confidence_score", 0.5),
+                    processing_time_ms=int(processing_time),
+                    user_id=None
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to log analysis completion event: {e}")
+        
         # Update document status to "analyzed" - CRITICAL for consistency
         try:
             await doc_service.update_document(
@@ -1230,6 +1644,19 @@ async def analyze_document(
         raise
     except Exception as e:
         logger.error(f"❌ Error analyzing document: {e}")
+        
+        # Log analysis error event
+        if history_service:
+            try:
+                await history_service.log_analysis_error(
+                    document_id=document_id,
+                    analysis_type="comprehensive",
+                    error_message=str(e),
+                    user_id=None
+                )
+            except Exception as log_error:
+                logger.warning(f"⚠️ Failed to log analysis error event: {log_error}")
+        
         raise HTTPException(status_code=500, detail=str(e))
 
 

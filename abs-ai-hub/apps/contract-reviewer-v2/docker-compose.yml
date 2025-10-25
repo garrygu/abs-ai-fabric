@@ -3,12 +3,12 @@
 # NOTE: Uses CORE services (Redis, PostgreSQL, Qdrant) managed by gateway
 # LOCATION: abs-ai-hub/apps/contract-reviewer-v2/ (app-specific)
 
-version: '3.8'
 
 services:
-  contract-reviewer-v2-integrated:
+  contract-reviewer-v2:
     build: .
-    container_name: abs-contract-reviewer-v2-integrated
+    image: contract-reviewer-v2
+    container_name: abs-contract-reviewer-v2
     ports:
       - "8082:8080"
     environment:
@@ -49,6 +49,8 @@ services:
       - contract-reviewer-v2-logs:/data/logs
       # Static files (read-only)
       - ./static:/app/static:ro
+      # Docker socket for log access
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - abs-net
     restart: unless-stopped

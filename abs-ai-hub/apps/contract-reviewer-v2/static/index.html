@@ -231,6 +231,27 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-xl font-semibold text-gray-900" x-text="currentDocument?.filename || 'Select a document'"></h2>
+                        
+                        <!-- Document ID Viewer -->
+                        <div x-show="currentDocument?.id" class="mt-2 mb-3">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-medium text-gray-600">Document ID:</span>
+                                <div class="flex items-center space-x-2 bg-gray-50 rounded-md px-3 py-1 border">
+                                    <code class="text-sm font-mono text-gray-800" x-text="currentDocument?.id"></code>
+                                    <button @click="copyDocumentId($event)" 
+                                            class="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded p-1"
+                                            title="Copy Document ID">
+                                        <i class="fas fa-copy text-xs"></i>
+                                    </button>
+                                    <button @click="openDataInspector()" 
+                                            class="text-blue-500 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded p-1"
+                                            title="Open in Data Inspector">
+                                        <i class="fas fa-search text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <p class="text-sm text-gray-600" x-show="currentSession">
                             Analysis completed • Confidence: <span x-text="Math.round((currentSession?.confidence_score || 0) * 100)"></span>%
                         </p>
@@ -276,10 +297,20 @@
                             :class="activeTab === 'recommendations' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
                         <i class="fas fa-lightbulb mr-2"></i>Recommendations
                     </button>
+                    <button @click="activeTab = 'document'" 
+                            class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                            :class="activeTab === 'document' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                        <i class="fas fa-file-alt mr-2"></i>Document View
+                    </button>
                     <button @click="activeTab = 'comments'" 
                             class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
                             :class="activeTab === 'comments' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
                         <i class="fas fa-comments mr-2"></i>Comments
+                    </button>
+                    <button @click="activeTab = 'logs'; loadDocumentLogs()" 
+                            class="py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+                            :class="activeTab === 'logs' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'">
+                        <i class="fas fa-history mr-2"></i>Log History
                     </button>
                 </nav>
             </div>
@@ -316,12 +347,32 @@
                                         <span class="px-2 py-1 rounded text-xs font-medium mr-3"
                                               :class="getRiskClass(risk.level)"
                                               x-text="risk.level || 'Unknown'"></span>
-                                        <h4 class="text-lg font-semibold text-gray-900" x-text="risk.title || 'Untitled Risk'"></h4>
+                                        <h4 class="text-lg font-semibold text-gray-900" x-text="risk.title || risk.description || 'Untitled Risk'"></h4>
                                     </div>
                                     <p class="text-gray-700 mb-3" x-text="risk.description || 'No description available'"></p>
-                                    <div class="text-sm text-gray-500" x-show="risk.location">
+                                    
+                                    <!-- Impact information -->
+                                    <div class="text-sm text-gray-600 mb-2" x-show="risk.impact">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                                        <span x-text="risk.impact"></span>
+                                    </div>
+                                    
+                                    <!-- Section/Location -->
+                                    <div class="text-sm text-gray-500 mb-2" x-show="risk.section || risk.location">
                                         <i class="fas fa-map-marker-alt mr-1"></i>
-                                        <span x-text="risk.location"></span>
+                                        <span x-text="risk.section || risk.location"></span>
+                                    </div>
+                                    
+                                    <!-- Citation -->
+                                    <div class="text-sm text-blue-600 mb-2" x-show="risk.citation">
+                                        <i class="fas fa-quote-left mr-1"></i>
+                                        <span x-text="risk.citation"></span>
+                                    </div>
+                                    
+                                    <!-- Text Excerpt -->
+                                    <div class="text-xs text-gray-500 italic bg-gray-50 p-2 rounded" x-show="risk.text_excerpt">
+                                        <i class="fas fa-file-text mr-1"></i>
+                                        <span x-text="risk.text_excerpt"></span>
                                     </div>
                                 </div>
                             </div>
@@ -336,6 +387,203 @@
                     </div>
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <div class="prose max-w-none text-gray-700 leading-relaxed" x-html="formatRecommendations(currentSession?.recommendations)"></div>
+                    </div>
+                </div>
+
+                <!-- Document View Tab -->
+                <div x-show="activeTab === 'document'" x-transition class="space-y-4">
+                    <div x-show="!currentSession" class="text-center text-gray-500 py-8">
+                        Please analyze a document first to view the document with analysis highlights.
+                    </div>
+                    
+                    <!-- Document Viewer Controls -->
+                    <div x-show="currentSession" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">
+                                <i class="fas fa-file-alt mr-2"></i>Document Analysis View
+                            </h3>
+                            <div class="flex items-center space-x-4">
+                                <!-- View Mode Toggle -->
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-gray-600">View:</span>
+                                    <button @click="documentViewMode = 'side-by-side'" 
+                                            class="px-3 py-1 text-sm rounded-md transition-colors"
+                                            :class="documentViewMode === 'side-by-side' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                        <i class="fas fa-columns mr-1"></i>Side by Side
+                                    </button>
+                                    <button @click="documentViewMode = 'overlay'" 
+                                            class="px-3 py-1 text-sm rounded-md transition-colors"
+                                            :class="documentViewMode === 'overlay' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                        <i class="fas fa-layer-group mr-1"></i>Overlay
+                                    </button>
+                                    <button @click="documentViewMode = 'document-only'" 
+                                            class="px-3 py-1 text-sm rounded-md transition-colors"
+                                            :class="documentViewMode === 'document-only' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                        <i class="fas fa-file mr-1"></i>Document Only
+                                    </button>
+                                </div>
+                                
+                                <!-- Highlight Toggle -->
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm text-gray-600">Highlights:</span>
+                                    <button @click="showHighlights = !showHighlights" 
+                                            class="px-3 py-1 text-sm rounded-md transition-colors"
+                                            :class="showHighlights ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                        <i class="fas fa-highlighter mr-1"></i>
+                                        <span x-text="showHighlights ? 'On' : 'Off'"></span>
+                                    </button>
+                                </div>
+                                
+                                <!-- Load Content Button -->
+                                <button @click="loadDocumentContent()" 
+                                        class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
+                                    <i class="fas fa-sync mr-1"></i>Load Content
+                                </button>
+                                
+                                <!-- Download Document -->
+                                <button @click="downloadDocument()" 
+                                        class="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                                    <i class="fas fa-download mr-1"></i>Download
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Analysis Summary -->
+                        <div class="mb-4 p-3 bg-gray-50 rounded-md">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <span class="font-medium text-gray-600">Key Points:</span>
+                                    <span class="ml-2 text-gray-900" x-text="currentSession?.summary?.key_points?.length || 0"></span>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-600">Risks:</span>
+                                    <span class="ml-2 text-gray-900" x-text="currentSession?.risks?.length || 0"></span>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-600">Recommendations:</span>
+                                    <span class="ml-2 text-gray-900" x-text="currentSession?.recommendations?.length || 0"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Debug Info -->
+                        <div class="mb-4 p-3 bg-yellow-50 rounded-md text-xs">
+                            <div class="font-medium text-yellow-800 mb-2">Debug Info:</div>
+                            <div>Document ID: <span class="font-mono" x-text="currentDocument?.id || 'None'"></span></div>
+                            <div>Document Content Length: <span class="font-mono" x-text="documentContent?.length || 0"></span></div>
+                            <div>Current Session: <span class="font-mono" x-text="currentSession ? 'Available' : 'None'"></span></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Document Content -->
+                    <div x-show="currentSession" class="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <!-- Side by Side View -->
+                        <div x-show="documentViewMode === 'side-by-side'" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+                            <!-- Analysis Panel -->
+                            <div class="space-y-4">
+                                <h4 class="text-lg font-semibold text-gray-900 mb-4">
+                                    <i class="fas fa-chart-line mr-2"></i>Analysis Summary
+                                </h4>
+                                
+                                <!-- Key Points -->
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <h5 class="font-medium text-blue-900 mb-2">Key Points</h5>
+                                    <div class="space-y-2">
+                                        <template x-for="(point, i) in currentSession?.summary?.key_points || []" :key="i">
+                                            <div class="text-sm">
+                                                <button @click="highlightInDocument(point)" 
+                                                        class="text-blue-700 hover:text-blue-900 underline cursor-pointer"
+                                                        x-text="typeof point === 'string' ? point : point.point"></button>
+                                                <div x-show="typeof point === 'object' && point.citation" 
+                                                     class="text-xs text-gray-500 mt-1" 
+                                                     x-text="point.citation"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <!-- Risks -->
+                                <div class="bg-red-50 p-4 rounded-lg">
+                                    <h5 class="font-medium text-red-900 mb-2">Risks</h5>
+                                    <div class="space-y-2">
+                                        <template x-for="(risk, i) in currentSession?.risks || []" :key="i">
+                                            <div class="text-sm">
+                                                <button @click="highlightInDocument(risk)" 
+                                                        class="text-red-700 hover:text-red-900 underline cursor-pointer"
+                                                        x-text="risk.description || risk.title"></button>
+                                                <div x-show="risk.citation" 
+                                                     class="text-xs text-gray-500 mt-1" 
+                                                     x-text="risk.citation"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <!-- Recommendations -->
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <h5 class="font-medium text-green-900 mb-2">Recommendations</h5>
+                                    <div class="space-y-2">
+                                        <template x-for="(rec, i) in currentSession?.recommendations || []" :key="i">
+                                            <div class="text-sm">
+                                                <button @click="highlightInDocument(rec)" 
+                                                        class="text-green-700 hover:text-green-900 underline cursor-pointer"
+                                                        x-text="typeof rec === 'string' ? rec : rec.recommendation"></button>
+                                                <div x-show="typeof rec === 'object' && rec.citation" 
+                                                     class="text-xs text-gray-500 mt-1" 
+                                                     x-text="rec.citation"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Document Panel -->
+                            <div class="border border-gray-200 rounded-lg">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg">
+                                    <h4 class="text-lg font-semibold text-gray-900">
+                                        <i class="fas fa-file-alt mr-2"></i>Document Content
+                                    </h4>
+                                </div>
+                                <div class="p-4 max-h-96 overflow-y-auto">
+                                    <div id="document-content" class="prose max-w-none text-sm leading-relaxed" 
+                                         x-html="documentContent"></div>
+                                    
+                                    <!-- Debug: Show raw content -->
+                                    <div class="mt-4 p-2 bg-gray-100 text-xs" x-show="documentContent">
+                                        <strong>Debug - Content Length:</strong> <span x-text="documentContent?.length || 0"></span>
+                                        <br>
+                                        <strong>Debug - First 200 chars:</strong> <span x-text="documentContent?.substring(0, 200) || 'No content'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Overlay View -->
+                        <div x-show="documentViewMode === 'overlay'" class="relative p-6">
+                            <div class="prose max-w-none text-sm leading-relaxed" 
+                                 x-html="documentContent"></div>
+                            
+                            <!-- Floating Analysis Panel -->
+                            <div class="fixed top-4 right-4 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg">
+                                    <h4 class="text-lg font-semibold text-gray-900">
+                                        <i class="fas fa-chart-line mr-2"></i>Analysis
+                                    </h4>
+                                </div>
+                                <div class="p-4 max-h-96 overflow-y-auto">
+                                    <!-- Analysis content here -->
+                                    <div class="text-sm text-gray-600">
+                                        Click on analysis items to highlight in document
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Document Only View -->
+                        <div x-show="documentViewMode === 'document-only'" class="p-6">
+                            <div class="prose max-w-none text-sm leading-relaxed" 
+                                 x-html="documentContent"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -367,6 +615,96 @@
                             </div>
                         </div>
                     </template>
+                </div>
+
+                <!-- Log History Tab -->
+                <div x-show="activeTab === 'logs'" x-transition class="space-y-6">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">
+                                <i class="fas fa-history mr-2"></i>Document Log History
+                            </h3>
+                            <div class="flex items-center space-x-4">
+                                <!-- Log Level Filter -->
+                                <select x-model="logLevelFilter" @change="loadDocumentLogs()" 
+                                        class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">All Levels</option>
+                                    <option value="INFO">INFO</option>
+                                    <option value="WARNING">WARNING</option>
+                                    <option value="ERROR">ERROR</option>
+                                    <option value="DEBUG">DEBUG</option>
+                                </select>
+                                
+                                <!-- Search Input -->
+                                <input x-model="logSearchTerm" @input="debounceLoadLogs()" 
+                                       type="text" placeholder="Search logs..." 
+                                       class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48">
+                                
+                                <!-- Refresh Button -->
+                                <button @click="loadDocumentLogs()" 
+                                        class="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                                    <i class="fas fa-sync-alt mr-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Log Stats -->
+                        <div x-show="documentLogs" class="mb-4 p-3 bg-gray-50 rounded-md">
+                            <div class="flex items-center justify-between text-sm text-gray-600">
+                                <span x-text="`Showing ${documentLogs?.logs?.length || 0} of ${documentLogs?.pagination?.total_count || 0} log entries`"></span>
+                                <span x-show="documentLogs?.note" class="text-orange-600 font-medium" x-text="documentLogs.note"></span>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div x-show="loadingLogs" class="text-center py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
+                            <p class="text-gray-500">Loading log history...</p>
+                        </div>
+
+                        <!-- Log Entries -->
+                        <div x-show="!loadingLogs && documentLogs?.logs?.length > 0" class="space-y-2 max-h-96 overflow-y-auto">
+                            <template x-for="log in documentLogs.logs" :key="log.timestamp + log.message">
+                                <div class="border border-gray-200 rounded-md p-3 hover:bg-gray-50 transition-colors">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center space-x-2 mb-1">
+                                                <span :class="{
+                                                    'text-green-600': log.level === 'INFO',
+                                                    'text-yellow-600': log.level === 'WARNING', 
+                                                    'text-red-600': log.level === 'ERROR',
+                                                    'text-blue-600': log.level === 'DEBUG'
+                                                }" class="text-xs font-medium px-2 py-1 rounded" x-text="log.level"></span>
+                                                <span class="text-xs text-gray-500 font-mono" x-text="log.timestamp"></span>
+                                            </div>
+                                            <p class="text-sm text-gray-700 font-mono" x-text="log.message"></p>
+                                        </div>
+                                        <button @click="copyLogMessage(log.raw)" 
+                                                class="text-gray-400 hover:text-gray-600 ml-2" 
+                                                title="Copy log entry">
+                                            <i class="fas fa-copy text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div x-show="!loadingLogs && (!documentLogs?.logs || documentLogs.logs.length === 0)" 
+                             class="text-center py-8 text-gray-500">
+                            <i class="fas fa-file-alt text-3xl mb-2"></i>
+                            <p>No log entries found for this document</p>
+                            <p class="text-sm">Try adjusting your filters or check back later</p>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div x-show="documentLogs?.pagination?.has_more" class="mt-4 flex justify-center">
+                            <button @click="loadMoreLogs()" 
+                                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
+                                <i class="fas fa-chevron-down mr-2"></i>Load More
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -752,12 +1090,27 @@
                 comments: [],
                 newComment: '',
                 showHelp: false,
+                
+                // Document Viewer
+                documentViewMode: 'side-by-side',
+                showHighlights: true,
+                documentContent: '',
+                highlightedText: null,
                 showSettings: false,
                 riskFilters: {
                     low: true,
                     medium: true,
                     high: true
                 },
+
+                // Log History
+                documentLogs: null,
+                loadingLogs: false,
+                logLevelFilter: '',
+                logSearchTerm: '',
+                logOffset: 0,
+                logLimit: 50,
+                logDebounceTimer: null,
 
                 // Computed
                 get filteredRisks() {
@@ -787,6 +1140,16 @@
                     console.log('✓ Alpine.js initialized');
                     await this.loadModels();
                     await this.loadDocuments(true);
+                },
+
+                // Watchers
+                get activeTabWatcher() {
+                    // Load document content when document tab is activated
+                    if (this.activeTab === 'document' && this.currentDocument) {
+                        console.log('🔄 Document tab activated, loading content...');
+                        this.loadDocumentContent();
+                    }
+                    return this.activeTab;
                 },
 
                 async loadModels() {
@@ -950,8 +1313,25 @@
                         return;
                     }
 
+                    // If document already has analysis, confirm re-analysis
+                    if (this.currentDocument?.has_analysis) {
+                        const confirmed = confirm(
+                            'This document already has an analysis. Do you want to re-analyze it?\n\n' +
+                            'This will:\n' +
+                            '• Generate a new AI analysis\n' +
+                            '• Update the existing analysis results\n' +
+                            '• May take 30-60 seconds\n\n' +
+                            'Click OK to proceed with re-analysis.'
+                        );
+                        
+                        if (!confirmed) {
+                            return;
+                        }
+                    }
+
                     this.isAnalyzing = true;
-                    console.log('→ Starting analysis...');
+                    const isReanalysis = this.currentDocument?.has_analysis || false;
+                    console.log(`→ Starting ${isReanalysis ? 're-' : ''}analysis...`);
                     
                     try {
                         const response = await fetch(`/api/analyze/${this.currentDocument.id}`, {
@@ -963,7 +1343,8 @@
                                 analysis_type: 'comprehensive',
                                 include_recommendations: true,
                                 include_risks: true,
-                                include_citations: true
+                                include_citations: true,
+                                force_reanalysis: this.currentDocument?.has_analysis || false  // Force re-analysis if document already has analysis
                             })
                         });
 
@@ -1156,6 +1537,37 @@
                     }
                 },
 
+                // Document ID utilities
+                async copyDocumentId(event) {
+                    if (!this.currentDocument?.id) return;
+                    
+                    try {
+                        await navigator.clipboard.writeText(this.currentDocument.id);
+                        
+                        // Show temporary success feedback
+                        const button = event.target.closest('button');
+                        const originalIcon = button.innerHTML;
+                        button.innerHTML = '<i class="fas fa-check text-xs text-green-600"></i>';
+                        button.classList.add('text-green-600');
+                        
+                        setTimeout(() => {
+                            button.innerHTML = originalIcon;
+                            button.classList.remove('text-green-600');
+                        }, 2000);
+                    } catch (error) {
+                        console.error('Failed to copy document ID:', error);
+                        alert('Failed to copy document ID to clipboard');
+                    }
+                },
+
+                openDataInspector() {
+                    if (!this.currentDocument?.id) return;
+                    
+                    // Open the Tri-Store Data Inspector in a new window with the current document ID
+                    const inspectorUrl = `http://localhost:3000/inspector.html?doc_id=${encodeURIComponent(this.currentDocument.id)}`;
+                    window.open(inspectorUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+                },
+
                 addComment() {
                     if (!this.newComment.trim()) return;
 
@@ -1169,6 +1581,264 @@
 
                 deleteComment(commentId) {
                     this.comments = this.comments.filter(c => c.id !== commentId);
+                },
+
+                // Log History Methods
+                async loadDocumentLogs() {
+                    if (!this.currentDocument?.id) return;
+                    
+                    this.loadingLogs = true;
+                    this.logOffset = 0; // Reset pagination
+                    
+                    try {
+                        const params = new URLSearchParams({
+                            limit: this.logLimit.toString(),
+                            offset: this.logOffset.toString()
+                        });
+                        
+                        if (this.logLevelFilter) {
+                            params.append('log_level', this.logLevelFilter);
+                        }
+                        
+                        if (this.logSearchTerm) {
+                            params.append('search_term', this.logSearchTerm);
+                        }
+                        
+                        const response = await fetch(`/api/documents/${this.currentDocument.id}/logs?${params}`);
+                        
+                        if (response.ok) {
+                            this.documentLogs = await response.json();
+                            console.log(`✓ Loaded ${this.documentLogs.logs.length} log entries`);
+                        } else {
+                            console.error('Failed to load document logs:', response.statusText);
+                            this.documentLogs = { logs: [], pagination: { total_count: 0 } };
+                        }
+                    } catch (error) {
+                        console.error('Error loading document logs:', error);
+                        this.documentLogs = { logs: [], pagination: { total_count: 0 } };
+                    } finally {
+                        this.loadingLogs = false;
+                    }
+                },
+
+                async loadMoreLogs() {
+                    if (!this.currentDocument?.id || !this.documentLogs?.pagination?.has_more) return;
+                    
+                    this.loadingLogs = true;
+                    this.logOffset += this.logLimit;
+                    
+                    try {
+                        const params = new URLSearchParams({
+                            limit: this.logLimit.toString(),
+                            offset: this.logOffset.toString()
+                        });
+                        
+                        if (this.logLevelFilter) {
+                            params.append('log_level', this.logLevelFilter);
+                        }
+                        
+                        if (this.logSearchTerm) {
+                            params.append('search_term', this.logSearchTerm);
+                        }
+                        
+                        const response = await fetch(`/api/documents/${this.currentDocument.id}/logs?${params}`);
+                        
+                        if (response.ok) {
+                            const moreLogs = await response.json();
+                            this.documentLogs.logs = [...this.documentLogs.logs, ...moreLogs.logs];
+                            this.documentLogs.pagination = moreLogs.pagination;
+                            console.log(`✓ Loaded ${moreLogs.logs.length} more log entries`);
+                        } else {
+                            console.error('Failed to load more logs:', response.statusText);
+                        }
+                    } catch (error) {
+                        console.error('Error loading more logs:', error);
+                    } finally {
+                        this.loadingLogs = false;
+                    }
+                },
+
+                debounceLoadLogs() {
+                    if (this.logDebounceTimer) {
+                        clearTimeout(this.logDebounceTimer);
+                    }
+                    
+                    this.logDebounceTimer = setTimeout(() => {
+                        this.loadDocumentLogs();
+                    }, 500); // 500ms delay
+                },
+
+                async copyLogMessage(logMessage) {
+                    try {
+                        await navigator.clipboard.writeText(logMessage);
+                        
+                        // Show temporary success feedback
+                        const button = event.target.closest('button');
+                        const originalIcon = button.innerHTML;
+                        button.innerHTML = '<i class="fas fa-check text-xs text-green-600"></i>';
+                        
+                        setTimeout(() => {
+                            button.innerHTML = originalIcon;
+                        }, 2000);
+                    } catch (error) {
+                        console.error('Failed to copy log message:', error);
+                        alert('Failed to copy log message to clipboard');
+                    }
+                },
+
+                // Document Viewer Methods
+                async loadDocumentContent() {
+                    if (!this.currentDocument?.id) {
+                        console.log('❌ No current document ID available');
+                        return;
+                    }
+                    
+                    try {
+                        console.log('📄 Loading document content for:', this.currentDocument.id);
+                        console.log('📄 Current document:', this.currentDocument);
+                        
+                        // Try to get document text from the analysis or fetch it
+                        if (this.currentSession?.document_text) {
+                            console.log('📄 Using document text from session');
+                            this.documentContent = this.formatDocumentText(this.currentSession.document_text);
+                        } else {
+                            console.log('📄 Fetching document content from API...');
+                            // Fetch document content from API
+                            const response = await fetch(`/api/documents/${this.currentDocument.id}/content`);
+                            console.log('📄 API response status:', response.status);
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                console.log('📄 API response data:', data);
+                                this.documentContent = this.formatDocumentText(data.content);
+                            } else {
+                                const errorText = await response.text();
+                                console.error('📄 API error:', response.status, errorText);
+                                this.documentContent = `<p class="text-gray-500">Document content not available (${response.status})</p>`;
+                            }
+                        }
+                        
+                        console.log('✓ Document content loaded, length:', this.documentContent.length);
+                    } catch (error) {
+                        console.error('Error loading document content:', error);
+                        this.documentContent = `<p class="text-red-500">Error loading document content: ${error.message}</p>`;
+                    }
+                },
+
+                formatDocumentText(text) {
+                    if (!text) return '<p class="text-gray-500">No content available</p>';
+                    
+                    // Basic formatting for document text
+                    let formatted = text
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/\n/g, '<br>')
+                        .replace(/^/, '<p>')
+                        .replace(/$/, '</p>');
+                    
+                    // Add highlighting spans for potential citations
+                    formatted = this.addHighlightingSpans(formatted);
+                    
+                    return formatted;
+                },
+
+                addHighlightingSpans(text) {
+                    // Add spans around potential section references for highlighting
+                    return text
+                        .replace(/(Section \d+\.?\d*)/gi, '<span class="highlight-section" data-section="$1">$1</span>')
+                        .replace(/(Clause \d+\.?\d*)/gi, '<span class="highlight-clause" data-clause="$1">$1</span>')
+                        .replace(/(Article \d+\.?\d*)/gi, '<span class="highlight-article" data-article="$1">$1</span>')
+                        .replace(/(Page \d+)/gi, '<span class="highlight-page" data-page="$1">$1</span>');
+                },
+
+                highlightInDocument(item) {
+                    if (!this.showHighlights) return;
+                    
+                    // Clear previous highlights
+                    this.clearHighlights();
+                    
+                    // Get citation text to search for
+                    let searchText = '';
+                    if (typeof item === 'string') {
+                        searchText = item;
+                    } else if (item.citation) {
+                        searchText = item.citation;
+                    } else if (item.text_excerpt) {
+                        searchText = item.text_excerpt;
+                    } else if (item.point) {
+                        searchText = item.point;
+                    } else if (item.description) {
+                        searchText = item.description;
+                    }
+                    
+                    if (searchText) {
+                        this.highlightTextInDocument(searchText);
+                        this.scrollToHighlight();
+                    }
+                },
+
+                highlightTextInDocument(searchText) {
+                    const docContent = document.getElementById('document-content');
+                    if (!docContent) return;
+                    
+                    // Create a regex to find the text (case insensitive)
+                    const regex = new RegExp(`(${searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                    
+                    // Replace text with highlighted version
+                    docContent.innerHTML = docContent.innerHTML.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
+                    
+                    this.highlightedText = searchText;
+                },
+
+                clearHighlights() {
+                    const docContent = document.getElementById('document-content');
+                    if (!docContent) return;
+                    
+                    // Remove all highlight marks
+                    const marks = docContent.querySelectorAll('mark');
+                    marks.forEach(mark => {
+                        const parent = mark.parentNode;
+                        parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                        parent.normalize();
+                    });
+                    
+                    this.highlightedText = null;
+                },
+
+                scrollToHighlight() {
+                    const docContent = document.getElementById('document-content');
+                    if (!docContent) return;
+                    
+                    const firstHighlight = docContent.querySelector('mark');
+                    if (firstHighlight) {
+                        firstHighlight.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'center' 
+                        });
+                    }
+                },
+
+                async downloadDocument() {
+                    if (!this.currentDocument?.id) return;
+                    
+                    try {
+                        const response = await fetch(`/api/documents/${this.currentDocument.id}/download`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = this.currentDocument.original_filename || 'document';
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                        } else {
+                            alert('Failed to download document');
+                        }
+                    } catch (error) {
+                        console.error('Error downloading document:', error);
+                        alert('Error downloading document');
+                    }
                 },
 
                 getRiskClass(level) {
@@ -1235,9 +1905,27 @@
                         return '<p class="text-gray-500">No key points available. Click Analyze to start.</p>';
                     }
                     
-                    let html = '<ul class="list-disc list-inside space-y-2">';
+                    let html = '<ul class="list-disc list-inside space-y-3">';
                     keyPoints.forEach(point => {
-                        html += `<li class="text-gray-700">${point}</li>`;
+                        // Handle both old format (string) and new format (object with citations)
+                        if (typeof point === 'string') {
+                            // Old format - simple string
+                            html += `<li class="text-gray-700">${point}</li>`;
+                        } else if (typeof point === 'object' && point.point) {
+                            // New format - object with citation
+                            const importanceClass = point.importance === 'high' ? 'text-red-600 font-semibold' : 
+                                                  point.importance === 'medium' ? 'text-orange-600 font-medium' : 
+                                                  'text-gray-600';
+                            
+                            html += `<li class="text-gray-700 mb-2">
+                                <div class="font-medium ${importanceClass}">${point.point}</div>
+                                ${point.citation ? `<div class="text-sm text-blue-600 mt-1"><i class="fas fa-quote-left mr-1"></i>${point.citation}</div>` : ''}
+                                ${point.text_excerpt ? `<div class="text-xs text-gray-500 mt-1 italic">"${point.text_excerpt}"</div>` : ''}
+                            </li>`;
+                        } else {
+                            // Fallback for any other format
+                            html += `<li class="text-gray-700">${JSON.stringify(point)}</li>`;
+                        }
                     });
                     html += '</ul>';
                     
@@ -1249,9 +1937,28 @@
                         return '<p class="text-gray-500">No recommendations available. Click Analyze to start.</p>';
                     }
                     
-                    let html = '<ul class="list-disc list-inside space-y-2">';
+                    let html = '<ul class="list-disc list-inside space-y-3">';
                     recommendations.forEach(rec => {
-                        html += `<li class="text-gray-700">${rec}</li>`;
+                        // Handle both old format (string) and new format (object with citations)
+                        if (typeof rec === 'string') {
+                            // Old format - simple string
+                            html += `<li class="text-gray-700">${rec}</li>`;
+                        } else if (typeof rec === 'object' && rec.recommendation) {
+                            // New format - object with citation
+                            const priorityClass = rec.priority === 'high' ? 'text-red-600 font-semibold' : 
+                                                rec.priority === 'medium' ? 'text-orange-600 font-medium' : 
+                                                'text-gray-600';
+                            
+                            html += `<li class="text-gray-700 mb-2">
+                                <div class="font-medium ${priorityClass}">${rec.recommendation}</div>
+                                ${rec.rationale ? `<div class="text-sm text-gray-600 mt-1">${rec.rationale}</div>` : ''}
+                                ${rec.citation ? `<div class="text-sm text-blue-600 mt-1"><i class="fas fa-quote-left mr-1"></i>${rec.citation}</div>` : ''}
+                                ${rec.text_excerpt ? `<div class="text-xs text-gray-500 mt-1 italic">"${rec.text_excerpt}"</div>` : ''}
+                            </li>`;
+                        } else {
+                            // Fallback for any other format
+                            html += `<li class="text-gray-700">${JSON.stringify(rec)}</li>`;
+                        }
                     });
                     html += '</ul>';
                     

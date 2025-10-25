@@ -269,6 +269,26 @@ def compute_checksum(data: Dict[str, Any]) -> str:
     json_str = json.dumps(sorted_data, sort_keys=True, default=str)
     return hashlib.sha256(json_str.encode()).hexdigest()[:16]
 
+def compute_canonical_checksum(data: Dict[str, Any], store_type: str) -> str:
+    """Compute checksum for canonical fields that should be consistent across stores"""
+    canonical_fields = {
+        'postgres': ['id', 'filename', 'file_size', 'file_type', 'status'],
+        'redis': ['document_id', 'filename', 'file_size', 'file_type', 'status'],
+        'qdrant': ['document_id', 'total_chunks']  # Qdrant has different structure
+    }
+    
+    # Extract only canonical fields for this store type
+    canonical_data = {}
+    for field in canonical_fields.get(store_type, []):
+        if field in data:
+            canonical_data[field] = data[field]
+    
+    # Add store-specific normalization
+    if store_type == 'qdrant' and 'chunks' in data:
+        canonical_data['chunk_count'] = len(data['chunks'])
+    
+    return compute_checksum(canonical_data)
+
 async def fetch_postgres_doc(doc_id: str) -> Optional[StoreSnapshot]:
     """Fetch document from PostgreSQL"""
     try:
@@ -314,7 +334,7 @@ async def fetch_postgres_doc(doc_id: str) -> Optional[StoreSnapshot]:
         }
         
         # Compute checksum
-        checksum = compute_checksum(payload)
+        checksum = compute_canonical_checksum(payload, 'postgres')
         
         cursor.close()
         conn.close()
@@ -376,7 +396,7 @@ async def fetch_redis_doc(doc_id: str) -> Optional[StoreSnapshot]:
             ttl = rds.ttl(f"analysis:{analysis_id}")
             
             # Compute checksum
-            checksum = compute_checksum(analysis_data)
+            checksum = compute_canonical_checksum(analysis_data, 'redis')
             
             return StoreSnapshot(
                 found=True,
@@ -400,7 +420,7 @@ async def fetch_redis_doc(doc_id: str) -> Optional[StoreSnapshot]:
                 payload = {k.decode(): v.decode() for k, v in fields.items()}
                 
                 # Compute checksum
-                checksum = compute_checksum(payload)
+                checksum = compute_canonical_checksum(payload, 'redis')
                 
                 return StoreSnapshot(
                     found=True,
@@ -479,7 +499,7 @@ async def fetch_qdrant_doc(doc_id: str) -> Optional[StoreSnapshot]:
                     combined_payload["chunks"].sort(key=lambda x: x.get('chunk_index', 0))
                     
                     # Compute checksum
-                    checksum = compute_checksum(combined_payload)
+                    checksum = compute_canonical_checksum(combined_payload, 'qdrant')
                     
                     return StoreSnapshot(
                         found=True,
@@ -524,50 +544,78 @@ def analyze_consistency(postgres: StoreSnapshot, redis: StoreSnapshot, qdrant: S
             'severity': 'WARNING'
         })
     
-    # Check checksums
-    checksums = {}
+    # Check canonical checksums (only for stores that have the document)
+    canonical_checksums = {}
     for name, store in stores.items():
-        if store and store.found and store.checksum:
-            checksums[name] = store.checksum
+        if store and store.found and store.payload:
+            canonical_checksums[name] = compute_canonical_checksum(store.payload, name)
     
-    if len(set(checksums.values())) > 1:
+    if len(set(canonical_checksums.values())) > 1:
         problems.append({
-            'code': 'CHECKSUM_MISMATCH',
-            'message': f'Data checksums differ across stores',
+            'code': 'CANONICAL_CHECKSUM_MISMATCH',
+            'message': f'Canonical data differs across stores',
             'severity': 'WARNING'
         })
     
-    # Check field differences
-    common_fields = ['title', 'lang', 'version', 'updated_at']
-    for field in common_fields:
+    # Check field differences (only for fields that should be consistent)
+    consistent_fields = ['filename', 'file_size', 'file_type', 'status']
+    for field in consistent_fields:
         values = {}
         for name, store in stores.items():
             if store and store.found and store.payload:
-                values[name] = store.payload.get(field)
+                # Handle different field names across stores
+                if name == 'redis' and field == 'filename':
+                    values[name] = store.payload.get('filename') or store.payload.get('original_filename')
+                elif name == 'qdrant':
+                    # Qdrant doesn't store these fields directly
+                    values[name] = 'N/A'
+                else:
+                    values[name] = store.payload.get(field)
         
-        # Check if values differ
-        non_null_values = {k: v for k, v in values.items() if v is not None}
+        # Check if values differ (excluding N/A values)
+        non_null_values = {k: v for k, v in values.items() if v is not None and v != 'N/A'}
         if len(set(str(v) for v in non_null_values.values())) > 1:
             field_diff.append({
                 'field': field,
-                'postgres': values.get('postgres'),
-                'redis': values.get('redis'),
-                'qdrant': values.get('qdrant')
+                'values': values
             })
     
-    # Check Redis TTL
-    if redis and redis.found and redis.ttl_seconds is not None:
-        if redis.ttl_seconds < 3600:  # Less than 1 hour
-            problems.append({
-                'code': 'REDIS_TTL_LOW',
-                'message': f'Redis TTL is low: {redis.ttl_seconds} seconds',
-                'severity': 'WARNING'
-            })
+    # Handle updated_at field specifically
+    updated_at_values = {}
+    for name, store in stores.items():
+        if store and store.found and store.payload:
+            if name == 'qdrant':
+                # Qdrant stores created_at, not updated_at
+                updated_at_values[name] = store.payload.get('created_at', 'N/A')
+            else:
+                updated_at_values[name] = store.payload.get('updated_at')
+    
+    # Only flag updated_at differences if they're significant (not just precision differences)
+    non_null_updated_at = {k: v for k, v in updated_at_values.items() if v is not None and v != 'N/A'}
+    if len(non_null_updated_at) > 1:
+        # Check if timestamps are within reasonable range (e.g., within 1 minute)
+        timestamps = []
+        for v in non_null_updated_at.values():
+            try:
+                from datetime import datetime
+                ts = datetime.fromisoformat(v.replace('Z', '+00:00'))
+                timestamps.append(ts)
+            except:
+                continue
+        
+        if timestamps:
+            max_diff = max(timestamps) - min(timestamps)
+            if max_diff.total_seconds() > 60:  # More than 1 minute difference
+                field_diff.append({
+                    'field': 'updated_at',
+                    'values': updated_at_values,
+                    'note': 'Significant timestamp difference detected'
+                })
     
     # Determine overall status
-    if any(p['severity'] == 'ERROR' for p in problems):
+    if len(found_stores) == 0:
         status = 'ERROR'
-    elif problems or field_diff:
+    elif len(found_stores) < 3 or problems:
         status = 'WARNING'
     else:
         status = 'OK'
@@ -577,7 +625,7 @@ def analyze_consistency(postgres: StoreSnapshot, redis: StoreSnapshot, qdrant: S
         'problems': problems,
         'field_diff': field_diff,
         'found_stores': found_stores,
-        'checksums': checksums
+        'checksums': canonical_checksums
     }
 
 # ---- Auto-Wake Helpers ----

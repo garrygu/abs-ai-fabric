@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS analysis_results (
     analysis_timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     model_used VARCHAR(100),
     processing_time_ms INTEGER,
+    confidence_score FLOAT DEFAULT 0.0,
     status VARCHAR(20) DEFAULT 'completed',
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
