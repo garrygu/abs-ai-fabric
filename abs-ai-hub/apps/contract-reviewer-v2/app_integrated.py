@@ -210,11 +210,31 @@ class SearchRequest(BaseModel):
     include_analysis: bool = False
     include_reports: bool = False
 
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+    model: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    model_used: str
+    processing_time_ms: int
+    citations: Optional[List[Dict[str, Any]]] = None
+
 class SearchResponse(BaseModel):
     results: List[Dict[str, Any]]
     total_results: int
     query: str
     search_time_ms: int
+
+
+
+
+
+
+
+
+
 
 
 # ==================== INITIALIZATION ====================
@@ -1946,7 +1966,208 @@ async def shutdown_event():
             logger.warning(f"⚠️ Error closing Redis client: {e}")
 
 
-# ==================== SETTINGS ROUTE ====================
+# ==================== SESSION MANAGEMENT ====================
+
+@app.post("/api/sessions")
+async def create_session(document_id: str = Query(..., description="Document ID to create session for")):
+    """Create a new session for a document"""
+    try:
+        session_id = f"session_{document_id}_{int(datetime.now().timestamp())}"
+        
+        # Store session in Redis
+        session_data = {
+            "session_id": session_id,
+            "document_id": document_id,
+            "created_at": datetime.now().isoformat(),
+            "last_accessed": datetime.now().isoformat()
+        }
+        
+        redis_client.setex(
+            f"session:{session_id}",
+            3600,  # 1 hour TTL
+            json.dumps(session_data)
+        )
+        
+        logger.info(f"✅ Created session {session_id} for document {document_id}")
+        
+        return {
+            "session_id": session_id,
+            "document_id": document_id,
+            "created_at": session_data["created_at"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+
+
+# ==================== CHAT API ====================
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_with_contract(request: ChatRequest):
+    """
+    Chat with the AI about the analyzed contract.
+    Uses the document context and analysis results to provide intelligent responses.
+    """
+    start_time = datetime.now()
+    
+    try:
+        logger.info(f"Chat request received: session_id={request.session_id}, message='{request.message[:50]}...'")
+        
+        # Get the session data to understand which document we're chatting about
+        session_data = redis_client.get(f"session:{request.session_id}")
+        if not session_data:
+            logger.error(f"Session not found: {request.session_id}")
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        session = json.loads(session_data)
+        document_id = session.get("document_id")
+        
+        if not document_id:
+            logger.error(f"No document_id in session: {session}")
+            raise HTTPException(status_code=400, detail="No document associated with this session")
+        
+        logger.info(f"Found document_id: {document_id}")
+        
+        # Get the document and its analysis data
+        document_query = """
+        SELECT d.*, ar.analysis_data, ar.confidence_score, ar.model_used
+        FROM document_hub.documents d
+        LEFT JOIN document_hub.analysis_results ar ON d.id = ar.document_id
+        WHERE d.id = $1
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+        """
+        
+        async with doc_service.pool.acquire() as conn:
+            result = await conn.fetchrow(document_query, document_id)
+            
+            if not result:
+                logger.error(f"Document not found in database: {document_id}")
+                raise HTTPException(status_code=404, detail="Document not found")
+            
+            # Extract document and analysis data
+            analysis_data = result['analysis_data']
+            if isinstance(analysis_data, str):
+                try:
+                    analysis_data = json.loads(analysis_data)
+                except json.JSONDecodeError:
+                    analysis_data = {}
+            
+            doc_data = {
+                'id': result['id'],
+                'filename': result['filename'],
+                'original_filename': result['original_filename'],
+                'file_path': result['file_path'],
+                'file_size': result['file_size'],
+                'file_type': result['file_type'],
+                'upload_timestamp': result['upload_timestamp'],
+                'analysis_timestamp': result['analysis_timestamp'],
+                'status': result['status'],
+                'analysis_data': analysis_data,
+                'confidence_score': result['confidence_score'] if result['confidence_score'] else 0.0,
+                'model_used': result['model_used'] if result['model_used'] else 'unknown'
+            }
+        
+        logger.info(f"Document data retrieved: {doc_data['original_filename']}")
+        
+        # Get document text content for context
+        document_text = ""
+        try:
+            if doc_data['file_path'] and os.path.exists(doc_data['file_path']):
+                # Extract text from the document
+                processing_service = DocumentProcessingService()
+                document_text = await processing_service.extract_text_from_file(doc_data['file_path'])
+                logger.info(f"Document text extracted: {len(document_text)} characters")
+        except Exception as e:
+            logger.warning(f"Could not extract document text: {e}")
+        
+        # Prepare context for the AI
+        analysis_data = doc_data.get('analysis_data', {})
+        
+        # Build context string
+        context_parts = []
+        
+        if document_text:
+            context_parts.append(f"DOCUMENT CONTENT:\n{document_text[:3000]}...")  # Limit to first 3000 chars
+        
+        if analysis_data:
+            context_parts.append(f"ANALYSIS SUMMARY:\n{json.dumps(analysis_data.get('summary', {}), indent=2)}")
+            
+            if analysis_data.get('risks'):
+                context_parts.append(f"IDENTIFIED RISKS:\n{json.dumps(analysis_data['risks'], indent=2)}")
+            
+            if analysis_data.get('recommendations'):
+                context_parts.append(f"RECOMMENDATIONS:\n{json.dumps(analysis_data['recommendations'], indent=2)}")
+        
+        context = "\n\n".join(context_parts)
+        
+        # Prepare the chat prompt
+        chat_prompt = f"""
+You are a legal contract analysis assistant. You have access to the following contract document and its analysis:
+
+{context}
+
+USER QUESTION: {request.message}
+
+Please provide a helpful, accurate response about this contract based on the document content and analysis above. 
+If the question is about specific clauses, risks, or recommendations, reference the analysis data.
+If you need to cite specific sections, use the format "Section X" or "Clause Y" as appropriate.
+Keep your response concise but informative.
+
+RESPONSE:
+"""
+        
+        # Determine which model to use
+        model_to_use = request.model or "llama3.2:3b"
+        logger.info(f"Using model: {model_to_use}")
+        
+        # Call Hub Gateway for AI response
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{HUB_GATEWAY_URL}/v1/chat/completions",
+                json={
+                    "model": model_to_use,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful legal contract analysis assistant. Provide accurate, professional responses based on the contract document and analysis provided."
+                        },
+                        {
+                            "role": "user", 
+                            "content": chat_prompt
+                        }
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 1000
+                },
+                timeout=30.0
+            )
+        
+        if response.status_code == 200:
+            ai_response = response.json()
+            ai_content = ai_response.get("choices", [{}])[0].get("message", {}).get("content", "I'm sorry, I couldn't process your question.")
+            
+            processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            logger.info(f"Chat response generated successfully in {processing_time}ms")
+            
+            return ChatResponse(
+                response=ai_content,
+                model_used=model_to_use,
+                processing_time_ms=processing_time,
+                citations=None  # Could be enhanced to extract citations from the response
+            )
+        else:
+            logger.error(f"AI service error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=500, detail="AI service unavailable")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat processing error: {str(e)}")
+
 
 @app.get("/settings")
 async def settings_page():

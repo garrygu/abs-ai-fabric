@@ -15,11 +15,16 @@ This document explains the **Core Services strategy** for ABS AI Hub, how to dep
   - LLM Runtime (Ollama or vLLM)
   - Qdrant (vector database)
   - Redis (cache + queue)
+  - PostgreSQL (document hub database)
+  - Hub Gateway (unified API + admin management)
 - **Optional Services** (started only if needed by an app):
   - Parser + OCR (Unstructured API)
   - MinIO (object storage)
   - Whisper (speech-to-text)
   - TTS, Translation, Redaction, etc.
+- **Auto-Wake Management**: Services automatically start when needed and sleep when idle
+- **Admin APIs**: Comprehensive management endpoints for services, models, and data inspection
+- **Tri-Store Data Inspector**: Cross-store consistency analysis across PostgreSQL, Redis, and Qdrant
 
 ---
 
