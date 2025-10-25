@@ -421,6 +421,11 @@
                                             :class="documentViewMode === 'document-only' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
                                         <i class="fas fa-file mr-1"></i>Document Only
                                     </button>
+                                    <button @click="documentViewMode = 'original'" 
+                                            class="px-3 py-1 text-sm rounded-md transition-colors"
+                                            :class="documentViewMode === 'original' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                        <i class="fas fa-file-pdf mr-1"></i>Original File
+                                    </button>
                                 </div>
                                 
                                 <!-- Highlight Toggle -->
@@ -434,29 +439,6 @@
                                     </button>
                                 </div>
                                 
-                                <!-- Load Content Button -->
-                                <button @click="loadDocumentContent()" 
-                                        class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">
-                                    <i class="fas fa-sync mr-1"></i>Load Content
-                                </button>
-                                
-                                <!-- Test Button -->
-                                <button @click="documentContent = '<p>Test content loaded!</p>'" 
-                                        class="px-3 py-1 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700">
-                                    <i class="fas fa-flask mr-1"></i>Test
-                                </button>
-                                
-                                <!-- Direct Set Button -->
-                                <button @click="documentContent = '<p>Direct content set!</p>'; console.log('Content set to:', documentContent)" 
-                                        class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
-                                    <i class="fas fa-edit mr-1"></i>Direct Set
-                                </button>
-                                
-                                <!-- Raw Content Button -->
-                                <button @click="showRawContent = !showRawContent" 
-                                        class="px-3 py-1 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700">
-                                    <i class="fas fa-code mr-1"></i><span x-text="showRawContent ? 'Hide Raw' : 'Show Raw'"></span>
-                                </button>
                                 
                                 <!-- Download Document -->
                                 <button @click="downloadDocument()" 
@@ -484,13 +466,6 @@
                             </div>
                         </div>
                         
-                        <!-- Debug Info -->
-                        <div class="mb-4 p-3 bg-yellow-50 rounded-md text-xs">
-                            <div class="font-medium text-yellow-800 mb-2">Debug Info:</div>
-                            <div>Document ID: <span class="font-mono" x-text="currentDocument?.id || 'None'"></span></div>
-                            <div>Document Content Length: <span class="font-mono" x-text="documentContent?.length || 0"></span></div>
-                            <div>Current Session: <span class="font-mono" x-text="currentSession ? 'Available' : 'None'"></span></div>
-                        </div>
                     </div>
                     
                     <!-- Document Content -->
@@ -563,34 +538,12 @@
                                     </h4>
                                 </div>
                                 <div class="p-4 flex-1 overflow-y-auto">
-                                    <!-- Debug: Show raw content first -->
-                                    <div class="mb-4 p-2 bg-gray-100 text-xs">
-                                        <strong>Debug - Content Length:</strong> <span x-text="documentContent?.length || 0"></span>
-                                        <br>
-                                        <strong>Debug - First 200 chars:</strong> <span x-text="documentContent?.substring(0, 200) || 'No content'"></span>
-                                        <br>
-                                        <strong>Debug - Content Type:</strong> <span x-text="typeof documentContent"></span>
-                                        <br>
-                                        <strong>Debug - Current Document ID:</strong> <span x-text="currentDocument?.id || 'None'"></span>
-                                        <br>
-                                        <strong>Debug - Active Tab:</strong> <span x-text="activeTab"></span>
-                                    </div>
-                                    
-                                    <!-- Raw Content Display -->
-                                    <div x-show="showRawContent" class="mb-4 p-3 bg-gray-100 rounded text-xs font-mono max-h-32 overflow-y-auto">
-                                        <div class="font-bold mb-2">Raw Content (first 1000 chars):</div>
-                                        <div x-text="documentContent?.substring(0, 1000) || 'No content'"></div>
-                                    </div>
                                     
                                     <!-- Formatted Content Display -->
                                     <div :key="documentRenderKey"
                                          id="document-content"
                                          class="text-sm leading-relaxed whitespace-pre-wrap break-words"
                                          x-html="documentContent || '<p class=&quot;text-gray-500&quot;>No content loaded</p>'"></div>
-                                    
-                                    <!-- Alternative Display (for testing) -->
-                                    <div x-show="false" class="text-sm leading-relaxed whitespace-pre-wrap break-words" 
-                                         x-text="documentContent || 'No content loaded'"></div>
                                 </div>
                             </div>
                         </div>
@@ -620,6 +573,111 @@
                         <div x-show="documentViewMode === 'document-only'" class="p-6">
                             <div class="prose max-w-none text-sm leading-relaxed" 
                                  x-html="documentContent"></div>
+                        </div>
+                        
+                        <!-- Original File View -->
+                        <div x-show="documentViewMode === 'original'" class="p-6">
+                            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg">
+                                    <h4 class="text-lg font-semibold text-gray-900">
+                                        <i class="fas fa-file-pdf mr-2"></i>Original Document
+                                    </h4>
+                                </div>
+                                <div class="p-4">
+                                    <!-- File Type Detection -->
+                                    <div class="mb-4 p-3 bg-blue-50 rounded-lg">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <div class="font-medium text-blue-900">
+                                                    <span x-text="currentDocument?.original_filename || 'Unknown file'"></span>
+                                                </div>
+                                                <div class="text-sm text-blue-700">
+                                                    File Type: <span x-text="currentDocument?.file_type || 'Unknown'"></span>
+                                                </div>
+                                            </div>
+                                            <div class="flex space-x-2">
+                                                <button @click="downloadDocument()" 
+                                                        class="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
+                                                    <i class="fas fa-download mr-1"></i>Download
+                                                </button>
+                                                <button @click="openOriginalInNewTab()" 
+                                                        class="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
+                                                        :title="isPdfFile() ? 'Open PDF in browser viewer' : 'Download Word document for viewing'">
+                                                    <i class="fas fa-external-link-alt mr-1"></i>
+                                                    <span x-text="isPdfFile() ? 'View PDF' : 'Download & View'"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- PDF Viewer -->
+                                    <div x-show="isPdfFile()" class="border border-gray-200 rounded-lg">
+                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                            <h5 class="font-medium text-gray-900">PDF Preview</h5>
+                                        </div>
+                                        <div class="p-4">
+                                            <div id="pdf-viewer" class="w-full h-96 border border-gray-200 rounded">
+                                                <div class="flex items-center justify-center h-full text-gray-500">
+                                                    <div class="text-center">
+                                                        <i class="fas fa-file-pdf text-4xl mb-2"></i>
+                                                        <p>PDF viewer will be loaded here</p>
+                                                        <p class="text-sm">Click "Open" to view in new tab</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Word Document Display -->
+                                    <div x-show="!isPdfFile()" class="border border-gray-200 rounded-lg">
+                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                            <h5 class="font-medium text-gray-900">Document Content</h5>
+                                        </div>
+                                        <div class="p-4">
+                                            <!-- Helpful message for Word documents -->
+                                            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                <div class="flex items-start">
+                                                    <i class="fas fa-info-circle text-yellow-600 mt-1 mr-2"></i>
+                                                    <div class="text-sm text-yellow-800">
+                                                        <p class="font-medium mb-1">Word Document Viewing Options:</p>
+                                                        <ul class="list-disc list-inside space-y-1">
+                                                            <li><strong>Download & View:</strong> Downloads the Word document and offers viewing options (Word, Google Drive, Office Online)</li>
+                                                            <li><strong>Download:</strong> Downloads the original .docx file to your computer</li>
+                                                            <li><strong>Document Content:</strong> Shows the extracted text content below (formatted for analysis)</li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="prose max-w-none text-sm leading-relaxed" 
+                                                 x-html="documentContent"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- File Information -->
+                                    <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+                                        <h6 class="font-medium text-gray-900 mb-2">File Information</h6>
+                                        <div class="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <span class="text-gray-600">File Size:</span>
+                                                <span class="font-mono" x-text="formatFileSize(currentDocument?.file_size)"></span>
+                                            </div>
+                                            <div>
+                                                <span class="text-gray-600">Upload Date:</span>
+                                                <span x-text="formatDate(currentDocument?.upload_timestamp)"></span>
+                                            </div>
+                                            <div>
+                                                <span class="text-gray-600">Analysis Date:</span>
+                                                <span x-text="formatDate(currentDocument?.analysis_timestamp)"></span>
+                                            </div>
+                                            <div>
+                                                <span class="text-gray-600">Status:</span>
+                                                <span class="font-medium" x-text="currentDocument?.status || 'Unknown'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1132,7 +1190,6 @@
                 documentViewMode: 'side-by-side',
                 showHighlights: true,
                 documentContent: '',
-                showRawContent: false,
                 highlightedText: null,
                 documentRenderKey: 0,
                 showSettings: false,
@@ -1176,15 +1233,12 @@
 
                 // Methods
                 async init() {
-                    console.log('✓ Alpine.js initialized');
                     await this.loadModels();
                     await this.loadDocuments(true);
                     
                     // Watch for activeTab changes
                     this.$watch('activeTab', (newTab) => {
-                        console.log('🔄 Tab changed to:', newTab);
                         if (newTab === 'document' && this.currentDocument) {
-                            console.log('🔄 Document tab activated, loading content...');
                             this.loadDocumentContent();
                         }
                     });
@@ -1196,7 +1250,6 @@
                         // Use framework's model loading
                         if (this.absFramework && this.absFramework.loadModels) {
                             await this.absFramework.loadModels();
-                            console.log(`✓ Models refreshed via framework: ${this.absFramework.availableModels?.length || 0} models`);
                         } else {
                             console.warn('⚠️ Framework not available for model loading');
                         }
@@ -1207,12 +1260,10 @@
 
                 async loadDocuments(reset = false) {
                     try {
-                        console.log(`🔄 loadDocuments called with reset=${reset}, current documents: ${this.documents.length}`);
                         
                         if (reset) {
                             this.documentsOffset = 0;
                             this.documents = [];
-                            console.log('🔄 Reset documents array');
                         }
                         
                         this.isLoadingDocuments = true;
@@ -1221,11 +1272,9 @@
                         
                         // Include all documents, including those with errors
                         const rawDocuments = data.documents || [];
-                        console.log('📋 Raw documents from API:', rawDocuments);
                         
                         // Only filter out completely null/undefined documents
                         const validDocuments = rawDocuments.filter(doc => doc !== null && doc !== undefined);
-                        console.log('✅ Valid documents after filtering:', validDocuments);
                         
                         if (reset) {
                             this.documents = validDocuments;
@@ -1238,7 +1287,6 @@
                         this.hasMoreDocuments = data.has_more || false;
                         this.documentsOffset = this.documents.length;
                         
-                        console.log(`✓ Loaded ${this.documents.length} documents (total: ${this.totalDocuments} from API)`);
                     } catch (error) {
                         console.error('Error loading documents:', error);
                     } finally {
@@ -1318,7 +1366,6 @@
                     this.currentDocument = doc;
                     this.currentSession = null;
                     this.chatMessages = [];
-                    console.log('✓ Document selected:', doc.original_filename);
                     
                     // Load saved analysis if available
                     if (doc.has_analysis) {
@@ -1328,16 +1375,13 @@
 
                 async loadSavedAnalysis(documentId) {
                     try {
-                        console.log('→ Loading saved analysis...');
                         const response = await fetch(`/api/analysis/${documentId}`);
                         
                         if (response.ok) {
                             const result = await response.json();
                             this.currentSession = result;
                             this.activeTab = 'summary';
-                            console.log('✓ Saved analysis loaded');
                         } else if (response.status === 404) {
-                            console.log('No saved analysis found');
                         } else {
                             console.error('Error loading saved analysis:', response.statusText);
                         }
@@ -1370,7 +1414,6 @@
 
                     this.isAnalyzing = true;
                     const isReanalysis = this.currentDocument?.has_analysis || false;
-                    console.log(`→ Starting ${isReanalysis ? 're-' : ''}analysis...`);
                     
                     try {
                         const response = await fetch(`/api/analyze/${this.currentDocument.id}`, {
@@ -1392,7 +1435,6 @@
                         if (response.ok) {
                             this.currentSession = result;
                             this.activeTab = 'summary';
-                            console.log('✓ Analysis completed');
                             
                             // Force refresh document list to show updated analysis status
                             await this.loadDocuments(true);
@@ -1467,7 +1509,6 @@
                     if (!confirm('Are you sure you want to delete this document?')) return;
 
                     try {
-                        console.log('🗑️ Deleting document:', documentId);
                         const response = await fetch(`/api/documents/${documentId}`, {
                             method: 'DELETE'
                         });
@@ -1483,7 +1524,6 @@
                             // Refresh the document list with a small delay to ensure cache is cleared
                             setTimeout(async () => {
                                 await this.loadDocuments(true);
-                                console.log('✅ Document deleted and list refreshed');
                             }, 100);
                         } else {
                             const errorData = await response.json();
@@ -1497,13 +1537,11 @@
                 // Error recovery methods
                 async reprocessDocument(documentId) {
                     try {
-                        console.log('🔄 Retrying vector processing for document:', documentId);
                         const response = await fetch(`/api/reprocess/${documentId}`, {
                             method: 'POST'
                         });
                         
                         if (response.ok) {
-                            console.log('✅ Document reprocessing started');
                             // Refresh the document list to show updated status
                             await this.loadDocuments(true);
                         } else {
@@ -1519,7 +1557,6 @@
 
                 async analyzeDocument(documentId) {
                     try {
-                        console.log('📊 Analyzing document despite processing error:', documentId);
                         
                         // Find the document in our list
                         const doc = this.documents.find(d => d.id === documentId);
@@ -1544,7 +1581,6 @@
 
                 async reuploadDocument(documentId) {
                     try {
-                        console.log('📤 Re-uploading document:', documentId);
                         
                         // For now, just show a message. In a full implementation,
                         // this would trigger a file upload dialog
@@ -1647,7 +1683,6 @@
                         
                         if (response.ok) {
                             this.documentLogs = await response.json();
-                            console.log(`✓ Loaded ${this.documentLogs.logs.length} log entries`);
                         } else {
                             console.error('Failed to load document logs:', response.statusText);
                             this.documentLogs = { logs: [], pagination: { total_count: 0 } };
@@ -1686,7 +1721,6 @@
                             const moreLogs = await response.json();
                             this.documentLogs.logs = [...this.documentLogs.logs, ...moreLogs.logs];
                             this.documentLogs.pagination = moreLogs.pagination;
-                            console.log(`✓ Loaded ${moreLogs.logs.length} more log entries`);
                         } else {
                             console.error('Failed to load more logs:', response.statusText);
                         }
@@ -1726,54 +1760,41 @@
                 },
 
                  // Document Viewer Methods
-                 async loadDocumentContent() {
-                     if (!this.currentDocument?.id) {
-                         console.log('❌ No current document ID available');
-                         this.documentContent = '<p class="text-red-500">No document selected</p>';
-                         return;
-                     }
+                async loadDocumentContent() {
+                    if (!this.currentDocument?.id) {
+                        this.documentContent = '<p class="text-red-500">No document selected</p>';
+                        return;
+                    }
 
-                     try {
-                         console.log('📄 Loading document content for:', this.currentDocument.id);
+                    try {
+                        this.documentContent = '<p class="text-blue-500">Loading document content...</p>';
 
-                         this.documentContent = '<p class="text-blue-500">Loading document content...</p>';
-
-                         if (this.currentSession?.document_text) {
-                             console.log('📄 Using document text from session');
-                             this.documentContent = this.formatDocumentText(this.currentSession.document_text);
-                             this.documentRenderKey++;
-                             console.log('🔄 Incremented documentRenderKey to:', this.documentRenderKey);
-                         } else {
-                             console.log('📄 Fetching document content from API...');
-                             const response = await fetch(`/api/documents/${this.currentDocument.id}/content`);
-                             if (response.ok) {
-                                 const data = await response.json();
-                                 const rawText = data?.content || '';
-                                 console.log('📄 Raw content length:', rawText.length);
-                                 this.documentContent = this.formatDocumentText(rawText);
-                                 this.documentRenderKey++;
-                                 console.log('🔄 Incremented documentRenderKey to:', this.documentRenderKey);
-                             } else {
-                                 const errorText = await response.text();
-                                 console.error('📄 API error:', response.status, errorText);
-                                 this.documentContent = `<p class="text-gray-500">Document content not available (${response.status})</p>`;
-                                 this.documentRenderKey++;
-                             }
-                         }
-
-                         console.log('✓ Document content loaded, final length:', this.documentContent.length);
-                     } catch (error) {
-                         console.error('Error loading document content:', error);
-                         this.documentContent = `<p class="text-red-500">Error loading document content: ${error.message}</p>`;
-                     }
-                 },
+                        if (this.currentSession?.document_text) {
+                            this.documentContent = this.formatDocumentText(this.currentSession.document_text);
+                            this.documentRenderKey++;
+                        } else {
+                            const response = await fetch(`/api/documents/${this.currentDocument.id}/content`);
+                            if (response.ok) {
+                                const data = await response.json();
+                                const rawText = data?.content || '';
+                                this.documentContent = this.formatDocumentText(rawText);
+                                this.documentRenderKey++;
+                            } else {
+                                const errorText = await response.text();
+                                this.documentContent = `<p class="text-gray-500">Document content not available (${response.status})</p>`;
+                                this.documentRenderKey++;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error loading document content:', error);
+                        this.documentContent = `<p class="text-red-500">Error loading document content: ${error.message}</p>`;
+                    }
+                },
 
                 formatDocumentText(text) {
                     if (!text) return '<p class="text-gray-500">No content available</p>';
 
-                    console.log('📄 Formatting document text, length:', text.length);
-
-                    // 🧠 Decode escaped HTML entities (e.g. &lt;p&gt;)
+                    // Decode escaped HTML entities (e.g. &lt;p&gt;)
                     const textarea = document.createElement('textarea');
                     textarea.innerHTML = text;
                     let decoded = textarea.value;
@@ -1784,7 +1805,7 @@
                         decoded = textarea.value;
                     }
 
-                    // 🧹 Clean formatting and convert plain text line breaks to HTML
+                    // Clean formatting and convert plain text line breaks to HTML
                     decoded = decoded
                         .replace(/\r/g, '')
                         .replace(/\\n/g, '\n')           // fix literal "\n"
@@ -1793,7 +1814,7 @@
                         .replace(/^/, '<p>')
                         .replace(/$/, '</p>');
 
-                    // Optional: apply your highlighting helper
+                    // Optional: apply highlighting helper
                     decoded = this.addHighlightingSpans(decoded);
 
                     return decoded;
@@ -1896,6 +1917,80 @@
                     } catch (error) {
                         console.error('Error downloading document:', error);
                         alert('Error downloading document');
+                    }
+                },
+
+                // Original File View Methods
+                isPdfFile() {
+                    const fileType = this.currentDocument?.file_type?.toLowerCase();
+                    return fileType === '.pdf' || fileType === 'pdf';
+                },
+
+                async openOriginalInNewTab() {
+                    if (!this.currentDocument?.id) return;
+                    
+                    try {
+                        const response = await fetch(`/api/documents/${this.currentDocument.id}/download`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            
+                            if (this.isPdfFile()) {
+                                // For PDF files, open directly in browser
+                                window.open(url, '_blank');
+                            } else {
+                                // For Word documents, show a helpful message and offer alternatives
+                                const filename = this.currentDocument.original_filename || 'document';
+                                
+                                // Create a modal or alert with viewing options
+                                const message = `
+Word Document Viewing Options:
+
+1. Download the file and open it with Microsoft Word or compatible software
+2. Upload to Google Drive and view online
+3. Use Microsoft Office Online (requires uploading the file)
+
+Click OK to download the file, or Cancel to stay here.
+                                `;
+                                
+                                if (confirm(message)) {
+                                    // User chose to download
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = filename;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                }
+                            }
+                            
+                            // Clean up the URL after a delay
+                            setTimeout(() => {
+                                window.URL.revokeObjectURL(url);
+                            }, 10000);
+                        } else {
+                            alert('Failed to open document');
+                        }
+                    } catch (error) {
+                        console.error('Error opening document:', error);
+                        alert('Error opening document');
+                    }
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes) return 'Unknown';
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return 'Unknown';
+                    try {
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    } catch (error) {
+                        return 'Invalid date';
                     }
                 },
 
@@ -2026,16 +2121,13 @@
                 // Settings methods
                 async updateModel(type, modelId) {
                     try {
-                        console.log(`🔄 Updating ${type} model to: ${modelId}`);
                         
                         if (type === 'llm') {
                             this.absFramework.selectedModel = modelId;
                             // TODO: Send API request to update LLM model
-                            console.log(`✅ LLM model updated to: ${modelId}`);
                         } else if (type === 'embedding') {
                             this.selectedEmbeddingModel = modelId;
                             // TODO: Send API request to update embedding model
-                            console.log(`✅ Embedding model updated to: ${modelId}`);
                         }
                         
                         // Refresh vector status after model change
@@ -2047,13 +2139,11 @@
 
                 async refreshVectorStatus() {
                     try {
-                        console.log('🔄 Refreshing vector database status...');
                         
                         // TODO: Make API call to get vector database status
                         // For now, simulate with a random count
                         this.vectorCount = Math.floor(Math.random() * 1000) + 500;
                         
-                        console.log(`✅ Vector status refreshed. Count: ${this.vectorCount}`);
                     } catch (error) {
                         console.error('❌ Error refreshing vector status:', error);
                     }
