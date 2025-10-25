@@ -440,6 +440,24 @@
                                     <i class="fas fa-sync mr-1"></i>Load Content
                                 </button>
                                 
+                                <!-- Test Button -->
+                                <button @click="documentContent = '<p>Test content loaded!</p>'" 
+                                        class="px-3 py-1 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700">
+                                    <i class="fas fa-flask mr-1"></i>Test
+                                </button>
+                                
+                                <!-- Direct Set Button -->
+                                <button @click="documentContent = '<p>Direct content set!</p>'; console.log('Content set to:', documentContent)" 
+                                        class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
+                                    <i class="fas fa-edit mr-1"></i>Direct Set
+                                </button>
+                                
+                                <!-- Raw Content Button -->
+                                <button @click="showRawContent = !showRawContent" 
+                                        class="px-3 py-1 bg-orange-600 text-white text-sm rounded-md hover:bg-orange-700">
+                                    <i class="fas fa-code mr-1"></i><span x-text="showRawContent ? 'Hide Raw' : 'Show Raw'"></span>
+                                </button>
+                                
                                 <!-- Download Document -->
                                 <button @click="downloadDocument()" 
                                         class="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">
@@ -478,9 +496,9 @@
                     <!-- Document Content -->
                     <div x-show="currentSession" class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <!-- Side by Side View -->
-                        <div x-show="documentViewMode === 'side-by-side'" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+                        <div x-show="documentViewMode === 'side-by-side'" class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 h-full">
                             <!-- Analysis Panel -->
-                            <div class="space-y-4">
+                            <div class="space-y-4 overflow-y-auto">
                                 <h4 class="text-lg font-semibold text-gray-900 mb-4">
                                     <i class="fas fa-chart-line mr-2"></i>Analysis Summary
                                 </h4>
@@ -538,22 +556,41 @@
                             </div>
                             
                             <!-- Document Panel -->
-                            <div class="border border-gray-200 rounded-lg">
-                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg">
+                            <div class="border border-gray-200 rounded-lg flex flex-col h-full">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg flex-shrink-0">
                                     <h4 class="text-lg font-semibold text-gray-900">
                                         <i class="fas fa-file-alt mr-2"></i>Document Content
                                     </h4>
                                 </div>
-                                <div class="p-4 max-h-96 overflow-y-auto">
-                                    <div id="document-content" class="prose max-w-none text-sm leading-relaxed" 
-                                         x-html="documentContent"></div>
-                                    
-                                    <!-- Debug: Show raw content -->
-                                    <div class="mt-4 p-2 bg-gray-100 text-xs" x-show="documentContent">
+                                <div class="p-4 flex-1 overflow-y-auto">
+                                    <!-- Debug: Show raw content first -->
+                                    <div class="mb-4 p-2 bg-gray-100 text-xs">
                                         <strong>Debug - Content Length:</strong> <span x-text="documentContent?.length || 0"></span>
                                         <br>
                                         <strong>Debug - First 200 chars:</strong> <span x-text="documentContent?.substring(0, 200) || 'No content'"></span>
+                                        <br>
+                                        <strong>Debug - Content Type:</strong> <span x-text="typeof documentContent"></span>
+                                        <br>
+                                        <strong>Debug - Current Document ID:</strong> <span x-text="currentDocument?.id || 'None'"></span>
+                                        <br>
+                                        <strong>Debug - Active Tab:</strong> <span x-text="activeTab"></span>
                                     </div>
+                                    
+                                    <!-- Raw Content Display -->
+                                    <div x-show="showRawContent" class="mb-4 p-3 bg-gray-100 rounded text-xs font-mono max-h-32 overflow-y-auto">
+                                        <div class="font-bold mb-2">Raw Content (first 1000 chars):</div>
+                                        <div x-text="documentContent?.substring(0, 1000) || 'No content'"></div>
+                                    </div>
+                                    
+                                    <!-- Formatted Content Display -->
+                                    <div :key="documentRenderKey"
+                                         id="document-content"
+                                         class="text-sm leading-relaxed whitespace-pre-wrap break-words"
+                                         x-html="documentContent || '<p class=&quot;text-gray-500&quot;>No content loaded</p>'"></div>
+                                    
+                                    <!-- Alternative Display (for testing) -->
+                                    <div x-show="false" class="text-sm leading-relaxed whitespace-pre-wrap break-words" 
+                                         x-text="documentContent || 'No content loaded'"></div>
                                 </div>
                             </div>
                         </div>
@@ -1095,7 +1132,9 @@
                 documentViewMode: 'side-by-side',
                 showHighlights: true,
                 documentContent: '',
+                showRawContent: false,
                 highlightedText: null,
+                documentRenderKey: 0,
                 showSettings: false,
                 riskFilters: {
                     low: true,
@@ -1140,17 +1179,17 @@
                     console.log('✓ Alpine.js initialized');
                     await this.loadModels();
                     await this.loadDocuments(true);
+                    
+                    // Watch for activeTab changes
+                    this.$watch('activeTab', (newTab) => {
+                        console.log('🔄 Tab changed to:', newTab);
+                        if (newTab === 'document' && this.currentDocument) {
+                            console.log('🔄 Document tab activated, loading content...');
+                            this.loadDocumentContent();
+                        }
+                    });
                 },
 
-                // Watchers
-                get activeTabWatcher() {
-                    // Load document content when document tab is activated
-                    if (this.activeTab === 'document' && this.currentDocument) {
-                        console.log('🔄 Document tab activated, loading content...');
-                        this.loadDocumentContent();
-                    }
-                    return this.activeTab;
-                },
 
                 async loadModels() {
                     try {
@@ -1686,59 +1725,78 @@
                     }
                 },
 
-                // Document Viewer Methods
-                async loadDocumentContent() {
-                    if (!this.currentDocument?.id) {
-                        console.log('❌ No current document ID available');
-                        return;
-                    }
-                    
-                    try {
-                        console.log('📄 Loading document content for:', this.currentDocument.id);
-                        console.log('📄 Current document:', this.currentDocument);
-                        
-                        // Try to get document text from the analysis or fetch it
-                        if (this.currentSession?.document_text) {
-                            console.log('📄 Using document text from session');
-                            this.documentContent = this.formatDocumentText(this.currentSession.document_text);
-                        } else {
-                            console.log('📄 Fetching document content from API...');
-                            // Fetch document content from API
-                            const response = await fetch(`/api/documents/${this.currentDocument.id}/content`);
-                            console.log('📄 API response status:', response.status);
-                            
-                            if (response.ok) {
-                                const data = await response.json();
-                                console.log('📄 API response data:', data);
-                                this.documentContent = this.formatDocumentText(data.content);
-                            } else {
-                                const errorText = await response.text();
-                                console.error('📄 API error:', response.status, errorText);
-                                this.documentContent = `<p class="text-gray-500">Document content not available (${response.status})</p>`;
-                            }
-                        }
-                        
-                        console.log('✓ Document content loaded, length:', this.documentContent.length);
-                    } catch (error) {
-                        console.error('Error loading document content:', error);
-                        this.documentContent = `<p class="text-red-500">Error loading document content: ${error.message}</p>`;
-                    }
-                },
+                 // Document Viewer Methods
+                 async loadDocumentContent() {
+                     if (!this.currentDocument?.id) {
+                         console.log('❌ No current document ID available');
+                         this.documentContent = '<p class="text-red-500">No document selected</p>';
+                         return;
+                     }
+
+                     try {
+                         console.log('📄 Loading document content for:', this.currentDocument.id);
+
+                         this.documentContent = '<p class="text-blue-500">Loading document content...</p>';
+
+                         if (this.currentSession?.document_text) {
+                             console.log('📄 Using document text from session');
+                             this.documentContent = this.formatDocumentText(this.currentSession.document_text);
+                             this.documentRenderKey++;
+                             console.log('🔄 Incremented documentRenderKey to:', this.documentRenderKey);
+                         } else {
+                             console.log('📄 Fetching document content from API...');
+                             const response = await fetch(`/api/documents/${this.currentDocument.id}/content`);
+                             if (response.ok) {
+                                 const data = await response.json();
+                                 const rawText = data?.content || '';
+                                 console.log('📄 Raw content length:', rawText.length);
+                                 this.documentContent = this.formatDocumentText(rawText);
+                                 this.documentRenderKey++;
+                                 console.log('🔄 Incremented documentRenderKey to:', this.documentRenderKey);
+                             } else {
+                                 const errorText = await response.text();
+                                 console.error('📄 API error:', response.status, errorText);
+                                 this.documentContent = `<p class="text-gray-500">Document content not available (${response.status})</p>`;
+                                 this.documentRenderKey++;
+                             }
+                         }
+
+                         console.log('✓ Document content loaded, final length:', this.documentContent.length);
+                     } catch (error) {
+                         console.error('Error loading document content:', error);
+                         this.documentContent = `<p class="text-red-500">Error loading document content: ${error.message}</p>`;
+                     }
+                 },
 
                 formatDocumentText(text) {
                     if (!text) return '<p class="text-gray-500">No content available</p>';
-                    
-                    // Basic formatting for document text
-                    let formatted = text
-                        .replace(/\n\n/g, '</p><p>')
-                        .replace(/\n/g, '<br>')
+
+                    console.log('📄 Formatting document text, length:', text.length);
+
+                    // 🧠 Decode escaped HTML entities (e.g. &lt;p&gt;)
+                    const textarea = document.createElement('textarea');
+                    textarea.innerHTML = text;
+                    let decoded = textarea.value;
+
+                    // If still escaped (some double escaping), decode again
+                    if (decoded.includes('&lt;') && decoded.includes('&gt;')) {
+                        textarea.innerHTML = decoded;
+                        decoded = textarea.value;
+                    }
+
+                    // 🧹 Clean formatting and convert plain text line breaks to HTML
+                    decoded = decoded
+                        .replace(/\r/g, '')
+                        .replace(/\\n/g, '\n')           // fix literal "\n"
+                        .replace(/\n{2,}/g, '</p><p>')  // paragraph breaks
+                        .replace(/\n/g, '<br>')         // single newlines
                         .replace(/^/, '<p>')
                         .replace(/$/, '</p>');
-                    
-                    // Add highlighting spans for potential citations
-                    formatted = this.addHighlightingSpans(formatted);
-                    
-                    return formatted;
+
+                    // Optional: apply your highlighting helper
+                    decoded = this.addHighlightingSpans(decoded);
+
+                    return decoded;
                 },
 
                 addHighlightingSpans(text) {
