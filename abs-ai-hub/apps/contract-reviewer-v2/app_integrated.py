@@ -2075,9 +2075,9 @@ async def chat_with_contract(request: ChatRequest):
         document_text = ""
         try:
             if doc_data['file_path'] and os.path.exists(doc_data['file_path']):
-                # Extract text from the document
-                processing_service = DocumentProcessingService()
-                document_text = await processing_service.extract_text_from_file(doc_data['file_path'])
+                # Extract text from the document using the global processing service
+                extraction_result = processing_service.extract_text_from_file(doc_data['file_path'])
+                document_text = extraction_result.get('text', '')
                 logger.info(f"Document text extracted: {len(document_text)} characters")
         except Exception as e:
             logger.warning(f"Could not extract document text: {e}")
@@ -2089,7 +2089,7 @@ async def chat_with_contract(request: ChatRequest):
         context_parts = []
         
         if document_text:
-            context_parts.append(f"DOCUMENT CONTENT:\n{document_text[:3000]}...")  # Limit to first 3000 chars
+            context_parts.append(f"DOCUMENT CONTENT:\n{document_text[:5000]}...")  # Increased to 5000 chars for better context
         
         if analysis_data:
             context_parts.append(f"ANALYSIS SUMMARY:\n{json.dumps(analysis_data.get('summary', {}), indent=2)}")
@@ -2099,6 +2099,12 @@ async def chat_with_contract(request: ChatRequest):
             
             if analysis_data.get('recommendations'):
                 context_parts.append(f"RECOMMENDATIONS:\n{json.dumps(analysis_data['recommendations'], indent=2)}")
+            
+            if analysis_data.get('key_clauses'):
+                context_parts.append(f"KEY CLAUSES:\n{json.dumps(analysis_data['key_clauses'], indent=2)}")
+            
+            if analysis_data.get('compliance'):
+                context_parts.append(f"COMPLIANCE ISSUES:\n{json.dumps(analysis_data['compliance'], indent=2)}")
         
         context = "\n\n".join(context_parts)
         
@@ -2110,10 +2116,11 @@ You are a legal contract analysis assistant. You have access to the following co
 
 USER QUESTION: {request.message}
 
-Please provide a helpful, accurate response about this contract based on the document content and analysis above. 
-If the question is about specific clauses, risks, or recommendations, reference the analysis data.
-If you need to cite specific sections, use the format "Section X" or "Clause Y" as appropriate.
-Keep your response concise but informative.
+Please provide a helpful, accurate response about this contract based on BOTH the original document content and the analysis above. 
+- If the question is about specific clauses, risks, or recommendations, reference both the original text and the analysis data.
+- If you need to cite specific sections, use the format "Section X" or "Clause Y" as appropriate.
+- If the question requires information not covered in the analysis, refer to the original document content.
+- Keep your response concise but informative and accurate.
 
 RESPONSE:
 """
