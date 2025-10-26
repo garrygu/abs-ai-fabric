@@ -830,15 +830,15 @@
                 </div>
                 <div class="mt-2 text-xs text-gray-500">
                     <span x-show="!globalChatMode">Ask questions about the currently selected document</span>
-                    <span x-show="globalChatMode">Ask questions across all analyzed documents in the system</span>
+                    <span x-show="globalChatMode">Ask questions across all documents in the system</span>
                 </div>
             </div>
 
             <!-- Chat Messages -->
             <div class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatContainer">
                 <div x-show="chatMessages.length === 0" class="text-center text-gray-500 text-sm py-4">
-                    <span x-show="!globalChatMode">Analyze a document first, then ask questions here.</span>
-                    <span x-show="globalChatMode">Ask questions across all analyzed documents in the system.</span>
+                    <span x-show="!globalChatMode">Select a document to start asking questions about it.</span>
+                    <span x-show="globalChatMode">Ask questions across all documents in the system.</span>
                 </div>
                 <template x-for="message in chatMessages" :key="message.id">
                     <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">

@@ -2104,7 +2104,8 @@ async def chat_with_contract(request: ChatRequest):
         if document_text:
             context_parts.append(f"DOCUMENT CONTENT:\n{document_text[:5000]}...")  # Increased to 5000 chars for better context
         
-        if analysis_data:
+        # Add analysis data only if document is analyzed
+        if analysis_data and doc_data['status'] == 'analyzed':
             context_parts.append(f"ANALYSIS SUMMARY:\n{json.dumps(analysis_data.get('summary', {}), indent=2)}")
             
             if analysis_data.get('risks'):
@@ -2121,8 +2122,9 @@ async def chat_with_contract(request: ChatRequest):
         
         context = "\n\n".join(context_parts)
         
-        # Prepare the chat prompt
-        chat_prompt = f"""
+        # Prepare the chat prompt based on document status
+        if doc_data['status'] == 'analyzed':
+            chat_prompt = f"""
 You are a legal contract analysis assistant. You have access to the following contract document and its analysis:
 
 {context}
@@ -2133,6 +2135,22 @@ Please provide a helpful, accurate response about this contract based on BOTH th
 - If the question is about specific clauses, risks, or recommendations, reference both the original text and the analysis data.
 - If you need to cite specific sections, use the format "Section X" or "Clause Y" as appropriate.
 - If the question requires information not covered in the analysis, refer to the original document content.
+- Keep your response concise but informative and accurate.
+
+RESPONSE:
+"""
+        else:
+            chat_prompt = f"""
+You are a legal contract analysis assistant. You have access to the following contract document (raw content, not yet analyzed):
+
+{context}
+
+USER QUESTION: {request.message}
+
+Please provide a helpful, accurate response about this contract based on the original document content. 
+- Analyze the document content directly to answer the user's question.
+- If you need to cite specific sections, use the format "Section X" or "Clause Y" as appropriate.
+- Provide insights about key clauses, potential risks, or important terms you identify in the document.
 - Keep your response concise but informative and accurate.
 
 RESPONSE:
