@@ -808,15 +808,37 @@
         <div class="w-80 bg-white border-l border-gray-200 flex flex-col">
             <!-- Chat Header -->
             <div class="p-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900">
-                    <i class="fas fa-comments mr-2"></i>Ask the Contract
-                </h3>
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-comments mr-2"></i>Ask the Contract
+                    </h3>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-sm text-gray-600">Search Mode:</label>
+                        <div class="flex items-center space-x-2">
+                            <button @click="globalChatMode = false" 
+                                    :class="!globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                    class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                                Current Doc
+                            </button>
+                            <button @click="globalChatMode = true" 
+                                    :class="globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                    class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                                All Docs
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                    <span x-show="!globalChatMode">Ask questions about the currently selected document</span>
+                    <span x-show="globalChatMode">Ask questions across all analyzed documents in the system</span>
+                </div>
             </div>
 
             <!-- Chat Messages -->
             <div class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatContainer">
                 <div x-show="chatMessages.length === 0" class="text-center text-gray-500 text-sm py-4">
-                    Analyze a document first, then ask questions here.
+                    <span x-show="!globalChatMode">Analyze a document first, then ask questions here.</span>
+                    <span x-show="globalChatMode">Ask questions across all analyzed documents in the system.</span>
                 </div>
                 <template x-for="message in chatMessages" :key="message.id">
                     <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
@@ -824,6 +846,27 @@
                              :class="message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'">
                             <p x-text="message.content"></p>
                             <p class="text-xs mt-1 opacity-70" x-text="formatTime(message.timestamp)"></p>
+                            <!-- Global chat metadata -->
+                            <div x-show="message.role === 'assistant' && message.documents_used" class="mt-2 pt-2 border-t border-gray-300">
+                                <p class="text-xs text-gray-600">
+                                    <i class="fas fa-search mr-1"></i>
+                                    Searched <span x-text="message.total_documents_searched"></span> documents
+                                </p>
+                                <div class="mt-1 space-y-1">
+                                    <template x-for="doc in message.documents_used" :key="doc.id">
+                                        <div class="text-xs text-gray-500 flex items-center">
+                                            <i class="fas fa-file-alt mr-1"></i>
+                                            <span x-text="doc.filename"></span>
+                                            <span x-show="doc.has_content" class="ml-1 text-green-600" title="Has content">
+                                                <i class="fas fa-check-circle"></i>
+                                            </span>
+                                            <span x-show="doc.has_analysis" class="ml-1 text-blue-600" title="Has analysis">
+                                                <i class="fas fa-brain"></i>
+                                            </span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -1182,6 +1225,7 @@
                 isDragOver: false,
                 chatMessages: [],
                 chatMessage: '',
+                globalChatMode: false,  // Toggle between current doc and all docs
                 comments: [],
                 newComment: '',
                 showHelp: false,
@@ -1491,7 +1535,13 @@
                 },
 
                 async sendChatMessage() {
-                    if (!this.chatMessage || !this.currentSession) return;
+                    if (!this.chatMessage) return;
+                    
+                    // Check if we have a session for current doc mode
+                    if (!this.globalChatMode && !this.currentSession) {
+                        alert('Please select a document first for current document chat mode.');
+                        return;
+                    }
 
                     const userMessage = {
                         id: Date.now(),
@@ -1506,22 +1556,45 @@
                     this.isChatting = true;
 
                     try {
-                        const requestBody = {
-                            session_id: this.currentSession.session_id,
-                            message: message,
-                            model: this.absFramework?.selectedModel || null
-                        };
+                        let response;
                         
-                        console.log('🔍 Chat request body:', requestBody);
-                        console.log('🔍 Current session:', this.currentSession);
-                        
-                        const response = await fetch('/api/chat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
+                        if (this.globalChatMode) {
+                            // Global chat - search across all documents
+                            const requestBody = {
+                                message: message,
+                                model: this.absFramework?.selectedModel || null,
+                                search_limit: 5,
+                                include_analysis: true
+                            };
+                            
+                            console.log('🔍 Global chat request body:', requestBody);
+                            
+                            response = await fetch('/api/chat/global', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(requestBody)
+                            });
+                        } else {
+                            // Current document chat
+                            const requestBody = {
+                                session_id: this.currentSession.session_id,
+                                message: message,
+                                model: this.absFramework?.selectedModel || null
+                            };
+                            
+                            console.log('🔍 Chat request body:', requestBody);
+                            console.log('🔍 Current session:', this.currentSession);
+                            
+                            response = await fetch('/api/chat', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(requestBody)
+                            });
+                        }
 
                         const result = await response.json();
                         
@@ -1530,7 +1603,12 @@
                                 id: Date.now() + 1,
                                 role: 'assistant',
                                 content: result.response,
-                                timestamp: new Date()
+                                timestamp: new Date(),
+                                // Add metadata for global chat
+                                ...(this.globalChatMode && {
+                                    documents_used: result.documents_used,
+                                    total_documents_searched: result.total_documents_searched
+                                })
                             };
                             this.chatMessages.push(aiMessage);
                             this.$nextTick(() => {

@@ -14,7 +14,8 @@
       },
       "port": 8050,
       "icon": "contract-reviewer.png",
-      "path": "apps/legal-assistant"
+      "path": "apps/legal-assistant",
+      "database_schema": "legal_assistant"
     },
     {
       "name": "Contract Reviewer",
@@ -42,7 +43,8 @@
       },
       "port": 8080,
       "icon": "pdf-voice.png",
-      "path": "apps/rag-pdf-voice"
+      "path": "apps/rag-pdf-voice",
+      "database_schema": "rag_pdf_voice"
     },
     {
       "name": "Whisper Server",
@@ -56,7 +58,8 @@
       },
       "port": 8001,
       "icon": "whisper.png",
-      "path": "apps/whisper-server"
+      "path": "apps/whisper-server",
+      "database_schema": "whisper_server"
     },
     {
       "name": "Contract Reviewer v2",
@@ -70,7 +73,8 @@
       },
       "port": 8082,
       "icon": "contract-reviewer.png",
-      "path": "apps/contract-reviewer-v2"
+      "path": "apps/contract-reviewer-v2",
+      "database_schema": "document_hub"
     }
   ]
 }
