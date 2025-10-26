@@ -2200,13 +2200,15 @@ async def global_chat_with_documents(request: GlobalChatRequest):
     try:
         logger.info(f"Global chat request received: message='{request.message[:50]}...', search_limit={request.search_limit}")
         
-        # Get all documents from the database
+        # Get all documents from the database (including unanalyzed ones)
         documents_query = """
         SELECT d.*, ar.analysis_data, ar.confidence_score, ar.model_used
         FROM document_hub.documents d
         LEFT JOIN document_hub.analysis_results ar ON d.id = ar.document_id
-        WHERE d.status = 'analyzed'
-        ORDER BY d.analysis_timestamp DESC
+        WHERE d.status IN ('uploaded', 'analyzed')
+        ORDER BY 
+            CASE WHEN d.status = 'analyzed' THEN 0 ELSE 1 END,
+            COALESCE(d.analysis_timestamp, d.upload_timestamp) DESC
         LIMIT $1
         """
         
@@ -2214,7 +2216,7 @@ async def global_chat_with_documents(request: GlobalChatRequest):
             results = await conn.fetch(documents_query, request.search_limit)
         
         if not results:
-            raise HTTPException(status_code=404, detail="No analyzed documents found")
+            raise HTTPException(status_code=404, detail="No documents found")
         
         logger.info(f"Found {len(results)} documents to search")
         
@@ -2258,13 +2260,14 @@ async def global_chat_with_documents(request: GlobalChatRequest):
                         analysis_data = {}
                 
                 # Build context for this document
-                doc_context_parts = [f"DOCUMENT: {doc_data['original_filename']}"]
+                status_indicator = "✓ Analyzed" if doc_data['status'] == 'analyzed' else "○ Raw Content"
+                doc_context_parts = [f"DOCUMENT: {doc_data['original_filename']} ({status_indicator})"]
                 
                 if document_text:
                     # Use first 2000 characters for global search to avoid token limits
                     doc_context_parts.append(f"CONTENT:\n{document_text[:2000]}...")
                 
-                if request.include_analysis and analysis_data:
+                if request.include_analysis and analysis_data and doc_data['status'] == 'analyzed':
                     if analysis_data.get('summary'):
                         doc_context_parts.append(f"SUMMARY: {json.dumps(analysis_data['summary'], indent=2)}")
                     if analysis_data.get('risks'):
@@ -2278,9 +2281,10 @@ async def global_chat_with_documents(request: GlobalChatRequest):
                 documents_used.append({
                     'id': doc_data['id'],
                     'filename': doc_data['original_filename'],
+                    'status': doc_data['status'],
                     'has_content': bool(document_text),
-                    'has_analysis': bool(analysis_data),
-                    'confidence_score': doc_data['confidence_score']
+                    'has_analysis': bool(analysis_data) and doc_data['status'] == 'analyzed',
+                    'confidence_score': doc_data['confidence_score'] if doc_data['status'] == 'analyzed' else None
                 })
                 
             except Exception as e:

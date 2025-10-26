@@ -857,10 +857,13 @@
                                         <div class="text-xs text-gray-500 flex items-center">
                                             <i class="fas fa-file-alt mr-1"></i>
                                             <span x-text="doc.filename"></span>
-                                            <span x-show="doc.has_content" class="ml-1 text-green-600" title="Has content">
+                                            <span x-show="doc.status === 'analyzed'" class="ml-1 text-green-600" title="Analyzed">
                                                 <i class="fas fa-check-circle"></i>
                                             </span>
-                                            <span x-show="doc.has_analysis" class="ml-1 text-blue-600" title="Has analysis">
+                                            <span x-show="doc.status === 'uploaded'" class="ml-1 text-yellow-600" title="Raw content only">
+                                                <i class="fas fa-upload"></i>
+                                            </span>
+                                            <span x-show="doc.has_analysis" class="ml-1 text-blue-600" title="Has AI analysis">
                                                 <i class="fas fa-brain"></i>
                                             </span>
                                         </div>
