@@ -36,7 +36,34 @@
     <!-- Document Review Tab -->
     <div x-show="mainTab === 'documents'" class="flex h-screen pt-16">
         <!-- Left Panel: Document Navigation -->
-        <div class="w-[420px] bg-white border-r border-gray-200 flex flex-col">
+        <div class="bg-white border-r border-gray-200 flex flex-col transition-all duration-300 relative"
+             :class="sidebarCollapsed ? 'w-16' : 'w-[420px]'">
+            
+            <!-- Toggle Button -->
+            <button @click="sidebarCollapsed = !sidebarCollapsed"
+                    class="absolute -right-3 top-20 z-50 p-2 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 hover:shadow-lg transition-all"
+                    :class="sidebarCollapsed ? 'rotate-180' : ''">
+                <i class="fas fa-chevron-left text-gray-600 text-sm"></i>
+            </button>
+            
+            <!-- When collapsed, show just icons -->
+            <div x-show="sidebarCollapsed" class="flex flex-col items-center py-4 space-y-4">
+                <div class="flex flex-col items-center space-y-3">
+                    <button @click="sidebarCollapsed = false" class="p-2 text-gray-600 hover:bg-gray-100 rounded">
+                        <i class="fas fa-upload text-lg"></i>
+                    </button>
+                    <div class="w-8 h-px bg-gray-200"></div>
+                    <button class="p-2 text-gray-600 hover:bg-gray-100 rounded">
+                        <i class="fas fa-search text-lg"></i>
+                    </button>
+                    <button class="p-2 text-gray-600 hover:bg-gray-100 rounded">
+                        <i class="fas fa-folder text-lg"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Full sidebar content when expanded -->
+            <div x-show="!sidebarCollapsed" class="flex-1 overflow-hidden">
             <!-- Upload Section -->
             <div class="p-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">
@@ -315,6 +342,7 @@
                     </button>
                 </div>
             </div>
+            </div> <!-- End collapsible content -->
         </div>
 
         <!-- Center Panel: Analysis Results -->
@@ -624,11 +652,16 @@
                             </div>
                             
                             <!-- Document Panel -->
-                            <div class="border border-gray-200 rounded-lg flex flex-col h-full">
-                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg flex-shrink-0">
+                            <div class="border border-gray-200 rounded-lg flex flex-col h-full"
+                                 :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white' : ''">
+                                <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg flex-shrink-0 flex items-center justify-between">
                                     <h4 class="text-lg font-semibold text-gray-900">
                                         <i class="fas fa-file-alt mr-2"></i>Document Content
                                     </h4>
+                                    <button @click="documentViewMaximized = !documentViewMaximized"
+                                            class="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
+                                        <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
+                                    </button>
                                 </div>
                                 <div class="p-4 flex-1 overflow-y-auto">
                                     
@@ -722,9 +755,14 @@
                                     </div>
                                     
                                     <!-- Word Document Display -->
-                                    <div x-show="!isPdfFile()" class="border border-gray-200 rounded-lg">
-                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                    <div x-show="!isPdfFile()" class="border border-gray-200 rounded-lg"
+                                         :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white' : ''">
+                                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
                                             <h5 class="font-medium text-gray-900">Document Content</h5>
+                                            <button @click="documentViewMaximized = !documentViewMaximized"
+                                                    class="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
+                                                <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
+                                            </button>
                                         </div>
                                         <div class="p-4">
                                             <!-- Helpful message for Word documents -->
@@ -1264,6 +1302,8 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('contractReviewer', () => ({
                 // State
+                sidebarCollapsed: false,  // Sidebar collapse state
+                documentViewMaximized: false,  // Document view maximized state
                 mainTab: 'documents',  // Main navigation tab
                 documents: [],
                 totalDocuments: 0,
