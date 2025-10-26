@@ -1076,12 +1076,12 @@
             <!-- Chat Input -->
             <div class="p-4 border-t border-gray-200">
                 <div class="flex space-x-2">
-                    <input x-model="currentChatMessage"
+                    <input x-model="chatMessage"
                            @keydown.enter="sendMessage()"
                            class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                            placeholder="Type your question here...">
                     <button @click="sendMessage()"
-                            :disabled="!currentChatMessage || !currentDocument"
+                            :disabled="!chatMessage || !currentSession"
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -1916,9 +1916,38 @@
                     if (!this.chatMessage) return;
                     
                     // Check if we have a session for current doc mode
-                    if (!this.globalChatMode && !this.currentSession) {
-                        alert('Please select a document first for current document chat mode.');
-                        return;
+                    if (!this.globalChatMode) {
+                        if (!this.currentDocument) {
+                            alert('Please select a document first for current document chat mode.');
+                            return;
+                        }
+                        
+                        // Create session if it doesn't exist
+                        if (!this.currentSession || !this.currentSession.session_id) {
+                            console.log('Creating session for document:', this.currentDocument.id);
+                            try {
+                                const response = await fetch(`/api/sessions?document_id=${this.currentDocument.id}`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+                                
+                                if (response.ok) {
+                                    const sessionData = await response.json();
+                                    this.currentSession = sessionData;
+                                    console.log('✅ Session created:', sessionData);
+                                } else {
+                                    console.error('Failed to create session:', response.statusText);
+                                    alert('Failed to create chat session. Please try again.');
+                                    return;
+                                }
+                            } catch (error) {
+                                console.error('Error creating session:', error);
+                                alert('Error creating chat session. Please try again.');
+                                return;
+                            }
+                        }
                     }
 
                     const userMessage = {
@@ -1994,7 +2023,15 @@
                             });
                         } else {
                             console.error('❌ Chat API error:', response.status, result);
-                            alert(`Error: ${result.detail || 'Unknown error occurred'}`);
+                            // Handle validation errors
+                            if (response.status === 422) {
+                                const errorDetail = Array.isArray(result.detail) ? result.detail[0] : result.detail;
+                                const errorMsg = errorDetail?.msg || errorDetail?.message || JSON.stringify(errorDetail);
+                                console.error('Validation error details:', errorDetail);
+                                alert(`Validation error: ${errorMsg}`);
+                            } else {
+                                alert(`Error: ${result.detail || 'Unknown error occurred'}`);
+                            }
                         }
                     } catch (error) {
                         console.error('❌ Chat request failed:', error);
@@ -2002,6 +2039,11 @@
                     } finally {
                         this.isChatting = false;
                     }
+                },
+
+                // Alias for sendChatMessage - used in maximized chat overlay
+                async sendMessage() {
+                    return this.sendChatMessage();
                 },
 
                 async deleteDocument(documentId) {
