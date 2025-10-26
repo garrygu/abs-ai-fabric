@@ -206,7 +206,7 @@ class DocumentResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     limit: int = 10
-    score_threshold: float = 0.7
+    score_threshold: float = 0.5
     include_analysis: bool = False
     include_reports: bool = False
 
@@ -765,6 +765,71 @@ async def download_document(document_id: str):
         logger.error(f"❌ Error downloading document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/documents/{document_id}/logs")
+async def get_document_logs(
+    document_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    log_level: Optional[str] = Query(None, description="Filter by log level"),
+    search_term: Optional[str] = Query(None, description="Search in log messages")
+):
+    """Get operation history for a document from the database"""
+    try:
+        if not history_service:
+            raise HTTPException(status_code=500, detail="History service not initialized")
+        
+        logger.info(f"📋 Fetching document history for: {document_id}")
+        
+        # Get history from database
+        history = await history_service.get_document_history(
+            document_id=document_id,
+            event_type=None,  # Get all event types
+            limit=limit,
+            offset=offset
+        )
+        
+        # Convert history events to log format
+        logs = []
+        for event in history:
+            # Format log entry similar to Docker logs
+            log_entry = {
+                "timestamp": event.get("created_at"),
+                "level": event.get("event_status", "INFO").upper(),
+                "message": event.get("event_description", ""),
+                "event_type": event.get("event_type"),
+                "event_data": event.get("event_data"),
+                "processing_time_ms": event.get("processing_time_ms"),
+                "error_message": event.get("error_message")
+            }
+            
+            # Apply filters
+            if log_level and log_level.upper() != log_entry["level"]:
+                continue
+            
+            if search_term and search_term.lower() not in log_entry["message"].lower():
+                continue
+            
+            logs.append(log_entry)
+        
+        # Get total count
+        total_count = len(history)
+        
+        return {
+            "logs": logs,
+            "pagination": {
+                "total_count": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": total_count > offset + limit
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting document history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.delete("/api/documents/{document_id}")
 async def delete_document(document_id: str):
     """Delete a document and all its associated data"""
@@ -1127,6 +1192,9 @@ async def analyze_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
+        # Initialize analysis variable
+        analysis = None
+        
         # Check if analysis already exists (unless force re-analysis is requested)
         if not request.force_reanalysis:
             existing_analyses = await doc_service.get_analysis_results_by_document(
@@ -1139,7 +1207,7 @@ async def analyze_document(
                 analysis = existing_analyses[0]
             
             # Cache in Redis for quick access
-            if redis_client:
+            if redis_client and analysis:
                 try:
                     redis_client.setex(
                         f"analysis:{analysis['id']}", 
@@ -1149,29 +1217,30 @@ async def analyze_document(
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to cache analysis in Redis: {e}")
             
-            # Parse the analysis_data if it's a string
-            analysis_data = analysis.get("analysis_data", {})
-            if isinstance(analysis_data, str):
-                try:
-                    analysis_data = json.loads(analysis_data)
-                except json.JSONDecodeError:
-                    analysis_data = {}
-            
-            # Return the analysis in the same format as the get analysis endpoint
-            return {
-                "analysis_id": analysis["id"],
-                "document_id": document_id,
-                "summary": analysis_data.get("summary", {}),
-                "risks": analysis_data.get("risks", []),
-                "recommendations": analysis_data.get("recommendations", []),
-                "citations": analysis_data.get("citations", []),
-                "compliance": analysis_data.get("compliance", {}),
-                "analysis_timestamp": analysis["analysis_timestamp"],
-                "model_used": analysis.get("model_used", "llama3.2:3b"),
-                "processing_time_ms": analysis.get("processing_time_ms", 0),
+            # Parse the analysis_data if it's a string and return if analysis exists
+            if analysis:
+                analysis_data = analysis.get("analysis_data", {})
+                if isinstance(analysis_data, str):
+                    try:
+                        analysis_data = json.loads(analysis_data)
+                    except json.JSONDecodeError:
+                        analysis_data = {}
+                
+                # Return the analysis in the same format as the get analysis endpoint
+                return {
+                    "analysis_id": analysis["id"],
+                    "document_id": document_id,
+                    "summary": analysis_data.get("summary", {}),
+                    "risks": analysis_data.get("risks", []),
+                    "recommendations": analysis_data.get("recommendations", []),
+                    "citations": analysis_data.get("citations", []),
+                    "compliance": analysis_data.get("compliance", {}),
+                    "analysis_timestamp": analysis["analysis_timestamp"],
+                    "model_used": analysis.get("model_used", "llama3.2:3b"),
+                    "processing_time_ms": analysis.get("processing_time_ms", 0),
                     "confidence_score": analysis.get("confidence_score", 0.0),
-                "status": "completed"
-            }
+                    "status": "completed"
+                }
         else:
             logger.info(f"🔄 Force re-analysis requested for document {document_id}")
         
@@ -1554,9 +1623,9 @@ async def analyze_document(
                     "processing_status": "failed"
                 }
         
-        # Generate report if requested
+        # Generate report if requested - Moved after analysis is created
         report_generation = None
-        if request.generate_report and report_service:
+        if request.generate_report and report_service and 'analysis' in locals():
             try:
                 logger.info(f"📊 Generating analysis report for document {document_id}...")
                 
@@ -1747,9 +1816,32 @@ async def search_documents(request: SearchRequest):
         
         search_time = (datetime.now() - start_time).total_seconds() * 1000
         
+        # Format results to match SearchResult model
+        formatted_results = []
+        for result in search_results:
+            # Check if document has analysis
+            has_analysis = False
+            if doc_service:
+                try:
+                    analyses = await doc_service.get_analysis_results_by_document(result["document_id"])
+                    has_analysis = len(analyses) > 0
+                except Exception:
+                    has_analysis = False
+            
+            formatted_result = {
+                "document_id": result.get("document_id"),
+                "filename": result.get("filename", "Unknown"),
+                "score": result.get("score", 0.0),
+                "excerpt": result.get("chunk_text", ""),
+                "upload_timestamp": result.get("upload_timestamp"),
+                "has_analysis": has_analysis
+            }
+            
+            formatted_results.append(formatted_result)
+        
         response = SearchResponse(
-            results=search_results,
-            total_results=len(search_results),
+            results=formatted_results,
+            total_results=len(formatted_results),
             query=request.query,
             search_time_ms=int(search_time)
         )
@@ -2409,6 +2501,36 @@ async def settings_page():
 async def test_settings():
     """Test route to verify settings page is accessible"""
     return {"message": "Settings route is working", "path": str(Path("static/settings.html").absolute())}
+
+# ==================== SEMANTIC SEARCH API ====================
+
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+
+# Simplified SearchResult to accept dicts
+class SearchResult(BaseModel):
+    document_id: str
+    filename: str
+    score: float
+    excerpt: str
+    upload_timestamp: Optional[str] = None
+    has_analysis: bool
+    
+    # Allow creation from dict
+    @classmethod
+    def from_dict(cls, d: dict):
+        return cls(**d)
+
+class SearchResponse(BaseModel):
+    results: List[dict]  # Change to dict instead of SearchResult
+    total_results: int
+    query: str
+    search_time_ms: int
+
+# DUPLICATE ENDPOINT - REMOVED (original at line 1767)
+# The entire function from lines 2502-2605 was a duplicate
+# and is removed to avoid route conflicts
 
 # ==================== MAIN ====================
 

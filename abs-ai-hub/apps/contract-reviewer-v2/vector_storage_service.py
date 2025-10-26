@@ -311,10 +311,13 @@ class VectorStorageService:
                     **(metadata or {})
                 }
                 
+                # Ensure embedding is a proper list of floats (Qdrant requirement)
+                embedding_vector = list(embedding) if isinstance(embedding, (list, tuple)) else embedding
+                
                 # Create point
                 point = PointStruct(
                     id=vector_id,
-                    vector=embedding,
+                    vector=embedding_vector,
                     payload=payload
                 )
                 
