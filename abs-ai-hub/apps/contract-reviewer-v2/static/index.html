@@ -19,16 +19,25 @@
     <!-- Main Content -->
     <!-- Main Navigation Tabs -->
     <div class="bg-white border-b border-gray-200 px-6 py-4">
-        <div class="flex space-x-8">
-            <button @click="mainTab = 'documents'" 
-                    :class="mainTab === 'documents' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                    class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
-                <i class="fas fa-file-alt mr-2"></i>Document Review
-            </button>
-            <button @click="mainTab = 'history'" 
-                    :class="mainTab === 'history' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                    class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
-                <i class="fas fa-history mr-2"></i>Review History
+        <div class="flex items-center justify-between">
+            <div class="flex space-x-8">
+                <button @click="mainTab = 'documents'" 
+                        :class="mainTab === 'documents' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
+                    <i class="fas fa-file-alt mr-2"></i>Document Review
+                </button>
+                <button @click="mainTab = 'history'" 
+                        :class="mainTab === 'history' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
+                    <i class="fas fa-history mr-2"></i>Review History
+                </button>
+            </div>
+            <button @click="chatPanelVisible = !chatPanelVisible"
+                    class="px-3 py-2 text-sm font-medium rounded-md transition-colors"
+                    :class="chatPanelVisible ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                    title="Toggle Chat Panel">
+                <i class="fas fa-comments mr-2"></i>
+                <span x-text="chatPanelVisible ? 'Hide Chat' : 'Show Chat'"></span>
             </button>
         </div>
     </div>
@@ -592,7 +601,8 @@
                     <!-- Document Content -->
                     <div x-show="currentSession" class="bg-white rounded-lg shadow-sm border border-gray-200">
                         <!-- Side by Side View -->
-                        <div x-show="documentViewMode === 'side-by-side'" class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 h-full">
+                        <div x-show="documentViewMode === 'side-by-side'" class="grid gap-6 p-6 h-full"
+                             style="grid-template-columns: 1fr 2fr;">
                             <!-- Analysis Panel -->
                             <div class="space-y-4 overflow-y-auto">
                                 <h4 class="text-lg font-semibold text-gray-900 mb-4">
@@ -653,22 +663,53 @@
                             
                             <!-- Document Panel -->
                             <div class="border border-gray-200 rounded-lg flex flex-col h-full"
-                                 :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white' : ''">
+                                 :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white shadow-2xl' : ''">
                                 <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 rounded-t-lg flex-shrink-0 flex items-center justify-between">
-                                    <h4 class="text-lg font-semibold text-gray-900">
-                                        <i class="fas fa-file-alt mr-2"></i>Document Content
-                                    </h4>
-                                    <button @click="documentViewMaximized = !documentViewMaximized"
-                                            class="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
-                                        <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
-                                    </button>
+                                    <div class="flex items-center space-x-3">
+                                        <h4 class="text-lg font-semibold text-gray-900">
+                                            <i class="fas fa-file-alt mr-2"></i>Document Content
+                                        </h4>
+                                        <span x-show="documentViewMaximized && documentZoomLevel !== 100" 
+                                              class="text-sm text-gray-600">
+                                            <span x-text="documentZoomLevel"></span>%
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div x-show="documentViewMaximized" class="flex items-center space-x-1 mr-3">
+                                            <button @click="documentZoomLevel = Math.max(25, documentZoomLevel - 25)"
+                                                    class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                    title="Zoom Out">
+                                                <i class="fas fa-search-minus text-sm"></i>
+                                            </button>
+                                            <input type="range" 
+                                                   x-model="documentZoomLevel"
+                                                   min="25" 
+                                                   max="300" 
+                                                   step="25"
+                                                   class="w-24 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                            <button @click="documentZoomLevel = Math.min(300, documentZoomLevel + 25)"
+                                                    class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                    title="Zoom In">
+                                                <i class="fas fa-search-plus text-sm"></i>
+                                            </button>
+                                            <button @click="documentZoomLevel = 100"
+                                                    class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                    title="Reset Zoom">
+                                                <i class="fas fa-undo text-xs"></i>
+                                            </button>
+                                        </div>
+                                        <button @click="documentViewMaximized = !documentViewMaximized"
+                                                class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
+                                            <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="p-4 flex-1 overflow-y-auto">
+                                <div class="p-4 flex-1 overflow-y-auto" :style="documentViewMaximized ? `transform: scale(${documentZoomLevel / 100}); transform-origin: top left; width: ${100 / (documentZoomLevel / 100)}%` : ''">
                                     
                                     <!-- Formatted Content Display -->
                                     <div :key="documentRenderKey"
                                          id="document-content"
-                                         class="text-sm leading-relaxed whitespace-pre-wrap break-words"
+                                         class="text-sm leading-relaxed whitespace-pre-wrap break-words [&>p]:mb-4 [&>div]:mb-4"
                                          x-html="documentContent || '<p class=&quot;text-gray-500&quot;>No content loaded</p>'"></div>
                                 </div>
                             </div>
@@ -676,7 +717,7 @@
                         
                         <!-- Overlay View -->
                         <div x-show="documentViewMode === 'overlay'" class="relative p-6">
-                            <div class="prose max-w-none text-sm leading-relaxed" 
+                            <div class="prose max-w-none text-sm leading-relaxed [&>p]:mb-4 [&>div]:mb-4" 
                                  x-html="documentContent"></div>
                             
                             <!-- Floating Analysis Panel -->
@@ -755,16 +796,47 @@
                                     </div>
                                     
                                     <!-- Word Document Display -->
-                                    <div x-show="!isPdfFile()" class="border border-gray-200 rounded-lg"
-                                         :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white' : ''">
+                                    <div x-show="!isPdfFile()" class="border border-gray-200 rounded-lg flex flex-col h-full"
+                                         :class="documentViewMaximized ? 'absolute inset-4 z-50 bg-white shadow-2xl' : ''">
                                         <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                                            <h5 class="font-medium text-gray-900">Document Content</h5>
-                                            <button @click="documentViewMaximized = !documentViewMaximized"
-                                                    class="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
-                                                <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
-                                            </button>
+                                            <div class="flex items-center space-x-3">
+                                                <h5 class="font-medium text-gray-900">Document Content</h5>
+                                                <span x-show="documentViewMaximized && documentZoomLevel !== 100" 
+                                                      class="text-sm text-gray-600">
+                                                    <span x-text="documentZoomLevel"></span>%
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <div x-show="documentViewMaximized" class="flex items-center space-x-1 mr-3">
+                                                    <button @click="documentZoomLevel = Math.max(25, documentZoomLevel - 25)"
+                                                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                            title="Zoom Out">
+                                                        <i class="fas fa-search-minus text-sm"></i>
+                                                    </button>
+                                                    <input type="range" 
+                                                           x-model="documentZoomLevel"
+                                                           min="25" 
+                                                           max="300" 
+                                                           step="25"
+                                                           class="w-24 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                                    <button @click="documentZoomLevel = Math.min(300, documentZoomLevel + 25)"
+                                                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                            title="Zoom In">
+                                                        <i class="fas fa-search-plus text-sm"></i>
+                                                    </button>
+                                                    <button @click="documentZoomLevel = 100"
+                                                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded" 
+                                                            title="Reset Zoom">
+                                                        <i class="fas fa-undo text-xs"></i>
+                                                    </button>
+                                                </div>
+                                                <button @click="documentViewMaximized = !documentViewMaximized"
+                                                        class="ml-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
+                                                    <i class="fas" :class="documentViewMaximized ? 'fa-compress' : 'fa-expand'"></i>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="p-4">
+                                        <div class="p-4 flex-1 overflow-y-auto" :style="documentViewMaximized ? `transform: scale(${documentZoomLevel / 100}); transform-origin: top left; width: ${100 / (documentZoomLevel / 100)}%` : ''">
                                             <!-- Helpful message for Word documents -->
                                             <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                                 <div class="flex items-start">
@@ -780,7 +852,7 @@
                                                 </div>
                                             </div>
                                             
-                                            <div class="prose max-w-none text-sm leading-relaxed" 
+                                            <div class="prose max-w-none text-sm leading-relaxed [&>p]:mb-4 [&>div]:mb-4" 
                                                  x-html="documentContent"></div>
                                         </div>
                                     </div>
@@ -935,28 +1007,115 @@
             </div>
         </div>
 
-        <!-- Right Panel: Chat & Insights -->
-        <div class="w-80 bg-white border-l border-gray-200 flex flex-col">
+        <!-- Maximized Chat Overlay -->
+        <div x-show="chatWindowMaximized && chatPanelVisible" 
+             class="fixed inset-4 z-50 bg-white shadow-2xl rounded-lg border border-gray-300 flex flex-col transition-all"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100">
             <!-- Chat Header -->
             <div class="p-4 border-b border-gray-200">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between mb-2">
                     <h3 class="text-lg font-semibold text-gray-900">
                         <i class="fas fa-comments mr-2"></i>Ask the Contract
                     </h3>
+                    <button @click="chatWindowMaximized = false"
+                            class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
+                        <i class="fas fa-compress"></i>
+                    </button>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-600">Search Mode:</label>
                     <div class="flex items-center space-x-2">
-                        <label class="text-sm text-gray-600">Search Mode:</label>
-                        <div class="flex items-center space-x-2">
-                            <button @click="globalChatMode = false" 
-                                    :class="!globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
-                                    class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
-                                Current Doc
-                            </button>
-                            <button @click="globalChatMode = true" 
-                                    :class="globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
-                                    class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
-                                All Docs
-                            </button>
+                        <button @click="globalChatMode = false" 
+                                :class="!globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                            Current Doc
+                        </button>
+                        <button @click="globalChatMode = true" 
+                                :class="globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                            All Docs
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-xs text-gray-500">
+                    <span x-show="!globalChatMode">Ask questions about the currently selected document</span>
+                    <span x-show="globalChatMode">Ask questions across all documents in the system</span>
+                </div>
+            </div>
+
+            <!-- Chat Messages -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatContainerMaximized">
+                <div x-show="chatMessages.length === 0" class="text-center text-gray-500 text-sm py-4">
+                    <span x-show="!globalChatMode">Select a document to start asking questions about it.</span>
+                    <span x-show="globalChatMode">Ask questions across all documents in the system.</span>
+                </div>
+                <template x-for="message in chatMessages" :key="message.id">
+                    <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+                        <div class="max-w-xs px-4 py-2 rounded-lg break-words"
+                             :class="message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'">
+                            <p x-text="message.content"></p>
+                            <p class="text-xs mt-1 opacity-70" x-text="formatTime(message.timestamp)"></p>
+                            <div x-show="message.role === 'assistant' && message.documents_used" class="mt-2 pt-2 border-t border-gray-300">
+                                <p class="text-xs text-gray-600">
+                                    <i class="fas fa-search mr-1"></i>
+                                    Searched <span x-text="message.total_documents_searched"></span> documents
+                                </p>
+                                <div class="mt-1 space-y-1">
+                                    <template x-for="doc in message.documents_used" :key="doc.id">
+                                        <div class="text-xs text-gray-600 truncate" x-text="doc.filename || 'Unknown'"></div>
+                                    </template>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex space-x-2">
+                    <input x-model="currentChatMessage"
+                           @keydown.enter="sendMessage()"
+                           class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Type your question here...">
+                    <button @click="sendMessage()"
+                            :disabled="!currentChatMessage || !currentDocument"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Chat & Insights -->
+        <div class="w-80 bg-white border-l border-gray-200 flex flex-col" x-show="!chatWindowMaximized && chatPanelVisible">
+            <!-- Chat Header -->
+            <div class="p-4 border-b border-gray-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-comments mr-2"></i>Ask the Contract
+                    </h3>
+                    <button @click="chatWindowMaximized = true"
+                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
+                            title="Maximize Chat">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="text-sm text-gray-600">Search Mode:</label>
+                    <div class="flex items-center space-x-2">
+                        <button @click="globalChatMode = false" 
+                                :class="!globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                            Current Doc
+                        </button>
+                        <button @click="globalChatMode = true" 
+                                :class="globalChatMode ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'"
+                                class="px-3 py-1 rounded-md text-sm font-medium transition-colors">
+                            All Docs
+                        </button>
                     </div>
                 </div>
                 <div class="mt-2 text-xs text-gray-500">
@@ -1304,6 +1463,9 @@
                 // State
                 sidebarCollapsed: false,  // Sidebar collapse state
                 documentViewMaximized: false,  // Document view maximized state
+                documentZoomLevel: 100,  // Document zoom level in percentage
+                chatWindowMaximized: false,  // Chat window maximized state
+                chatPanelVisible: true,  // Chat panel visibility state
                 mainTab: 'documents',  // Main navigation tab
                 documents: [],
                 totalDocuments: 0,
