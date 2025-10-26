@@ -1834,10 +1834,14 @@
                         if (response.ok) {
                             const result = await response.json();
                             // Preserve the current session and add analysis data
+                            // Only merge analysis-related fields, preserving session_id
+                            const sessionId = this.currentSession?.session_id;
                             this.currentSession = {
                                 ...this.currentSession,
-                                ...result
+                                ...result,
+                                session_id: sessionId || this.currentSession?.session_id // Preserve session_id
                             };
+                            console.log('✅ Loaded analysis, session_id preserved:', this.currentSession.session_id);
                             this.activeTab = 'summary';
                         } else if (response.status === 404) {
                         } else {
