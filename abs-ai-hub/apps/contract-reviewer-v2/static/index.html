@@ -1016,9 +1016,15 @@
             <!-- Chat Header -->
             <div class="p-4 border-b border-gray-200">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-lg font-semibold text-gray-900">
-                        <i class="fas fa-comments mr-2"></i>Ask the Contract
-                    </h3>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            <i class="fas fa-comments mr-2"></i>Ask the Contract
+                        </h3>
+                        <p x-show="currentDocument && !globalChatMode" class="text-sm text-gray-600 mt-1">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            <span x-text="currentDocument?.original_filename || currentDocument?.filename"></span>
+                        </p>
+                    </div>
                     <button @click="chatWindowMaximized = false"
                             class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded">
                         <i class="fas fa-compress"></i>
@@ -1046,16 +1052,18 @@
             </div>
 
             <!-- Chat Messages -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatContainerMaximized">
+            <div class="flex-1 overflow-y-auto p-6 space-y-4 max-w-full" x-ref="chatContainerMaximized">
                 <div x-show="chatMessages.length === 0" class="text-center text-gray-500 text-sm py-4">
-                    <span x-show="!globalChatMode">Select a document to start asking questions about it.</span>
+                    <span x-show="!globalChatMode && !currentDocument">Select a document to start asking questions about it.</span>
+                    <span x-show="!globalChatMode && currentDocument">Ask a question about <strong x-text="currentDocument?.original_filename || currentDocument?.filename"></strong></span>
                     <span x-show="globalChatMode">Ask questions across all documents in the system.</span>
                 </div>
                 <template x-for="message in chatMessages" :key="message.id">
-                    <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
-                        <div class="max-w-xs px-4 py-2 rounded-lg break-words"
-                             :class="message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'">
-                            <p x-text="message.content"></p>
+                    <div class="flex w-full" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
+                        <div class="px-4 py-2 rounded-lg break-words"
+                             :class="message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'"
+                             :style="`max-width: ${message.role === 'user' ? 'calc(100% * 0.5)' : 'calc(100% * 0.7)'}`">
+                            <p class="whitespace-pre-wrap" x-text="message.content"></p>
                             <p class="text-xs mt-1 opacity-70" x-text="formatTime(message.timestamp)"></p>
                             <div x-show="message.role === 'assistant' && message.documents_used" class="mt-2 pt-2 border-t border-gray-300">
                                 <p class="text-xs text-gray-600">
@@ -1090,16 +1098,33 @@
         </div>
 
         <!-- Right Panel: Chat & Insights -->
-        <div class="w-80 bg-white border-l border-gray-200 flex flex-col" x-show="!chatWindowMaximized && chatPanelVisible">
+        <div class="bg-white border-l border-gray-200 flex flex-col relative" 
+             x-show="!chatWindowMaximized && chatPanelVisible"
+             :style="`width: ${chatPanelWidth}px`">
+            
+            <!-- Resize Handle -->
+            <div @mousedown.prevent="isResizingChat = true"
+                 class="absolute -left-1 top-0 bottom-0 w-2 cursor-ew-resize bg-transparent hover:bg-blue-500 transition-colors z-10"
+                 :class="isResizingChat ? 'bg-blue-500' : ''"></div>
+            
+            <!-- Chat Content -->
+            <div class="flex-1 overflow-hidden">
             <!-- Chat Header -->
             <div class="p-4 border-b border-gray-200">
                 <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-lg font-semibold text-gray-900">
-                        <i class="fas fa-comments mr-2"></i>Ask the Contract
-                    </h3>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            <i class="fas fa-comments mr-2"></i>Ask the Contract
+                        </h3>
+                        <p x-show="currentDocument && !globalChatMode" class="text-xs text-gray-600 truncate">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            <span x-text="currentDocument?.original_filename || currentDocument?.filename"></span>
+                        </p>
+                    </div>
                     <button @click="chatWindowMaximized = true"
-                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded"
-                            title="Maximize Chat">
+                            class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+                            :disabled="!currentDocument || globalChatMode"
+                            title="Maximize Chat (requires document selection)">
                         <i class="fas fa-expand"></i>
                     </button>
                 </div>
@@ -1127,14 +1152,16 @@
             <!-- Chat Messages -->
             <div class="flex-1 overflow-y-auto p-4 space-y-4" x-ref="chatContainer">
                 <div x-show="chatMessages.length === 0" class="text-center text-gray-500 text-sm py-4">
-                    <span x-show="!globalChatMode">Select a document to start asking questions about it.</span>
+                    <span x-show="!globalChatMode && !currentDocument">Select a document to start asking questions about it.</span>
+                    <span x-show="!globalChatMode && currentDocument">Ask a question about <strong x-text="currentDocument?.original_filename || currentDocument?.filename"></strong></span>
                     <span x-show="globalChatMode">Ask questions across all documents in the system.</span>
                 </div>
                 <template x-for="message in chatMessages" :key="message.id">
                     <div class="flex" :class="message.role === 'user' ? 'justify-end' : 'justify-start'">
-                        <div class="max-w-xs px-4 py-2 rounded-lg break-words"
+                        <div class="px-4 py-2 rounded-lg break-words"
+                             :style="`max-width: ${chatPanelWidth - 80}px`"
                              :class="message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'">
-                            <p x-text="message.content"></p>
+                            <p class="whitespace-pre-wrap" x-text="message.content"></p>
                             <p class="text-xs mt-1 opacity-70" x-text="formatTime(message.timestamp)"></p>
                             <!-- Global chat metadata -->
                             <div x-show="message.role === 'assistant' && message.documents_used" class="mt-2 pt-2 border-t border-gray-300">
@@ -1172,17 +1199,17 @@
                            @keydown.enter="sendChatMessage()"
                            class="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                            placeholder="Ask about the contract..."
-                           :disabled="!currentSession">
+                           :disabled="(!globalChatMode && !currentDocument) || isChatting">
                     <button @click="sendChatMessage()" 
                             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                            :disabled="!chatMessage || !currentSession || isChatting">
+                            :disabled="!chatMessage || (!globalChatMode && !currentDocument) || isChatting">
                         <i class="fas fa-paper-plane" x-show="!isChatting"></i>
                         <i class="fas fa-spinner fa-spin" x-show="isChatting"></i>
                     </button>
                 </div>
             </div>
+            </div> <!-- End Chat Content -->
         </div>
-    </div>
 
     <!-- Help Modal -->
     <div x-show="showHelp" 
@@ -1466,6 +1493,8 @@
                 documentZoomLevel: 100,  // Document zoom level in percentage
                 chatWindowMaximized: false,  // Chat window maximized state
                 chatPanelVisible: true,  // Chat panel visibility state
+                chatPanelWidth: 320,  // Chat panel width in pixels (default 320 = w-80)
+                isResizingChat: false,  // Whether user is resizing the chat panel
                 mainTab: 'documents',  // Main navigation tab
                 documents: [],
                 totalDocuments: 0,
@@ -1584,6 +1613,20 @@
                 async init() {
                     await this.loadModels();
                     await this.loadDocuments(true);
+                    
+                    // Handle chat panel resizing
+                    document.addEventListener('mousemove', (e) => {
+                        if (this.isResizingChat) {
+                            const newWidth = window.innerWidth - e.clientX;
+                            if (newWidth >= 200 && newWidth <= 800) {
+                                this.chatPanelWidth = newWidth;
+                            }
+                        }
+                    });
+                    
+                    document.addEventListener('mouseup', () => {
+                        this.isResizingChat = false;
+                    });
                     
                     // Watch for activeTab changes
                     this.$watch('activeTab', (newTab) => {
