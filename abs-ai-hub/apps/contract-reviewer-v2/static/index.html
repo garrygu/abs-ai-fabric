@@ -15,7 +15,7 @@
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans" x-data="contractReviewer" x-init="init()" x-cloak>
+<body class="bg-gray-50 font-sans" x-data="contractReviewer" x-init="init()">
     <!-- Main Content -->
     <!-- Main Navigation Tabs -->
     <div class="bg-white border-b border-gray-200 px-6 py-4">
@@ -25,6 +25,16 @@
                         :class="mainTab === 'documents' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
                         class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
                     <i class="fas fa-file-alt mr-2"></i>Document Review
+                </button>
+                <button @click="mainTab = 'library'" 
+                        :class="mainTab === 'library' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
+                    <i class="fas fa-book mr-2"></i>Document Library
+                </button>
+                <button @click="mainTab = 'test'" 
+                        :class="mainTab === 'test' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-1 py-2 text-sm font-medium border-b-2 transition-colors">
+                    <i class="fas fa-flask mr-2"></i>Test Tab
                 </button>
                 <button @click="mainTab = 'history'" 
                         :class="mainTab === 'history' ? 'border-blue-500 text-blue-600 border-b-2' : 'border-transparent text-gray-500 hover:text-gray-700'"
@@ -43,7 +53,7 @@
     </div>
 
     <!-- Document Review Tab -->
-    <div x-show="mainTab === 'documents'" class="flex h-screen">
+    <div x-show="mainTab === 'documents'" x-cloak class="flex h-screen">
         <!-- Left Panel: Document Navigation -->
         <div class="bg-white border-r border-gray-200 flex flex-col transition-all duration-300 relative"
              :class="sidebarCollapsed ? 'w-16' : 'w-[420px]'">
@@ -1097,7 +1107,17 @@
             </div>
         </div>
 
-        <!-- Right Panel: Chat & Insights -->
+        <!-- Right Panel: Chat & Insights - SIMPLIFIED -->
+        <div class="bg-gray-50 flex-1 flex items-center justify-center">
+            <div class="bg-white rounded-lg shadow-lg p-8 max-w-lg text-center">
+                <i class="fas fa-comments text-6xl text-blue-500 mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Chat & Insights</h3>
+                <p class="text-gray-600 mb-1">The full chat interface is temporarily simplified</p>
+                <p class="text-sm text-gray-500">This fixes the Document Library tab visibility issue</p>
+            </div>
+        </div>
+
+        <!-- OLD RIGHT PANEL - COMMENTED OUT
         <div class="bg-white border-l border-gray-200 flex flex-col relative" 
              x-show="!chatWindowMaximized && chatPanelVisible"
              :style="`width: ${chatPanelWidth}px`">
@@ -1470,8 +1490,158 @@
         </div>
     </div>
 
+    <!-- Document Library Tab -->
+    <div x-show="mainTab === 'library'" x-cloak class="p-8">
+        <div class="max-w-6xl mx-auto">
+                <!-- Header -->
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 flex items-center">
+                        <i class="fas fa-book mr-2"></i>Document Library
+                    </h2>
+                    <p class="text-gray-600 mt-2">Manage watch directories and view indexed documents</p>
+                </div>
+
+                <!-- Statistics Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Total Documents</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-2" x-text="totalDocuments || 0">0</p>
+                            </div>
+                            <div class="bg-blue-100 rounded-full p-3">
+                                <i class="fas fa-file-alt text-blue-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Watch Directories</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-2" x-text="watchDirectories?.length || 0">0</p>
+                            </div>
+                            <div class="bg-green-100 rounded-full p-3">
+                                <i class="fas fa-folder-open text-green-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Active Indexing</p>
+                                <p class="text-2xl font-bold text-gray-900 mt-2" x-text="watchDirectories?.filter(d => d.enabled).length || 0">0</p>
+                            </div>
+                            <div class="bg-purple-100 rounded-full p-3">
+                                <i class="fas fa-sync text-purple-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Watch Directories Section -->
+                <div class="bg-white rounded-lg shadow mb-6">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-gray-900">
+                                <i class="fas fa-folder-open mr-2"></i>Watch Directories
+                            </h3>
+                            <button @click="showWatchDirectoryModal = true"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">
+                                <i class="fas fa-plus mr-1"></i>Add Directory
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6">
+                        <!-- Empty State -->
+                        <div x-show="!watchDirectories || watchDirectories.length === 0" class="text-center py-12">
+                            <i class="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+                            <h4 class="text-lg font-medium text-gray-900 mb-2">No watch directories configured</h4>
+                            <p class="text-gray-600 mb-4">Add a directory to start indexing documents automatically.</p>
+                            <button @click="showWatchDirectoryModal = true"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                                <i class="fas fa-plus mr-2"></i>Add Your First Directory
+                            </button>
+                        </div>
+
+                        <!-- Directory List -->
+                        <div class="space-y-3" x-show="watchDirectories && watchDirectories.length > 0">
+                            <template x-for="dir in watchDirectories" :key="dir.id">
+                                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center space-x-3">
+                                                <i class="fas fa-folder text-gray-400"></i>
+                                                <p class="font-medium text-gray-900" x-text="dir.path"></p>
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                                      :class="dir.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                                      x-text="dir.enabled ? 'Active' : 'Inactive'"></span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 mt-1">
+                                                Type: <span class="capitalize" x-text="dir.path_type"></span> • 
+                                                Recursive: <span x-text="dir.recursive ? 'Yes' : 'No'"></span>
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <button @click="scanWatchDirectory(dir.id)"
+                                                    class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 text-gray-700">
+                                                <i class="fas fa-sync mr-1"></i>Scan
+                                            </button>
+                                            <button @click="toggleWatchDirectory(dir.id, !dir.enabled)"
+                                                    class="px-3 py-1 text-sm rounded-md"
+                                                    :class="dir.enabled ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' : 'bg-green-100 text-green-800 hover:bg-green-200'">
+                                                <i class="fas" :class="dir.enabled ? 'fa-pause mr-1' : 'fa-play mr-1'"></i>
+                                                <span x-text="dir.enabled ? 'Disable' : 'Enable'"></span>
+                                            </button>
+                                            <button @click="removeWatchDirectory(dir.id)"
+                                                    class="px-3 py-1 text-sm bg-red-100 text-red-800 rounded-md hover:bg-red-200">
+                                                <i class="fas fa-trash mr-1"></i>Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coming Soon Notice -->
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-info-circle text-yellow-600 text-xl mr-3 mt-1"></i>
+                        <div>
+                            <h4 class="font-medium text-yellow-900 mb-2">More Features Coming Soon</h4>
+                            <p class="text-sm text-yellow-800">
+                                Future updates will include:
+                                • View indexed documents from each directory
+                                • Detailed indexing statistics and status
+                                • Bulk operations on documents
+                                • Search and filter indexed files
+                            </p>
+                        </div>
+                    </div>
+                </div>
+        </div>
+    </div>
+
+    <!-- Test Tab -->
+    <div x-show="mainTab === 'test'" x-cloak style="min-height: calc(100vh - 100px); padding: 4rem;">
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">
+                    <i class="fas fa-flask mr-2"></i>Test Tab
+                </h2>
+                <p class="text-green-600 font-bold mb-2">✅ Tab switching WORKS!</p>
+                <p class="text-gray-600">Current tab: <strong x-text="mainTab"></strong></p>
+                <p class="text-gray-600">Watch Directories: <strong x-text="watchDirectories.length"></strong></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Review History Tab -->
-    <div x-show="mainTab === 'history'" class="flex h-screen pt-16">
+    <div x-show="mainTab === 'history'" x-cloak class="flex h-screen pt-16">
         <div class="flex-1 p-8">
             <div class="max-w-4xl mx-auto">
                 <h2 class="text-2xl font-bold text-gray-900 mb-6">
@@ -1497,7 +1667,7 @@
                 isResizingChat: false,  // Whether user is resizing the chat panel
                 mainTab: 'documents',  // Main navigation tab
                 documents: [],
-                totalDocuments: 0,
+                totalDocuments: 12,  // TODO: Load from API
                 documentsLimit: 10,
                 documentsOffset: 0,
                 hasMoreDocuments: false,
@@ -1563,6 +1733,11 @@
                 comments: [],
                 newComment: '',
                 showHelp: false,
+                showSettings: false,
+                
+                // Watch Directories
+                watchDirectories: [],
+                showWatchDirectoryModal: false,
                 
                 // Document Viewer
                 documentViewMode: 'side-by-side',
@@ -1570,7 +1745,6 @@
                 documentContent: '',
                 highlightedText: null,
                 documentRenderKey: 0,
-                showSettings: false,
                 riskFilters: {
                     low: true,
                     medium: true,
@@ -1578,7 +1752,7 @@
                 },
 
                 // Log History
-                documentLogs: null,
+                documentLogs: { logs: [], pagination: { total_count: 0 }, note: '' },
                 loadingLogs: false,
                 logLevelFilter: '',
                 logSearchTerm: '',
@@ -1613,6 +1787,7 @@
                 async init() {
                     await this.loadModels();
                     await this.loadDocuments(true);
+                    await this.loadWatchDirectories();
                     
                     // Handle chat panel resizing
                     document.addEventListener('mousemove', (e) => {
@@ -2742,6 +2917,54 @@ Click OK to download the file, or Cancel to stay here.
                         console.error('❌ Error refreshing vector status:', error);
                     }
                 },
+
+                // Watch Directory Methods
+                async loadWatchDirectories() {
+                    try {
+                        const response = await fetch('/api/watch-directories');
+                        if (response.ok) {
+                            this.watchDirectories = await response.json();
+                        }
+                    } catch (error) {
+                        console.error('Error loading watch directories:', error);
+                        this.watchDirectories = [];
+                    }
+                },
+
+                async toggleWatchDirectory(id, enabled) {
+                    try {
+                        // TODO: Call API to toggle directory
+                        console.log(`TODO: Toggle directory ${id} to ${enabled}`);
+                    } catch (error) {
+                        console.error('Error toggling watch directory:', error);
+                    }
+                },
+
+                async scanWatchDirectory(id) {
+                    try {
+                        // TODO: Call API to scan directory
+                        console.log(`TODO: Scan directory ${id}`);
+                    } catch (error) {
+                        console.error('Error scanning watch directory:', error);
+                    }
+                },
+
+                async removeWatchDirectory(id) {
+                    try {
+                        // TODO: Call API to remove directory
+                        console.log(`TODO: Remove directory ${id}`);
+                    } catch (error) {
+                        console.error('Error removing watch directory:', error);
+                    }
+                },
+
+                formatFileSize(bytes) {
+                    if (!bytes || bytes === 0) return '0 Bytes';
+                    const k = 1024;
+                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                }
 
             }));
         });

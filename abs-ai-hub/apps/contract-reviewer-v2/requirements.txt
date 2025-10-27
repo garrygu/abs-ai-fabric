@@ -9,4 +9,6 @@ qdrant-client==1.7.0
 redis==5.0.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+watchdog==3.0.0
+asyncpg==0.29.0
 

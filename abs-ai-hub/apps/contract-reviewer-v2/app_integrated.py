@@ -29,6 +29,10 @@ from file_based_storage_service import FileBasedStorageService, StorageConfig, F
 from report_generation_service import ReportGenerationService, ReportRequest, ReportFormat, ReportType
 from document_history_service import DocumentHistoryService
 from file_management_api import integrate_file_management
+from watch_directory_service import WatchDirectoryService
+from library_files_service import LibraryFilesService
+from library_api import router as library_router
+from db_migration_handler import run_migrations_on_startup
 
 # Configure logging
 logging.basicConfig(
@@ -56,13 +60,57 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", "100")) * 1024 * 1024  # MB to by
 # Ensure directories exist
 Path(FILE_STORAGE_PATH).mkdir(parents=True, exist_ok=True)
 
+# Lifespan context manager for startup/shutdown
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("🚀 Starting Contract Reviewer v2 - Integrated")
+    await initialize_services()
+    logger.info("✅ All services initialized and ready")
+    yield
+    # Shutdown
+    logger.info("🛑 Shutting down Contract Reviewer v2 - Integrated")
+    if processing_service:
+        try:
+            await processing_service.close()
+            logger.info("✅ Processing service closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing processing service: {e}")
+    if doc_service:
+        try:
+            await doc_service.close()
+            logger.info("✅ PostgreSQL service closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing PostgreSQL service: {e}")
+    if vector_service:
+        try:
+            await vector_service.close()
+            logger.info("✅ Qdrant service closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing Qdrant service: {e}")
+    if redis_client:
+        try:
+            redis_client.close()
+            logger.info("✅ Redis client closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing Redis client: {e}")
+    if watch_directory_service:
+        try:
+            await watch_directory_service.close()
+            logger.info("✅ Watch directory service closed")
+        except Exception as e:
+            logger.warning(f"⚠️ Error closing watch directory service: {e}")
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Contract Reviewer v2 - Integrated",
     description="Complete AI-powered contract analysis platform with PostgreSQL persistence, vector search, and file management",
     version="2.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # CORS middleware
@@ -76,6 +124,16 @@ app.add_middleware(
 
 # Static files for frontend
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Serve test-tabs page
+@app.get("/test-tabs.html")
+async def test_tabs():
+    return FileResponse("static/test-tabs.html")
+
+# Serve index2 page
+@app.get("/index2.html")
+async def index2():
+    return FileResponse("static/index2.html")
 
 # Serve frontend at root
 @app.get("/")
@@ -164,6 +222,8 @@ storage_service: Optional[FileBasedStorageService] = None
 report_service: Optional[ReportGenerationService] = None
 history_service: Optional[DocumentHistoryService] = None
 redis_client: Optional[redislib.Redis] = None
+watch_directory_service: Optional[WatchDirectoryService] = None
+library_files_service: Optional[LibraryFilesService] = None
 
 # Pydantic models
 class DocumentUploadRequest(BaseModel):
@@ -254,10 +314,13 @@ class SearchResponse(BaseModel):
 
 async def initialize_services():
     """Initialize all services"""
-    global doc_service, vector_service, processing_service, storage_service, report_service, history_service, redis_client
+    global doc_service, vector_service, processing_service, storage_service, report_service, history_service, redis_client, watch_directory_service, library_files_service
     
     try:
         logger.info("🚀 Initializing Contract Reviewer v2 - Integrated Services")
+        
+        # Run database migrations first (idempotent)
+        await run_migrations_on_startup()
         
         # Initialize PostgreSQL document service
         logger.info("🔧 Initializing PostgreSQL document service...")
@@ -309,6 +372,33 @@ async def initialize_services():
         except Exception as e:
             logger.warning(f"⚠️ Redis client failed to initialize: {e}")
             redis_client = None
+        
+        # Initialize watch directory service (non-blocking)
+        logger.info("🔧 Initializing watch directory service...")
+        try:
+            watch_directory_service = WatchDirectoryService(
+                db_pool=doc_service.pool,
+                processing_service=processing_service,
+                doc_service=doc_service,
+                storage_service=storage_service
+            )
+            await watch_directory_service.initialize()
+            logger.info("✅ Watch directory service initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Watch directory service failed to initialize: {e}")
+            logger.warning("⚠️ App will continue without watch directory functionality")
+            watch_directory_service = None
+        
+        # Initialize library files service
+        logger.info("🔧 Initializing library files service...")
+        try:
+            library_files_service = LibraryFilesService(db_pool=doc_service.pool)
+            await library_files_service.initialize()
+            logger.info("✅ Library files service initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Library files service failed to initialize: {e}")
+            logger.warning("⚠️ App will continue without library files functionality")
+            library_files_service = None
         
         logger.info("🎉 All services initialized successfully!")
         
@@ -2026,49 +2116,100 @@ async def health_check():
 # Integrate file management API
 integrate_file_management(app)
 
+# Add library API router
+app.include_router(library_router)
+
+# Add watch directory API router
+@app.get("/api/watch-directories")
+async def list_watch_directories_endpoint(enabled_only: bool = Query(False)):
+    """List all watch directories"""
+    if not watch_directory_service:
+        raise HTTPException(status_code=500, detail="Watch directory service not initialized")
+    
+    watch_dirs = await watch_directory_service.get_watch_directories(enabled_only=enabled_only)
+    return watch_dirs
+
+@app.post("/api/watch-directories")
+async def create_watch_directory_endpoint(
+    path: str,
+    path_type: str = "local",
+    enabled: bool = True,
+    recursive: bool = True,
+    file_patterns: Optional[str] = None
+):
+    """Add a new watch directory"""
+    if not watch_directory_service:
+        raise HTTPException(status_code=500, detail="Watch directory service not initialized")
+    
+    patterns = file_patterns.split(',') if file_patterns else None
+    
+    try:
+        watch_id = await watch_directory_service.add_watch_directory(
+            path=path,
+            path_type=path_type,
+            enabled=enabled,
+            recursive=recursive,
+            file_patterns=patterns
+        )
+        return {"success": True, "watch_id": watch_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating watch directory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/watch-directories/{watch_id}")
+async def delete_watch_directory_endpoint(watch_id: str):
+    """Remove a watch directory"""
+    if not watch_directory_service:
+        raise HTTPException(status_code=500, detail="Watch directory service not initialized")
+    
+    try:
+        result = await watch_directory_service.remove_watch_directory(watch_id)
+        return {"success": result, "message": "Watch directory removed"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deleting watch directory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/watch-directories/{watch_id}/toggle")
+async def toggle_watch_directory_endpoint(watch_id: str, enabled: bool = Query(...)):
+    """Enable or disable a watch directory"""
+    if not watch_directory_service:
+        raise HTTPException(status_code=500, detail="Watch directory service not initialized")
+    
+    try:
+        result = await watch_directory_service.toggle_watch_directory(watch_id, enabled)
+        return {"success": result, "message": f"Watch directory {'enabled' if enabled else 'disabled'}"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error toggling watch directory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/watch-directories/{watch_id}/scan")
+async def scan_watch_directory_endpoint(watch_id: str):
+    """Manually scan a watch directory"""
+    if not watch_directory_service:
+        raise HTTPException(status_code=500, detail="Watch directory service not initialized")
+    
+    try:
+        result = await watch_directory_service.manual_scan(watch_id)
+        return {
+            "success": True,
+            "message": f"Scanned {result['files_found']} files, processed {result['processed']}",
+            "data": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error scanning watch directory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==================== STARTUP AND SHUTDOWN ====================
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup"""
-    logger.info("🚀 Starting Contract Reviewer v2 - Integrated")
-    await initialize_services()
-    logger.info("✅ All services initialized and ready")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    logger.info("🛑 Shutting down Contract Reviewer v2 - Integrated")
-    
-    if processing_service:
-        try:
-            await processing_service.close()
-            logger.info("✅ Processing service closed")
-        except Exception as e:
-            logger.warning(f"⚠️ Error closing processing service: {e}")
-    
-    if doc_service:
-        try:
-            await doc_service.close()
-            logger.info("✅ PostgreSQL service closed")
-        except Exception as e:
-            logger.warning(f"⚠️ Error closing PostgreSQL service: {e}")
-    
-    if vector_service:
-        try:
-            await vector_service.close()
-            logger.info("✅ Qdrant service closed")
-        except Exception as e:
-            logger.warning(f"⚠️ Error closing Qdrant service: {e}")
-    
-    if redis_client:
-        try:
-            redis_client.close()
-            logger.info("✅ Redis client closed")
-        except Exception as e:
-            logger.warning(f"⚠️ Error closing Redis client: {e}")
+# Now handled by lifespan context manager above
 
 
 # ==================== SESSION MANAGEMENT ====================
