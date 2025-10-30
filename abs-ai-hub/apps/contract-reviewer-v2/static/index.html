@@ -9,6 +9,8 @@
     <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
+    <!-- Base URL Configuration (must load first) -->
+    <script src="/static/js/base-url-config.js"></script>
     <!-- ABS Unified Framework -->
     <script src="/static/framework-config.js"></script>
     <style>
@@ -1107,17 +1109,7 @@
             </div>
         </div>
 
-        <!-- Right Panel: Chat & Insights - SIMPLIFIED -->
-        <div class="bg-gray-50 flex-1 flex items-center justify-center">
-            <div class="bg-white rounded-lg shadow-lg p-8 max-w-lg text-center">
-                <i class="fas fa-comments text-6xl text-blue-500 mb-4"></i>
-                <h3 class="text-xl font-semibold text-gray-900 mb-2">Chat & Insights</h3>
-                <p class="text-gray-600 mb-1">The full chat interface is temporarily simplified</p>
-                <p class="text-sm text-gray-500">This fixes the Document Library tab visibility issue</p>
-            </div>
-        </div>
-
-        <!-- OLD RIGHT PANEL - COMMENTED OUT
+        <!-- Right Panel: Chat & Insights -->
         <div class="bg-white border-l border-gray-200 flex flex-col relative" 
              x-show="!chatWindowMaximized && chatPanelVisible"
              :style="`width: ${chatPanelWidth}px`">
@@ -2402,7 +2394,11 @@
                     if (!this.currentDocument?.id) return;
                     
                     // Open the Tri-Store Data Inspector in a new window with the current document ID
-                    const inspectorUrl = `http://localhost:3000/inspector.html?doc_id=${encodeURIComponent(this.currentDocument.id)}`;
+                    // Use baseUrlConfig to support IP addresses and domain names
+                    const hubUIBase = window.baseUrlConfig ? 
+                        window.baseUrlConfig.hubUIUrl() : 
+                        `${window.location.protocol}//${window.location.hostname}:3000`;
+                    const inspectorUrl = `${hubUIBase}/inspector.html?doc_id=${encodeURIComponent(this.currentDocument.id)}`;
                     window.open(inspectorUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
                 },
 

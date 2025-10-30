@@ -137,18 +137,52 @@ async def index2():
 
 # Serve frontend at root
 @app.get("/")
-async def serve_frontend():
-    """Serve the frontend application with environment variables"""
+async def serve_frontend(request: Request):
+    """Serve the frontend application with environment variables and dynamic host detection"""
     # Read the HTML file
     with open("static/index.html", "r", encoding="utf-8") as f:
         html_content = f.read()
     
-    # Inject environment variables
+    # Detect current host from request
+    hostname = request.url.hostname
+    scheme = request.url.scheme
+    
+    # Build dynamic URLs based on current host (supports IP addresses and domain names)
+    # If environment variables contain localhost, replace with current host
+    def replace_localhost_with_host(url: str) -> str:
+        """Replace localhost in URLs with current hostname"""
+        if "localhost" in url.lower():
+            # Extract port from URL if present
+            import re
+            port_match = re.search(r':(\d+)', url)
+            port = port_match.group(1) if port_match else ""
+            
+            # Build new URL with current hostname
+            if port:
+                return url.replace("localhost", hostname)
+            return url.replace("localhost", hostname)
+        return url
+    
+    # Get URLs from environment variables and replace localhost if needed
+    framework_path = replace_localhost_with_host(ABS_FRAMEWORK_PATH)
+    gateway_url = replace_localhost_with_host(ABS_GATEWAY_URL)
+    app_registry_url = replace_localhost_with_host(ABS_APP_REGISTRY_URL)
+    
+    # Build Hub UI URL (default port 3000)
+    hub_ui_url = f"{scheme}://{hostname}:3000"
+    
+    # Inject environment variables and dynamic configuration
     env_script = f"""
     <script>
-        window.ABS_FRAMEWORK_PATH = "{ABS_FRAMEWORK_PATH}";
-        window.ABS_GATEWAY_URL = "{ABS_GATEWAY_URL}";
-        window.ABS_APP_REGISTRY_URL = "{ABS_APP_REGISTRY_URL}";
+        // Environment variables from backend
+        window.ABS_FRAMEWORK_PATH = "{framework_path}";
+        window.ABS_GATEWAY_URL = "{gateway_url}";
+        window.ABS_APP_REGISTRY_URL = "{app_registry_url}";
+        
+        // Dynamic host configuration (supports IP addresses and domain names)
+        window.ABS_HUB_UI_URL = "{hub_ui_url}";
+        window.ABS_CURRENT_HOST = "{hostname}";
+        window.ABS_CURRENT_SCHEME = "{scheme}";
     </script>
     """
     

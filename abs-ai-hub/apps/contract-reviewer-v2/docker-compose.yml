@@ -17,6 +17,9 @@ services:
       - HUB_GATEWAY_URL=http://hub-gateway:8081
       
       # Framework Configuration
+      # Note: URLs with 'localhost' are automatically replaced with the actual host/IP from requests
+      # For explicit IP/domain configuration, set these to your hostname/IP address:
+      # Example: ABS_FRAMEWORK_PATH=http://192.168.1.100:3000/unified-framework.js
       - ABS_FRAMEWORK_PATH=http://localhost:3000/unified-framework.js
       - ABS_GATEWAY_URL=http://localhost:8081
       - ABS_APP_REGISTRY_URL=http://localhost:3000/apps-registry.json

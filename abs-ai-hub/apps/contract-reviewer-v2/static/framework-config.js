@@ -52,8 +52,27 @@ window.openAppSettings = () => {
 // Initialize the framework
 document.addEventListener('DOMContentLoaded', () => {
 // Get framework path from environment or use defaults
-const frameworkPath = window.ABS_FRAMEWORK_PATH || 'http://localhost:3000/unified-framework.js';
-const gatewayUrl = window.ABS_GATEWAY_URL || 'http://localhost:8081';
+// Use baseUrlConfig if available, otherwise fall back to environment variables or defaults
+const getFrameworkPath = () => {
+    if (window.ABS_FRAMEWORK_PATH) return window.ABS_FRAMEWORK_PATH;
+    if (window.baseUrlConfig) return window.baseUrlConfig.hubUIUrl('/unified-framework.js');
+    // Fallback: detect current host
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:3000/unified-framework.js`;
+};
+
+const getGatewayUrl = () => {
+    if (window.ABS_GATEWAY_URL) return window.ABS_GATEWAY_URL;
+    if (window.baseUrlConfig) return window.baseUrlConfig.gatewayUrl();
+    // Fallback: detect current host
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    return `${protocol}//${hostname}:8081`;
+};
+
+const frameworkPath = getFrameworkPath();
+const gatewayUrl = getGatewayUrl();
     
     console.log(`🔧 Framework path: ${frameworkPath}`);
     console.log(`🔧 Gateway URL: ${gatewayUrl}`);
@@ -98,11 +117,17 @@ const gatewayUrl = window.ABS_GATEWAY_URL || 'http://localhost:8081';
     script.onerror = () => {
         console.error(`❌ Failed to load unified framework from: ${frameworkPath}`);
         
-        // Fallback strategies - prioritize hub URLs
+        // Fallback strategies - use current host
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+        const fallbackBase = window.baseUrlConfig ? 
+            window.baseUrlConfig.hubUIUrl() : 
+            `${protocol}//${hostname}:3000`;
+        
         const fallbacks = [
-            'http://localhost:3000/unified-framework.js', // Hub UI URL
-            'http://localhost:3000/unified-framework.js', // Hub UI URL (duplicate for safety)
-            'http://localhost:3000/unified-framework.js'  // Hub UI URL (triple safety)
+            `${fallbackBase}/unified-framework.js`, // Hub UI URL (current host)
+            `${protocol}//localhost:3000/unified-framework.js`, // Localhost fallback
+            `http://localhost:3000/unified-framework.js`  // Final fallback
         ];
         
         let fallbackIndex = 0;
