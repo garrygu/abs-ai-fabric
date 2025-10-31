@@ -1,0 +1,26 @@
+<!-- Document Review Tab -->
+<div x-show="mainTab === 'documents'" x-cloak class="flex h-screen">
+    <!-- Copy the content from lines 57-1491 of index.html here -->
+    <!-- Left Panel: Document Navigation -->
+    <div class="bg-white border-r border-gray-200 flex flex-col transition-all duration-300 relative"
+         :class="sidebarCollapsed ? 'w-16' : 'w-[420px]'">
+        <!-- ... entire left panel content ... -->
+    </div>
+    
+    <!-- Middle Panel: Analysis Results -->
+    <div class="flex-1 overflow-hidden">
+        <!-- ... entire middle panel content ... -->
+    </div>
+    
+    <!-- Right Panel: Chat & Insights - SIMPLIFIED -->
+    <div class="bg-gray-50 flex-1 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 max-w-lg text-center">
+            <i class="fas fa-comments text-6xl text-blue-500 mb-4"></i>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Chat & Insights</h3>
+            <p class="text-gray-600 mb-1">The full chat interface is temporarily simplified</p>
+            <p class="text-sm text-gray-500">This fixes the Document Library tab visibility issue</p>
+        </div>
+    </div>
+</div>
+
+

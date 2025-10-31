@@ -64,3 +64,4 @@ def should_run_migrations() -> bool:
 if __name__ == "__main__":
     asyncio.run(run_migrations_on_startup())
 
+
