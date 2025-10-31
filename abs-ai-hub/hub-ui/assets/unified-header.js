@@ -1,10 +1,27 @@
 /**
  * Unified Header Component for ABS AI Hub
  * Can be included in any application to provide consistent navigation
+ * 
+ * ⚠️ DISABLED FOR HUB: This conflicts with unified-framework.js
+ * Use unified-framework.js instead for hub UI
  */
 
 class ABSUnifiedHeader {
     constructor(options = {}) {
+        // CRITICAL: Prevent initialization if unified framework is active
+        if (document.getElementById('abs-unified-framework') || 
+            document.body.classList.contains('unified-framework-active') ||
+            window.location.pathname === '/' ||
+            window.location.pathname === '/index.html' ||
+            window.location.pathname.includes('hub')) {
+            console.warn('⚠️ ABSUnifiedHeader: Blocked initialization - unified-framework.js is active');
+            // Return a dummy object instead of initializing
+            return {
+                init: () => {},
+                destroy: () => {}
+            };
+        }
+        
         this.options = {
             showBreadcrumb: true,
             showQuickActions: true,
@@ -15,10 +32,34 @@ class ABSUnifiedHeader {
     }
 
     init() {
+        // DISABLED: Prevent auto-initialization to avoid conflict with unified-framework.js
+        // If you need this header, explicitly call it, don't auto-init
+        // Check if unified framework is active first
+        if (document.getElementById('abs-unified-framework') || 
+            document.body.classList.contains('unified-framework-active') ||
+            window.location.pathname === '/' ||
+            window.location.pathname === '/index.html' ||
+            window.location.pathname.includes('hub')) {
+            console.log('⚠️ ABSUnifiedHeader: Unified framework active, skipping initialization');
+            // Destroy any existing injected HTML
+            this.destroy();
+            return;
+        }
+        
         this.createHeaderHTML();
         this.injectHeader();
         this.setupEventListeners();
         this.updateActiveState();
+    }
+    
+    destroy() {
+        // Remove any injected headers
+        const headers = document.querySelectorAll('.abs-unified-header, #unifiedHeader');
+        headers.forEach(header => {
+            try {
+                header.remove();
+            } catch(e) {}
+        });
     }
 
     createHeaderHTML() {
@@ -360,10 +401,12 @@ Click "Refresh" to update status information.`);
 // Global instance
 let ABSHeader;
 
+// DISABLED: Auto-initialization conflicts with unified-framework.js
+// Use unified-framework.js instead for consistent header
 // Auto-initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    ABSHeader = new ABSUnifiedHeader();
-});
+// document.addEventListener('DOMContentLoaded', () => {
+//     ABSHeader = new ABSUnifiedHeader();
+// });
 
 // Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
