@@ -738,6 +738,76 @@
     </div>
 
     <script>
+        // Preload commonly used components
+        Components.preload(['app-card', 'model-item', 'status-card', 'stat-card']);
+
+        // Helper function to render a model item using component template
+        async function renderModelItem(model) {
+            const safeId = model.name.replace(/[^a-zA-Z0-9]/g, '');
+            const icon = model.type === 'embedding' ? '📤' : '🧠';
+
+            // Status
+            let statusClass = model.running ? 'running' : model.available ? 'available' : 'unavailable';
+            let statusText = model.running ? '✔ Running' : model.available ? '✔ Available' : '✗ Unavailable';
+
+            // Performance tags
+            let performanceTagsHtml = '';
+            const modelName = model.name.toLowerCase();
+            if (modelName.includes('3.2') || modelName.includes('8b')) {
+                performanceTagsHtml += '<span class="performance-tag fast">Fast</span>';
+            }
+            if (modelName.includes('legal')) {
+                performanceTagsHtml += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
+            }
+            if (modelName.includes('multilingual') || modelName.includes('bge')) {
+                performanceTagsHtml += '<span class="performance-tag multilingual">Multilingual</span>';
+            }
+
+            // Used by
+            let usedByText = '';
+            let usedByCount = 0;
+            if (model.used_by && model.used_by.length > 0) {
+                usedByText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
+                usedByCount = model.used_by.length;
+            }
+
+            // Action buttons
+            let actionsHtml = '';
+            if (model.running) {
+                actionsHtml = `
+                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
+                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                `;
+            } else if (model.available) {
+                actionsHtml = `
+                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
+                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                `;
+            } else {
+                actionsHtml = `
+                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
+                    <div class="pull-status" id="pull-status-${safeId}" style="display:none;"></div>
+                `;
+            }
+
+            return await Components.render('model-item', {
+                name: model.name,
+                icon: icon,
+                safeId: safeId,
+                statusClass: statusClass,
+                statusText: statusText,
+                isDefaultChat: model.is_default_chat,
+                isDefaultEmbed: model.is_default_embedding,
+                hasPerformanceTags: performanceTagsHtml.length > 0,
+                performanceTagsHtml: performanceTagsHtml,
+                hasUsedBy: usedByCount > 0,
+                usedByCount: usedByCount,
+                usedByPlural: usedByCount > 1 ? 's' : '',
+                usedByText: usedByText,
+                actionsHtml: actionsHtml
+            });
+        }
+
         // Tab Functions
         function showTab(tabName) {
             // Hide all tab contents
@@ -1498,104 +1568,24 @@
                         const llmCategory = document.createElement('div');
                         llmCategory.className = 'model-category';
                         llmCategory.innerHTML = `
-                            <h3>ðŸ§  Language Models (LLMs)</h3>
+                            <h3>🧠 Language Models (LLMs)</h3>
                             <div class="model-list"></div>
                         `;
                         const llmList = llmCategory.querySelector('.model-list');
 
+                        // Render all LLM models using component helper
+                        const llmHtmls = await Promise.all(llmModels.map(model => renderModelItem(model)));
+                        llmList.innerHTML = llmHtmls.join('');
+
+                        // Restore pull indicators for models still pulling
                         llmModels.forEach(model => {
-                            const modelItem = document.createElement('div');
-                            modelItem.className = 'model-item';
-
-                            // Simplified action buttons - only primary action + info
-                            let actionButtons = '';
-                            if (model.running) {
-                                actionButtons = `
-                                    <button class=\"model-btn unload\" onclick=\"unloadModel('${model.name}')\">â¹ï¸ Unload</button>
-                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">ðŸ—‘ï¸ Delete</button>
-                                `;
-                            } else if (model.available) {
-                                actionButtons = `
-                                    <button class=\"model-btn load\" onclick=\"loadModel('${model.name}')\">â–¶ï¸ Load</button>
-                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">ðŸ—‘ï¸ Delete</button>
-                                `;
-                            } else {
-                                actionButtons = `
-                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">â¬‡ï¸ Pull</button>
-                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
-                                `;
-                            }
-
-                            // Build collapsible usage info
-                            let usageInfo = '';
-                            if (model.used_by && model.used_by.length > 0) {
-                                const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
-                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                                usageInfo = `
-                                    <div class="model-usage">
-                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
-                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
-                                            <span id="${uniqueId}-arrow">â–¼</span>
-                                        </button>
-                                        <div class="used-by-list hidden" id="${uniqueId}">
-                                            ${usageText}
-                                        </div>
-                                    </div>
-                                `;
-                            }
-
-                            // Add default indicator
-                            let defaultIndicator = '';
-                            if (model.is_default_chat) {
-                                defaultIndicator = '<span class="model-default">â­ Default Chat</span>';
-                            }
-
-                            // Generate performance tags based on model name
-                            let performanceTags = '';
-                            const modelName = model.name.toLowerCase();
-                            if (modelName.includes('3.2') || modelName.includes('8b')) {
-                                performanceTags += '<span class="performance-tag fast">Fast</span>';
-                            }
-                            if (modelName.includes('legal')) {
-                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
-                            }
-                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
-                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
-                            }
-
-                            // Determine model icon
-                            const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
-
-                            modelItem.innerHTML = `
-                                <div class="model-main-info">
-                                    <div class="model-icon">${modelIcon}</div>
-                                    <div class="model-details">
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <span class="model-name">${model.name}</span>
-                                            ${defaultIndicator}
-                                            <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                                ${model.running ? 'âœ“ Running' : model.available ? 'âœ“ Available' : 'âœ— Unavailable'}
-                                            </span>
-                                            <button class="model-btn info" style="margin-left:6px;" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
-                                        </div>
-                                        ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
-                                        ${usageInfo}
-                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
-                                            <span class="error-text"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="model-actions">
-                                    ${actionButtons}
-                                </div>
-                            `;
-                            llmList.appendChild(modelItem);
-                            // Restore pull indicator if this model is still pulling
                             const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
                             const statusEl = document.getElementById(elemId);
                             if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
                                 statusEl.style.display = 'inline-block';
-                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
+                                if (!statusEl.querySelector('.pull-text')) {
+                                    statusEl.innerHTML = '<span class="pull-text">Pulling...</span>';
+                                }
                             }
                         });
 
@@ -1612,100 +1602,19 @@
                         `;
                         const embedList = embedCategory.querySelector('.model-list');
 
+                        // Render all embedding models using component helper
+                        const embedHtmls = await Promise.all(embeddingModels.map(model => renderModelItem(model)));
+                        embedList.innerHTML = embedHtmls.join('');
+
+                        // Restore pull indicators for models still pulling
                         embeddingModels.forEach(model => {
-                            const modelItem = document.createElement('div');
-                            modelItem.className = 'model-item';
-
-                            // Simplified action buttons - only primary action + info
-                            let actionButtons = '';
-                            if (model.running) {
-                                actionButtons = `
-                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">â¹ï¸ Unload</button>
-                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
-                                `;
-                            } else if (model.available) {
-                                actionButtons = `
-                                    <button class="model-btn load" onclick="loadModel('${model.name}')">â–¶ï¸ Load</button>
-                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
-                                `;
-                            } else {
-                                actionButtons = `
-                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">â¬‡ï¸ Pull</button>
-                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
-                                `;
-                            }
-
-                            // Build collapsible usage info
-                            let usageInfo = '';
-                            if (model.used_by && model.used_by.length > 0) {
-                                const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
-                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                                usageInfo = `
-                                    <div class="model-usage">
-                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
-                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
-                                            <span id="${uniqueId}-arrow">â–¼</span>
-                                        </button>
-                                        <div class="used-by-list hidden" id="${uniqueId}">
-                                            ${usageText}
-                                        </div>
-                                    </div>
-                                `;
-                            }
-
-                            // Add default indicator
-                            let defaultIndicator = '';
-                            if (model.is_default_embed) {
-                                defaultIndicator = '<span class="model-default">â­ Default Embedding</span>';
-                            }
-
-                            // Generate performance tags based on model name
-                            let performanceTags = '';
-                            const modelName = model.name.toLowerCase();
-                            if (modelName.includes('3.2') || modelName.includes('8b')) {
-                                performanceTags += '<span class="performance-tag fast">Fast</span>';
-                            }
-                            if (modelName.includes('legal')) {
-                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
-                            }
-                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
-                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
-                            }
-
-                            // Determine model icon
-                            const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
-
-                            modelItem.innerHTML = `
-                                <div class="model-main-info">
-                                    <div class="model-icon">${modelIcon}</div>
-                                    <div class="model-details">
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <span class="model-name">${model.name}</span>
-                                            ${defaultIndicator}
-                                            <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                                ${model.running ? 'âœ“ Running' : model.available ? 'âœ“ Available' : 'âœ— Unavailable'}
-                                            </span>
-                                        </div>
-                                        ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
-                                        ${usageInfo}
-                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
-                                            <span class="error-text"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="model-actions">
-                                    ${actionButtons}
-                                </div>
-                            `;
-                            embedList.appendChild(modelItem);
-                            // Restore pull indicator if this model is still pulling
                             const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
                             const statusEl = document.getElementById(elemId);
                             if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
                                 statusEl.style.display = 'inline-block';
-                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
+                                if (!statusEl.querySelector('.pull-text')) {
+                                    statusEl.innerHTML = '<span class="pull-text">Pulling...</span>';
+                                }
                             }
                         });
 
