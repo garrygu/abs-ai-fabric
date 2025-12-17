@@ -1,23 +1,28 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ABS AI Hub - Legal Workstation</title>
-    
+
     <!-- Tailwind CSS - Required for unified-framework.js header styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Alpine.js for framework interactivity -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    
+
     <!-- Hub UI Styles (extracted) -->
     <link rel="stylesheet" href="css/hub-styles.css">
 
+    <!-- Component System -->
+    <script src="js/components.js"></script>
+
 </head>
+
 <body>
     <!-- Main Navigation Tabs -->
     <nav class="main-nav">
@@ -28,7 +33,7 @@
             </div>
         </div>
     </nav>
-    
+
     <div class="container">
         <!-- Header and Navigation Tabs Removed -->
 
@@ -36,12 +41,12 @@
         <div id="apps-tab" class="tab-content active">
             <h2>ðŸ“± Applications</h2>
             <p>Discover and launch AI-powered applications available in your workspace.</p>
-            
+
             <!-- Applications -->
             <div class="apps-grid" id="apps-grid">
                 <!-- Apps will be loaded dynamically -->
-                    </div>
-                </div>
+            </div>
+        </div>
 
         <!-- Assets Tab (Merged Admin + Assets) -->
         <div id="assets-tab" class="tab-content">
@@ -70,13 +75,13 @@
                         </li>
                     </ul>
                 </div>
-            
+
                 <!-- Assets Content (merged Admin content) -->
                 <div class="admin-content">
                     <!-- Overview Sub-Tab -->
                     <div id="overview-sub" class="admin-sub-content active">
                         <h2>ðŸ“Š System Overview</h2>
-                        
+
                         <!-- Service Status Summary -->
                         <div class="service-summary">
                             <h3>Service Status</h3>
@@ -84,40 +89,45 @@
                                 <div class="status-card">
                                     <div class="status-icon">ðŸ¤–</div>
                                     <div class="status-info">
-                                        <div class="status-name">Ollama <span class="status-version">v<span id="ollama-version-summary">-</span></span></div>
+                                        <div class="status-name">Ollama <span class="status-version">v<span
+                                                    id="ollama-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="ollama-status-summary">Checking...</div>
-                        </div>
-                        </div>
+                                    </div>
+                                </div>
                                 <div class="status-card">
                                     <div class="status-icon">ðŸ—„ï¸</div>
                                     <div class="status-info">
-                                        <div class="status-name">Qdrant <span class="status-version">v<span id="qdrant-version-summary">-</span></span></div>
+                                        <div class="status-name">Qdrant <span class="status-version">v<span
+                                                    id="qdrant-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
-                        </div>
-                    </div>
+                                    </div>
+                                </div>
                                 <div class="status-card">
                                     <div class="status-icon">âš¡</div>
                                     <div class="status-info">
-                                        <div class="status-name">Redis <span class="status-version">v<span id="redis-version-summary">-</span></span></div>
+                                        <div class="status-name">Redis <span class="status-version">v<span
+                                                    id="redis-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="redis-status-summary">Checking...</div>
-                </div>
-                        </div>
+                                    </div>
+                                </div>
                                 <div class="status-card">
                                     <div class="status-icon">ðŸ˜</div>
                                     <div class="status-info">
-                                        <div class="status-name">PostgreSQL <span class="status-version">v<span id="postgresql-version-summary">-</span></span></div>
+                                        <div class="status-name">PostgreSQL <span class="status-version">v<span
+                                                    id="postgresql-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
-                    </div>
-                </div>
+                                    </div>
+                                </div>
                                 <div class="status-card">
                                     <div class="status-icon">ðŸŒ</div>
                                     <div class="status-info">
-                                        <div class="status-name">Hub Gateway <span class="status-version">v<span id="gateway-version-summary">-</span></span></div>
+                                        <div class="status-name">Hub Gateway <span class="status-version">v<span
+                                                    id="gateway-version-summary">-</span></span></div>
                                         <div class="status-indicator" id="gateway-status-summary">Checking...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Asset Statistics -->
                         <div class="asset-overview">
@@ -127,24 +137,24 @@
                                     <div class="stat-icon">ðŸ“±</div>
                                     <div class="stat-number" id="app-count">-</div>
                                     <div class="stat-label">Applications</div>
-                </div>
+                                </div>
                                 <div class="stat-card">
                                     <div class="stat-icon">âš™ï¸</div>
                                     <div class="stat-number" id="service-count">-</div>
                                     <div class="stat-label">Services</div>
-            </div>
+                                </div>
                                 <div class="stat-card">
                                     <div class="stat-icon">ðŸ§ </div>
                                     <div class="stat-number" id="model-count">-</div>
                                     <div class="stat-label">Models</div>
-                </div>
+                                </div>
                                 <div class="stat-card">
                                     <div class="stat-icon">ðŸ”§</div>
                                     <div class="stat-number" id="tool-count">-</div>
                                     <div class="stat-label">Tools</div>
-            </div>
-                </div>
-            </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Quick Actions -->
                         <div class="quick-actions">
@@ -152,258 +162,278 @@
                             <div class="action-buttons">
                                 <a href="manage.html" class="btn btn-primary">Open Asset Manager</a>
                                 <button class="btn btn-secondary" onclick="refreshAllStatus()">Refresh All</button>
-                                <button class="btn btn-secondary" onclick="restartAllServices()">Restart All Services</button>
-            </div>
-        </div>
-        </div>
+                                <button class="btn btn-secondary" onclick="restartAllServices()">Restart All
+                                    Services</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Services Sub-Tab -->
                     <div id="services-sub" class="admin-sub-content">
                         <h2>âš™ï¸ Service Management</h2>
-                <div class="services-grid">
-                    <div class="service-control-card critical" id="ollama-control">
-                        <div class="service-header">
-                            <div class="service-info">
-                                <h3>ðŸ¦™ Ollama (LLM Server)</h3>
-                                <p>Large Language Model serving with lazy-loaded models</p>
-                            </div>
-                            <div class="service-status">
-                                <span class="status-indicator" id="ollama-status">Checking...</span>
-                                <div class="service-controls">
-                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('ollama', true)">â–¶ï¸</button>
-                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('ollama', false)">â¹ï¸</button>
-                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('ollama')">â™»ï¸</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="service-details" id="ollama-details">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Status</span>
-                                    <span class="detail-value" id="ollama-status-text">Checking...</span>
-                            </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Models</span>
-                                    <span class="detail-value" id="ollama-models">-</span>
-                        </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Memory</span>
-                                    <span class="detail-value" id="ollama-memory">-</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Version</span>
-                                    <span class="detail-value" id="ollama-version">-</span>
-                                </div>
-                            </div>
-                        </div>
-                        <button class="expand-btn" onclick="toggleServiceDetails('ollama')">View Details</button>
-                    </div>
-
-                    <div class="service-control-card critical" id="qdrant-control">
-                        <div class="service-header">
-                            <div class="service-info">
-                                <h3>ðŸ—„ï¸ Qdrant (Vector Database)</h3>
-                                <p>Vector database for embeddings and similarity search</p>
-                            </div>
-                            <div class="service-status">
-                                <span class="status-indicator" id="qdrant-status">Checking...</span>
-                                <div class="service-controls">
-                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('qdrant', true)">â–¶ï¸</button>
-                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('qdrant', false)">â¹ï¸</button>
-                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('qdrant')">â™»ï¸</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="service-details" id="qdrant-details">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Status</span>
-                                    <span class="detail-value" id="qdrant-status-text">Checking...</span>
+                        <div class="services-grid">
+                            <div class="service-control-card critical" id="ollama-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>ðŸ¦™ Ollama (LLM Server)</h3>
+                                        <p>Large Language Model serving with lazy-loaded models</p>
                                     </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Collections</span>
-                                    <span class="detail-value" id="qdrant-collections">-</span>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="ollama-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('ollama', true)">â–¶ï¸</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('ollama', false)">â¹ï¸</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('ollama')">â™»ï¸</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Vectors</span>
-                                    <span class="detail-value" id="qdrant-vectors">-</span>
+                                <div class="service-details" id="ollama-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="ollama-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Models</span>
+                                            <span class="detail-value" id="ollama-models">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Memory</span>
+                                            <span class="detail-value" id="ollama-memory">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="ollama-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('ollama')">View
+                                    Details</button>
                             </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Version</span>
-                                    <span class="detail-value" id="qdrant-version">-</span>
-                        </div>
-                            </div>
-                        </div>
-                        <button class="expand-btn" onclick="toggleServiceDetails('qdrant')">View Details</button>
-                    </div>
 
-                    <div class="service-control-card" id="redis-control">
-                        <div class="service-header">
-                            <div class="service-info">
-                                <h3>âš¡ Redis (Cache)</h3>
-                                <p>In-memory cache for performance optimization</p>
+                            <div class="service-control-card critical" id="qdrant-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>ðŸ—„ï¸ Qdrant (Vector Database)</h3>
+                                        <p>Vector database for embeddings and similarity search</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="qdrant-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('qdrant', true)">â–¶ï¸</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('qdrant', false)">â¹ï¸</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('qdrant')">â™»ï¸</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="qdrant-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="qdrant-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Collections</span>
+                                            <span class="detail-value" id="qdrant-collections">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Vectors</span>
+                                            <span class="detail-value" id="qdrant-vectors">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="qdrant-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('qdrant')">View
+                                    Details</button>
                             </div>
-                            <div class="service-status">
-                                <span class="status-indicator" id="redis-status">Checking...</span>
-                                <div class="service-controls">
-                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('redis', true)">â–¶ï¸</button>
-                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('redis', false)">â¹ï¸</button>
-                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('redis')">â™»ï¸</button>
+
+                            <div class="service-control-card" id="redis-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>âš¡ Redis (Cache)</h3>
+                                        <p>In-memory cache for performance optimization</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="redis-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('redis', true)">â–¶ï¸</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('redis', false)">â¹ï¸</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('redis')">â™»ï¸</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="redis-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="redis-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Keys</span>
+                                            <span class="detail-value" id="redis-keys">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Memory</span>
+                                            <span class="detail-value" id="redis-memory">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="redis-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
+                            </div>
+
+                            <div class="service-control-card critical" id="postgresql-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>ðŸ˜ PostgreSQL (Database)</h3>
+                                        <p>Relational database for metadata and structured data storage</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="postgresql-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('postgresql', true)">â–¶ï¸</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('postgresql', false)">â¹ï¸</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('postgresql')">â™»ï¸</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="postgresql-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="postgresql-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Database Size</span>
+                                            <span class="detail-value" id="postgresql-size">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Connections</span>
+                                            <span class="detail-value" id="postgresql-connections">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="postgresql-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('postgresql')">View
+                                    Details</button>
+                            </div>
+
+                            <div class="service-control-card" id="gateway-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>ðŸŒ Hub Gateway</h3>
+                                        <p>Central API gateway and service orchestrator</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="gateway-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('gateway', true)">â–¶ï¸</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('gateway', false)">â¹ï¸</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('gateway')">â™»ï¸</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="gateway-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="gateway-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="gateway-version">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Uptime</span>
+                                            <span class="detail-value" id="gateway-uptime">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('gateway')">View
+                                    Details</button>
+                            </div>
+                        </div>
+
+                        <!-- Service Operation History -->
+                        <div class="operation-history">
+                            <h3>ðŸ“‹ Recent Service Operations</h3>
+                            <div id="service-operations">
+                                <div class="operation-item success">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Hub Gateway</div>
+                                        <div class="operation-action">Service started successfully</div>
+                                        <div class="operation-timestamp">Just now</div>
+                                    </div>
+                                    <span class="operation-status success">Success</span>
+                                </div>
+                                <div class="operation-item success">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Ollama</div>
+                                        <div class="operation-action">Model loaded: llama3.2:latest</div>
+                                        <div class="operation-timestamp">2 minutes ago</div>
+                                    </div>
+                                    <span class="operation-status success">Success</span>
+                                </div>
+                                <div class="operation-item warning">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Qdrant</div>
+                                        <div class="operation-action">High memory usage detected</div>
+                                        <div class="operation-timestamp">5 minutes ago</div>
+                                    </div>
+                                    <span class="operation-status warning">Warning</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="service-details" id="redis-details">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Status</span>
-                                    <span class="detail-value" id="redis-status-text">Checking...</span>
-                    </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Keys</span>
-                                    <span class="detail-value" id="redis-keys">-</span>
-                            </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Memory</span>
-                                    <span class="detail-value" id="redis-memory">-</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Version</span>
-                                    <span class="detail-value" id="redis-version">-</span>
-                            </div>
-                        </div>
-                    </div>
-                        <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
-            </div>
 
-                    <div class="service-control-card critical" id="postgresql-control">
-                        <div class="service-header">
-                            <div class="service-info">
-                                <h3>ðŸ˜ PostgreSQL (Database)</h3>
-                                <p>Relational database for metadata and structured data storage</p>
+                        <!-- Service Logs -->
+                        <div class="logs-section">
+                            <div class="logs-header">
+                                <h4>ðŸ“‹ Service Logs</h4>
+                                <div class="logs-controls">
+                                    <select id="service-log-selector" onchange="loadServiceLogs()">
+                                        <option value="ollama">Ollama</option>
+                                        <option value="qdrant">Qdrant</option>
+                                        <option value="redis">Redis</option>
+                                        <option value="gateway">Hub Gateway</option>
+                                    </select>
+                                    <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
+                                    <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
+                                </div>
                             </div>
-                            <div class="service-status">
-                                <span class="status-indicator" id="postgresql-status">Checking...</span>
-                                <div class="service-controls">
-                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('postgresql', true)">â–¶ï¸</button>
-                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('postgresql', false)">â¹ï¸</button>
-                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('postgresql')">â™»ï¸</button>
+                            <div class="logs-container" id="service-logs">
+                                <div class="log-entry">
+                                    <span class="log-timestamp">[â–¶ï¸ Loading...]</span>
+                                    <span class="log-level info">INFO</span>
+                                    <span class="log-service">SYSTEM</span>
+                                    <span class="log-message">Select a service to view logs...</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="service-details" id="postgresql-details">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Status</span>
-                                    <span class="detail-value" id="postgresql-status-text">Checking...</span>
                     </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Database Size</span>
-                                    <span class="detail-value" id="postgresql-size">-</span>
-                            </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Connections</span>
-                                    <span class="detail-value" id="postgresql-connections">-</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Version</span>
-                                    <span class="detail-value" id="postgresql-version">-</span>
-                            </div>
-                        </div>
-                    </div>
-                        <button class="expand-btn" onclick="toggleServiceDetails('postgresql')">View Details</button>
-            </div>
-
-                    <div class="service-control-card" id="gateway-control">
-                        <div class="service-header">
-                            <div class="service-info">
-                                <h3>ðŸŒ Hub Gateway</h3>
-                                <p>Central API gateway and service orchestrator</p>
-                    </div>
-                            <div class="service-status">
-                                <span class="status-indicator" id="gateway-status">Checking...</span>
-                                <div class="service-controls">
-                                    <button class="icon-btn start" title="Start Service" onclick="toggleService('gateway', true)">â–¶ï¸</button>
-                                    <button class="icon-btn stop" title="Stop Service" onclick="toggleService('gateway', false)">â¹ï¸</button>
-                                    <button class="icon-btn restart" title="Restart Service" onclick="restartService('gateway')">â™»ï¸</button>
-                    </div>
-                    </div>
-                </div>
-                        <div class="service-details" id="gateway-details">
-                            <div class="detail-grid">
-                                <div class="detail-item">
-                                    <span class="detail-label">Status</span>
-                                    <span class="detail-value" id="gateway-status-text">Checking...</span>
-            </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Version</span>
-                                    <span class="detail-value" id="gateway-version">-</span>
-                        </div>
-                                <div class="detail-item">
-                                    <span class="detail-label">Uptime</span>
-                                    <span class="detail-value" id="gateway-uptime">-</span>
-                        </div>
-                        </div>
-                    </div>
-                        <button class="expand-btn" onclick="toggleServiceDetails('gateway')">View Details</button>
-                        </div>
-                    </div>
-
-                <!-- Service Operation History -->
-                <div class="operation-history">
-                    <h3>ðŸ“‹ Recent Service Operations</h3>
-                    <div id="service-operations">
-                        <div class="operation-item success">
-                            <div class="operation-details">
-                                <div class="operation-service">Hub Gateway</div>
-                                <div class="operation-action">Service started successfully</div>
-                                <div class="operation-timestamp">Just now</div>
-                        </div>
-                            <span class="operation-status success">Success</span>
-                        </div>
-                        <div class="operation-item success">
-                            <div class="operation-details">
-                                <div class="operation-service">Ollama</div>
-                                <div class="operation-action">Model loaded: llama3.2:latest</div>
-                                <div class="operation-timestamp">2 minutes ago</div>
-                        </div>
-                            <span class="operation-status success">Success</span>
-                    </div>
-                        <div class="operation-item warning">
-                            <div class="operation-details">
-                                <div class="operation-service">Qdrant</div>
-                                <div class="operation-action">High memory usage detected</div>
-                                <div class="operation-timestamp">5 minutes ago</div>
-                </div>
-                            <span class="operation-status warning">Warning</span>
-            </div>
-                        </div>
-                    </div>
-
-                <!-- Service Logs -->
-                <div class="logs-section">
-                    <div class="logs-header">
-                        <h4>ðŸ“‹ Service Logs</h4>
-                        <div class="logs-controls">
-                            <select id="service-log-selector" onchange="loadServiceLogs()">
-                            <option value="ollama">Ollama</option>
-                            <option value="qdrant">Qdrant</option>
-                            <option value="redis">Redis</option>
-                                <option value="gateway">Hub Gateway</option>
-                        </select>
-                            <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
-                            <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
-                    </div>
-                        </div>
-                    <div class="logs-container" id="service-logs">
-                        <div class="log-entry">
-                            <span class="log-timestamp">[â–¶ï¸ Loading...]</span>
-                            <span class="log-level info">INFO</span>
-                            <span class="log-service">SYSTEM</span>
-                            <span class="log-message">Select a service to view logs...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
                     <!-- Models Sub-Tab -->
                     <div id="models-sub" class="admin-sub-content">
@@ -411,12 +441,14 @@
                         <div class="model-management">
                             <div class="model-actions">
                                 <button class="btn btn-primary" onclick="refreshModels()">Refresh Models</button>
-                                <button class="btn btn-secondary" onclick="loadAllModels()" disabled title="Disabled: Loading all models simultaneously would overwhelm system resources">â–¶ï¸ Load All Models</button>
+                                <button class="btn btn-secondary" onclick="loadAllModels()" disabled
+                                    title="Disabled: Loading all models simultaneously would overwhelm system resources">â–¶ï¸
+                                    Load All Models</button>
                                 <button class="btn btn-secondary" onclick="clearModelLogs()">Clear Logs</button>
                             </div>
                             <div class="models-grid" id="admin-models-grid">
                                 <!-- Models will be loaded here -->
-                    </div>
+                            </div>
 
                             <!-- Model Operation Logs -->
                             <div class="logs-section">
@@ -424,20 +456,21 @@
                                     <h4>ðŸ“‹ Model Operation Logs</h4>
                                     <div class="logs-controls">
                                         <button class="btn btn-primary" onclick="refreshModelLogs()">Refresh</button>
-                                        <button class="btn btn-secondary" onclick="toggleLogStreaming()">Toggle Live</button>
-                            </div>
-                            </div>
+                                        <button class="btn btn-secondary" onclick="toggleLogStreaming()">Toggle
+                                            Live</button>
+                                    </div>
+                                </div>
                                 <div class="logs-container" id="model-logs">
                                     <div class="log-entry">
                                         <span class="log-timestamp">[â–¶ï¸ Loading...]</span>
                                         <span class="log-level info">INFO</span>
                                         <span class="log-service">SYSTEM</span>
                                         <span class="log-message">Initializing model logs...</span>
-                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
                     <!-- Dependencies Sub-Tab -->
                     <div id="dependencies-sub" class="admin-sub-content">
@@ -463,10 +496,10 @@
                                             <div class="node-status online">Online</div>
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Flow Arrow -->
                                     <div class="flow-arrow">â¬†ï¸</div>
-                                    
+
                                     <!-- Hub Gateway -->
                                     <div class="service-row">
                                         <div class="service-node">
@@ -475,10 +508,10 @@
                                             <div class="node-status online">Online</div>
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Flow Arrow -->
                                     <div class="flow-arrow">â¬‡ï¸</div>
-                                    
+
                                     <!-- Applications Row -->
                                     <div class="service-row">
                                         <div class="service-node">
@@ -499,39 +532,41 @@
                                     </div>
                                 </div>
                             </div>
-                    <div class="dependency-info">
-                        <h4>Dependency Status</h4>
-                        <div class="dependency-list" id="dependency-list">
-                            <div class="dep-item">
-                                <span class="dep-service">Contract Reviewer</span>
-                                <span class="dep-depends">â†’ Hub Gateway</span>
-                                <span class="dep-status healthy">âœ“ Healthy</span>
-                            </div>
-                            <div class="dep-item">
-                                <span class="dep-service">Onyx</span>
-                                <span class="dep-depends">â†’ Hub Gateway, Ollama, Qdrant, Redis</span>
-                                <span class="dep-status healthy">âœ“ Healthy</span>
-                            </div>
-                            <div class="dep-item">
-                                <span class="dep-service">RAG PDF Voice</span>
-                                <span class="dep-depends">â†’ Hub Gateway, Whisper Server</span>
-                                <span class="dep-status healthy">âœ“ Healthy</span>
-                            </div>
-                            <div class="dep-item">
-                                <span class="dep-service">Hub Gateway</span>
-                                <span class="dep-depends">â†’ Ollama, Qdrant, Redis</span>
-                                <span class="dep-status healthy">âœ“ Healthy</span>
+                            <div class="dependency-info">
+                                <h4>Dependency Status</h4>
+                                <div class="dependency-list" id="dependency-list">
+                                    <div class="dep-item">
+                                        <span class="dep-service">Contract Reviewer</span>
+                                        <span class="dep-depends">â†’ Hub Gateway</span>
+                                        <span class="dep-status healthy">âœ“ Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">Onyx</span>
+                                        <span class="dep-depends">â†’ Hub Gateway, Ollama, Qdrant, Redis</span>
+                                        <span class="dep-status healthy">âœ“ Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">RAG PDF Voice</span>
+                                        <span class="dep-depends">â†’ Hub Gateway, Whisper Server</span>
+                                        <span class="dep-status healthy">âœ“ Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">Hub Gateway</span>
+                                        <span class="dep-depends">â†’ Ollama, Qdrant, Redis</span>
+                                        <span class="dep-status healthy">âœ“ Healthy</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                </div>
-            </div>
-            </div>
+                    </div>
 
                     <!-- System Sub-Tab -->
                     <div id="system-sub" class="admin-sub-content">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                             <h2>ðŸ“ˆ System Monitoring</h2>
-                            <button onclick="updateSystemMetrics()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                            <button onclick="updateSystemMetrics()" class="btn btn-primary"
+                                style="padding: 8px 16px; font-size: 14px;">
                                 ðŸ”„ Refresh Metrics
                             </button>
                         </div>
@@ -573,7 +608,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Collection Management -->
                         <div class="monitor-card">
                             <h3>ðŸ—„ï¸ Qdrant Collections</h3>
@@ -584,24 +619,29 @@
                                 </div>
                             </div>
                             <div style="margin-top: 15px;">
-                                <button class="btn btn-primary" onclick="refreshCollections()">Refresh Collections</button>
-                                <button class="btn btn-secondary" onclick="showCreateCollection()">Create Collection</button>
+                                <button class="btn btn-primary" onclick="refreshCollections()">Refresh
+                                    Collections</button>
+                                <button class="btn btn-secondary" onclick="showCreateCollection()">Create
+                                    Collection</button>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Inspector Sub-Tab -->
                     <div id="inspector-sub" class="admin-sub-content">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                             <h2>ðŸ” Tri-Store Data Inspector</h2>
-                            <button onclick="openInspector()" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">
+                            <button onclick="openInspector()" class="btn btn-primary"
+                                style="padding: 8px 16px; font-size: 14px;">
                                 ðŸ” Open Inspector
                             </button>
                         </div>
                         <div class="inspector-info">
                             <div class="info-card">
                                 <h3>About the Data Inspector</h3>
-                                <p>The Tri-Store Data Inspector allows you to inspect and compare document data across all three storage systems:</p>
+                                <p>The Tri-Store Data Inspector allows you to inspect and compare document data across
+                                    all three storage systems:</p>
                                 <ul style="margin: 10px 0; padding-left: 20px;">
                                     <li><strong>PostgreSQL:</strong> Primary metadata and structured data</li>
                                     <li><strong>Redis:</strong> Cached data with TTL information</li>
@@ -630,7 +670,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div id="assets-list" style="margin-top: 20px; display: none;"></div>
         </div>
     </div>
@@ -642,7 +682,7 @@
                 <h3 class="modal-title" id="modal-model-name">Model Details</h3>
                 <button class="modal-close" onclick="closeModelModal()">&times;</button>
             </div>
-            
+
             <div class="modal-section">
                 <h4>Model Information</h4>
                 <div class="modal-info-grid">
@@ -664,7 +704,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-section">
                 <h4>Model Parameters</h4>
                 <div class="modal-info-grid">
@@ -686,7 +726,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="modal-section">
                 <h4>Usage Information</h4>
                 <div class="modal-info-item">
@@ -703,22 +743,22 @@
             // Hide all tab contents
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(content => content.classList.remove('active'));
-            
+
             // Show selected tab content
             const selectedContent = document.getElementById(tabName + '-tab');
             if (selectedContent) {
                 selectedContent.classList.add('active');
             }
-            
+
             // Update tab buttons
             const tabButtons = document.querySelectorAll('.nav-tab');
             tabButtons.forEach(button => button.classList.remove('active'));
-            
+
             const clickedTab = document.querySelector(`[onclick="showTab('${tabName}')"]`);
             if (clickedTab) {
                 clickedTab.classList.add('active');
             }
-            
+
             // â–¶ï¸ Load data when specific tabs are shown
             if (tabName === 'apps') {
                 loadAppsData();
@@ -733,35 +773,35 @@
             // Also support old function name for backward compatibility
             showAdminSubTab(subTabName);
         }
-        
+
         function showAdminSubTab(subTabName) {
             // Hide all sub-content
             const subContents = document.querySelectorAll('.admin-sub-content');
             subContents.forEach(content => content.classList.remove('active'));
-            
+
             // Show selected sub-content
             const selectedContent = document.getElementById(subTabName + '-sub');
             if (selectedContent) {
                 selectedContent.classList.add('active');
             }
-            
+
             // Update sidebar buttons
             const subTabButtons = document.querySelectorAll('.admin-sub-tab button');
             subTabButtons.forEach(button => button.classList.remove('active'));
-            
+
             const clickedButton = document.querySelector(`[onclick="showAdminSubTab('${subTabName}')"]`);
             if (clickedButton) {
                 clickedButton.classList.add('active');
             }
-            
+
             // â–¶ï¸ Load specific data for the sub-tab
-            switch(subTabName) {
+            switch (subTabName) {
                 case 'overview':
                     loadOverviewData();
-                        break;
+                    break;
                 case 'services':
                     loadServicesData();
-                        break;
+                    break;
                 case 'models':
                     loadModelsData();
                     break;
@@ -770,9 +810,9 @@
                     break;
                 case 'system':
                     loadSystemData();
-                        break;
-                }
+                    break;
             }
+        }
 
         async function loadAdminData() {
             // Initialize overview sub-tab by default
@@ -788,158 +828,148 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                
+
                 console.log('Apps data response:', data);
-                console.log('Data keys:', Object.keys(data));
-                
+
                 const appsGrid = document.getElementById('apps-grid');
                 if (!appsGrid) return;
-                
+
                 // Handle different response formats
                 let assets = [];
                 if (Array.isArray(data)) {
-                    // Direct array response (correct format)
                     assets = data;
                 } else if (data.value && Array.isArray(data.value)) {
-                    // PowerShell wrapped format
                     assets = data.value;
                 } else if (data.assets && Array.isArray(data.assets)) {
-                    // Legacy format
                     assets = data.assets;
                 } else {
                     console.error('Unexpected data format:', data);
                     appsGrid.innerHTML = '<div class="error">Unexpected data format received from server.</div>';
                     return;
                 }
-                
+
                 // Filter only app assets
                 const apps = assets.filter(asset => asset.class === 'app');
-                
+
                 if (apps.length === 0) {
                     appsGrid.innerHTML = '<div class="no-apps">No applications found in catalog.</div>';
                     return;
                 }
-                
-                // Generate app cards
-                appsGrid.innerHTML = apps.map(app => {
+
+                // App icons mapping
+                const appIcons = {
+                    'onyx-assistant': '🤖',
+                    'contract-reviewer': '📄',
+                    'contract-reviewer-v2': '📄',
+                    'rag-pdf-voice': '🎤',
+                    'deposition-summarizer': '📝',
+                    'open-webui': '🌐',
+                    'legal-assistant': '⚖️',
+                    'onyx-suite': '🧩'
+                };
+
+                // Generate app cards using component system
+                const cardPromises = apps.map(async app => {
                     const policy = app.policy || {};
                     const allowedModels = policy.allowed_models || [];
                     const allowedEmbeddings = policy.allowed_embeddings || [];
-                    
-                    // Get app icon based on app ID
-                    const getAppIcon = (appId) => {
-                        const icons = {
-                            'onyx-assistant': 'ðŸ¤–',
-                            'contract-reviewer': 'ðŸ“„',
-                            'rag-pdf-voice': 'ðŸŽ¤',
-                            'deposition-summarizer': 'ðŸ“',
-                            'open-webui': 'ðŸŒ'
-                        };
-                        return icons[appId] || 'ðŸ“±';
-                    };
-                    
-                    // Generate dependency tags
-                    const dependencyTags = [];
-                    
                     const appId = app.id;
-                    
+
+                    // Build dependencies array
+                    const dependencies = [];
+
                     // Add service dependencies
                     if (appId === 'onyx-assistant' || appId === 'rag-pdf-voice') {
-                        dependencyTags.push('<span class="dependency-tag service">Qdrant</span>');
+                        dependencies.push({ name: 'Qdrant', type: 'service' });
                     }
                     if (appId === 'onyx-assistant') {
-                        dependencyTags.push('<span class="dependency-tag service">Redis</span>');
+                        dependencies.push({ name: 'Redis', type: 'service' });
                     }
-                    
-                    // Add model dependencies (show first 3)
+
+                    // Add model dependencies (first 3)
                     const allModels = [...allowedModels, ...allowedEmbeddings];
                     allModels.slice(0, 3).forEach(model => {
-                        const isEmbedding = allowedEmbeddings.includes(model);
-                        dependencyTags.push(`<span class="dependency-tag model">${model}${isEmbedding ? ' (embed)' : ''}</span>`);
+                        const isEmbed = allowedEmbeddings.includes(model);
+                        dependencies.push({
+                            name: model + (isEmbed ? ' (embed)' : ''),
+                            type: 'model'
+                        });
                     });
-                    
+
                     if (allModels.length > 3) {
-                        dependencyTags.push(`<span class="dependency-tag">+${allModels.length - 3} more</span>`);
+                        dependencies.push({ name: `+${allModels.length - 3} more`, type: '' });
                     }
-                    
-                    const appUrl = app.metadata?.url || `/${appId}/`;
-                    
-                    return `
-                        <div class="app-card">
-                            <div class="app-header">
-                                <h3>${getAppIcon(appId)} ${app.name}</h3>
-                                <span class="app-status offline" id="app-status-${appId}">Checking...</span>
-                            </div>
-                            <p>${app.description}</p>
-                            <div class="app-dependencies">
-                                <strong>Dependencies:</strong>
-                                <div class="dependency-tags">
-                                    ${dependencyTags.join('')}
-                                </div>
-                            </div>
-                            <div class="app-actions">
-                                <a href="${appUrl}" class="app-link" target="_blank">Open ${app.name}</a>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-                
+
+                    // Render using component template
+                    return await Components.render('app-card', {
+                        id: appId,
+                        name: app.name,
+                        description: app.description || '',
+                        icon: appIcons[appId] || '📱',
+                        url: app.metadata?.url || `/${appId}/`,
+                        status: 'checking',
+                        dependencies: dependencies.length > 0 ? dependencies : null
+                    });
+                });
+
+                // Wait for all cards to render
+                const cardHtmls = await Promise.all(cardPromises);
+                appsGrid.innerHTML = cardHtmls.join('');
+
                 // Check status for each app
                 apps.forEach(app => {
                     const appUrl = app.metadata?.url || `/${app.id}/`;
                     checkAppStatus(app.id, appUrl);
                 });
-                
+
             } catch (error) {
                 console.error('Error loading apps:', error);
-                console.error('Error details:', error.message);
                 const appsGrid = document.getElementById('apps-grid');
                 if (appsGrid) {
                     appsGrid.innerHTML = `
                         <div class="error">
                             <h3>Failed to load applications</h3>
                             <p>Error: ${error.message}</p>
-                            <p>Please check the console for more details.</p>
                             <button onclick="loadAppsData()" class="btn btn-secondary">Retry</button>
                         </div>
                     `;
                 }
             }
         }
-        
+
         async function checkAppStatus(appId, appUrl) {
             console.log(`ðŸ” Checking status for ${appId} at ${appUrl}`);
             if (!appUrl) return;
-            
+
             const statusElement = document.getElementById(`app-status-${appId}`);
             if (!statusElement) {
                 console.log(`âŒ No status element found for ${appId}`);
                 return;
             }
-            
+
             // Skip status checking for apps that are known to cause console errors
             // This prevents console spam while still showing the apps
             const problematicPorts = ['8080']; // Only RAG PDF Voice (port 8080) is problematic
             const isProblematic = problematicPorts.some(port => appUrl.includes(`localhost:${port}`));
-            
+
             if (isProblematic) {
                 // Set a reasonable default status based on the app
                 statusElement.textContent = 'Offline'; // These are likely offline
                 statusElement.className = 'app-status offline';
                 return;
             }
-            
+
             // For working apps, try to check their actual status
             // Skip health checks for localhost services when accessed from different origin (CORS issues)
             // Only check if we're on localhost accessing localhost services
-            const isLocalhostAccess = window.location.hostname === 'localhost' && 
-                                     (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860') || appUrl.includes('localhost:3200'));
-            
+            const isLocalhostAccess = window.location.hostname === 'localhost' &&
+                (appUrl.includes('localhost:8000') || appUrl.includes('localhost:7860') || appUrl.includes('localhost:3200'));
+
             if (isLocalhostAccess) {
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 3000);
-                    
+
                     // Determine the correct health endpoint for each app
                     let healthEndpoint = '/healthz'; // Default
                     if (appUrl.includes('localhost:8000')) {
@@ -949,7 +979,7 @@
                     } else if (appUrl.includes('localhost:3200')) {
                         healthEndpoint = '/health'; // Open WebUI
                     }
-                    
+
                     // For cross-origin requests, skip health check to avoid CORS issues
                     // Apps should be accessible through the hub proxy instead
                     const response = await fetch(`${appUrl}${healthEndpoint}`, {
@@ -958,9 +988,9 @@
                         mode: 'cors',
                         credentials: 'omit'
                     });
-                    
+
                     clearTimeout(timeoutId);
-                    
+
                     if (response.ok) {
                         statusElement.textContent = 'Online';
                         statusElement.className = 'app-status online';
@@ -985,24 +1015,24 @@
                 }
                 return;
             }
-            
+
             // For apps that don't cause issues, try a simple status check
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
-                
-                const response = await fetch(appUrl, { 
+
+                const response = await fetch(appUrl, {
                     method: 'GET',
                     signal: controller.signal,
                     mode: 'no-cors' // This prevents CORS errors but still shows network errors
                 });
-                
+
                 clearTimeout(timeoutId);
                 statusElement.textContent = 'Online';
                 statusElement.className = 'app-status online';
-                } catch (error) {
+            } catch (error) {
                 // Silently handle errors - don't spam console
-                    statusElement.textContent = 'Offline';
+                statusElement.textContent = 'Offline';
                 statusElement.className = 'app-status offline';
             }
         }
@@ -1029,7 +1059,7 @@
         async function loadSystemData() {
             await updateSystemMetrics();
             await loadCollections();
-            
+
             // Auto-refresh system metrics every 30 seconds
             if (window.systemMetricsInterval) {
                 clearInterval(window.systemMetricsInterval);
@@ -1058,7 +1088,7 @@
                 model: 0,
                 tool: 0
             };
-            
+
             // Handle different response formats
             let assets = [];
             if (Array.isArray(data)) {
@@ -1071,13 +1101,13 @@
                 // Legacy format
                 assets = data.assets;
             }
-            
+
             assets.forEach(asset => {
                 if (stats.hasOwnProperty(asset.class)) {
                     stats[asset.class]++;
                 }
             });
-            
+
             document.getElementById('app-count').textContent = stats.app;
             document.getElementById('service-count').textContent = stats.service;
             document.getElementById('model-count').textContent = stats.model;
@@ -1125,22 +1155,22 @@
                 const response = await fetch('http://localhost:8081/admin/services/status');
                 if (response.ok) {
                     const services = await response.json();
-                    
+
                     // Update service status indicators and detailed metrics
                     Object.keys(services).forEach(serviceName => {
                         const service = services[serviceName];
                         const isOnline = service.status === 'online';
-                        
+
                         // Update status indicators
                         const statusElement = document.getElementById(serviceName + '-status');
                         const statusTextElement = document.getElementById(serviceName + '-status-text');
-                        
+
                         if (statusElement && statusTextElement) {
                             statusElement.textContent = isOnline ? 'Online' : 'Offline';
                             statusElement.className = `status-indicator ${isOnline ? 'online' : 'offline'}`;
                             statusTextElement.textContent = isOnline ? 'Online' : 'Offline';
                         }
-                        
+
                         // Update detailed metrics based on service type
                         if (isOnline) {
                             if (serviceName === 'ollama') {
@@ -1148,7 +1178,7 @@
                                 const modelsElement = document.getElementById('ollama-models');
                                 const memoryElement = document.getElementById('ollama-memory');
                                 const versionElement = document.getElementById('ollama-version');
-                                
+
                                 if (modelsElement) {
                                     modelsElement.textContent = service.model_count || service.models?.length || '0';
                                 }
@@ -1163,7 +1193,7 @@
                                 const collectionsElement = document.getElementById('qdrant-collections');
                                 const vectorsElement = document.getElementById('qdrant-vectors');
                                 const versionElement = document.getElementById('qdrant-version');
-                                
+
                                 if (collectionsElement) {
                                     collectionsElement.textContent = service.collection_count || service.collections?.length || '0';
                                 }
@@ -1178,7 +1208,7 @@
                                 const keysElement = document.getElementById('redis-keys');
                                 const memoryElement = document.getElementById('redis-memory');
                                 const versionElement = document.getElementById('redis-version');
-                                
+
                                 if (keysElement) {
                                     keysElement.textContent = service.keys || '0';
                                 }
@@ -1193,7 +1223,7 @@
                                 const sizeElement = document.getElementById('postgresql-size');
                                 const connectionsElement = document.getElementById('postgresql-connections');
                                 const versionElement = document.getElementById('postgresql-version');
-                                
+
                                 if (sizeElement) {
                                     sizeElement.textContent = service.database_size || '-';
                                 }
@@ -1207,7 +1237,7 @@
                                 // Update Gateway metrics
                                 const versionElement = document.getElementById('gateway-version');
                                 const uptimeElement = document.getElementById('gateway-uptime');
-                                
+
                                 if (versionElement) {
                                     versionElement.textContent = service.version || '-';
                                 }
@@ -1215,20 +1245,20 @@
                                     uptimeElement.textContent = service.uptime || '-';
                                 }
                             }
-                } else {
+                        } else {
                             // Service is offline, reset metrics to dashes
                             const metricElements = [
                                 serviceName + '-models', serviceName + '-memory', serviceName + '-version',
                                 serviceName + '-collections', serviceName + '-vectors', serviceName + '-keys',
                                 serviceName + '-size', serviceName + '-connections', serviceName + '-uptime'
                             ];
-                            
+
                             metricElements.forEach(elementId => {
                                 const element = document.getElementById(elementId);
-                        if (element) {
+                                if (element) {
                                     element.textContent = '-';
-                        }
-                    });
+                                }
+                            });
                         }
                     });
                 } else {
@@ -1245,7 +1275,7 @@
                 const response = await fetch(`http://localhost:8081/admin/services/${serviceName}/${action}`, {
                     method: 'POST'
                 });
-                
+
                 if (response.ok) {
                     console.log(`Service ${serviceName} ${action} command sent`);
                     // Refresh status after a short delay
@@ -1259,7 +1289,7 @@
                 console.error(`Error ${start ? 'starting' : 'stopping'} service ${serviceName}:`, error);
             }
         }
-        
+
         async function restartService(serviceName) {
             try {
                 // First stop the service
@@ -1272,11 +1302,11 @@
                 console.error(`Error restarting service ${serviceName}:`, error);
             }
         }
-        
+
         function toggleServiceDetails(serviceName) {
             const detailsElement = document.getElementById(`${serviceName}-details`);
             const expandBtn = detailsElement.parentElement.querySelector('.expand-btn');
-            
+
             if (detailsElement.classList.contains('expanded')) {
                 detailsElement.classList.remove('expanded');
                 expandBtn.textContent = 'View Details';
@@ -1296,14 +1326,14 @@
             try {
                 const response = await fetch('http://localhost:8081/admin/models');
                 if (response.ok) {
-                const data = await response.json();
+                    const data = await response.json();
                     const models = data.models || [];
-                    
+
                     // Update homepage model displays dynamically
                     updateHomepageModels(models);
-                        } else {
+                } else {
                     console.error('Failed to check model status:', response.status);
-                        }
+                }
             } catch (error) {
                 console.error('Error checking model status:', error);
             }
@@ -1315,7 +1345,7 @@
             if (llmContainer) {
                 const llmModels = models.filter(m => m.type === 'llm');
                 llmContainer.innerHTML = '';
-                
+
                 llmModels.forEach(model => {
                     const modelItem = document.createElement('div');
                     modelItem.className = 'model-item';
@@ -1334,7 +1364,7 @@
             if (embedContainer) {
                 const embedModels = models.filter(m => m.type === 'embedding');
                 embedContainer.innerHTML = '';
-                
+
                 embedModels.forEach(model => {
                     const modelItem = document.createElement('div');
                     modelItem.className = 'model-item';
@@ -1359,7 +1389,7 @@
         }
 
         async function loadSystemData() {
-                await updateSystemMetrics();
+            await updateSystemMetrics();
             await loadCollections();
         }
 
@@ -1367,7 +1397,7 @@
         async function refreshModels() {
             await checkModelStatus();
             await loadAdminModels();
-            
+
             // Clear all error messages when refreshing
             document.querySelectorAll('.model-error-message').forEach(el => {
                 el.style.display = 'none';
@@ -1383,14 +1413,14 @@
             if (raw) PULLING_MODELS = new Set(JSON.parse(raw));
         } catch (_) { PULLING_MODELS = new Set(); }
         function persistPulling() {
-            try { localStorage.setItem(PULLING_MODELS_STORAGE_KEY, JSON.stringify(Array.from(PULLING_MODELS))); } catch (_) {}
+            try { localStorage.setItem(PULLING_MODELS_STORAGE_KEY, JSON.stringify(Array.from(PULLING_MODELS))); } catch (_) { }
         }
 
         async function pullModel(modelName) {
             try {
                 // Hide any previous error message
                 hideModelError(modelName);
-                
+
                 const elemId = 'pull-status-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
                 // helper to ensure progress nodes exist
                 const ensureStatus = (id, text) => {
@@ -1426,10 +1456,10 @@
                 } else {
                     alert(`Failed to pull ${modelName}: ${e.message}`);
                 }
-                
+
                 // Show error message on model card
                 showModelError(modelName, `Failed to pull: ${e.message || 'error'}`);
-                
+
                 // Do not keep failed pulls marked as pulling
                 PULLING_MODELS.delete(modelName);
                 persistPulling();
@@ -1449,20 +1479,20 @@
                     const data = await response.json();
                     const models = data.models || [];
                     const summary = data.summary || {};
-                    
+
                     console.log('Enhanced models from API:', models);
                     console.log('Model summary:', summary);
-                    
+
                     const modelsGrid = document.getElementById('admin-models-grid');
                     modelsGrid.innerHTML = '';
-                    
+
                     // Group models by type from catalog
                     const llmModels = models.filter(m => m.type === 'llm');
                     const embeddingModels = models.filter(m => m.type === 'embedding');
-                    
+
                     console.log('LLM models:', llmModels);
                     console.log('Embedding models:', embeddingModels);
-                    
+
                     // Create LLM category
                     if (llmModels.length > 0) {
                         const llmCategory = document.createElement('div');
@@ -1472,11 +1502,11 @@
                             <div class="model-list"></div>
                         `;
                         const llmList = llmCategory.querySelector('.model-list');
-                        
+
                         llmModels.forEach(model => {
                             const modelItem = document.createElement('div');
                             modelItem.className = 'model-item';
-                            
+
                             // Simplified action buttons - only primary action + info
                             let actionButtons = '';
                             if (model.running) {
@@ -1495,7 +1525,7 @@
                                     <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
-                            
+
                             // Build collapsible usage info
                             let usageInfo = '';
                             if (model.used_by && model.used_by.length > 0) {
@@ -1513,13 +1543,13 @@
                                     </div>
                                 `;
                             }
-                            
+
                             // Add default indicator
                             let defaultIndicator = '';
                             if (model.is_default_chat) {
                                 defaultIndicator = '<span class="model-default">â­ Default Chat</span>';
                             }
-                            
+
                             // Generate performance tags based on model name
                             let performanceTags = '';
                             const modelName = model.name.toLowerCase();
@@ -1532,10 +1562,10 @@
                             if (modelName.includes('multilingual') || modelName.includes('bge')) {
                                 performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
                             }
-                            
+
                             // Determine model icon
                             const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
-                            
+
                             modelItem.innerHTML = `
                                 <div class="model-main-info">
                                     <div class="model-icon">${modelIcon}</div>
@@ -1568,10 +1598,10 @@
                                 statusEl.querySelector('.pull-text').textContent = 'Pulling...';
                             }
                         });
-                        
+
                         modelsGrid.appendChild(llmCategory);
                     }
-                    
+
                     // Create Embedding category
                     if (embeddingModels.length > 0) {
                         const embedCategory = document.createElement('div');
@@ -1581,11 +1611,11 @@
                             <div class="model-list"></div>
                         `;
                         const embedList = embedCategory.querySelector('.model-list');
-                        
+
                         embeddingModels.forEach(model => {
                             const modelItem = document.createElement('div');
                             modelItem.className = 'model-item';
-                            
+
                             // Simplified action buttons - only primary action + info
                             let actionButtons = '';
                             if (model.running) {
@@ -1606,7 +1636,7 @@
                                     <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
-                            
+
                             // Build collapsible usage info
                             let usageInfo = '';
                             if (model.used_by && model.used_by.length > 0) {
@@ -1624,13 +1654,13 @@
                                     </div>
                                 `;
                             }
-                            
+
                             // Add default indicator
                             let defaultIndicator = '';
                             if (model.is_default_embed) {
                                 defaultIndicator = '<span class="model-default">â­ Default Embedding</span>';
                             }
-                            
+
                             // Generate performance tags based on model name
                             let performanceTags = '';
                             const modelName = model.name.toLowerCase();
@@ -1643,10 +1673,10 @@
                             if (modelName.includes('multilingual') || modelName.includes('bge')) {
                                 performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
                             }
-                            
+
                             // Determine model icon
                             const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
-                            
+
                             modelItem.innerHTML = `
                                 <div class="model-main-info">
                                     <div class="model-icon">${modelIcon}</div>
@@ -1678,10 +1708,10 @@
                                 statusEl.querySelector('.pull-text').textContent = 'Pulling...';
                             }
                         });
-                        
+
                         modelsGrid.appendChild(embedCategory);
                     }
-                    
+
                     // If no embedding models found, show all models for debugging
                     if (embeddingModels.length === 0 && models.length > 0) {
                         const debugCategory = document.createElement('div');
@@ -1691,7 +1721,7 @@
                             <div class="model-list"></div>
                         `;
                         const debugList = debugCategory.querySelector('.model-list');
-                        
+
                         models.forEach(model => {
                             const modelItem = document.createElement('div');
                             modelItem.className = 'model-item';
@@ -1706,7 +1736,7 @@
                             `;
                             debugList.appendChild(modelItem);
                         });
-                        
+
                         modelsGrid.appendChild(debugCategory);
                     }
                 } else {
@@ -1723,7 +1753,7 @@
                 const response = await fetch('http://localhost:8081/admin/services/status');
                 if (response.ok) {
                     const services = await response.json();
-                    
+
                     // Update dependency nodes
                     Object.keys(services).forEach(serviceName => {
                         const nodeElement = document.querySelector(`.service-node.${serviceName}`);
@@ -1751,7 +1781,7 @@
                 errorElement.style.display = 'block';
             }
         }
-        
+
         function hideModelError(modelName) {
             const errorId = 'error-' + modelName.replace(/[^a-zA-Z0-9]/g, '');
             const errorElement = document.getElementById(errorId);
@@ -1765,7 +1795,7 @@
             try {
                 // Hide any previous error message
                 hideModelError(modelName);
-                
+
                 addModelLog('info', 'MODEL', `â–¶ï¸ Loading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/load`, {
                     method: 'POST'
@@ -1778,7 +1808,7 @@
                 } else {
                     const errorText = await response.text();
                     addModelLog('error', 'MODEL', `Failed to load model ${modelName}: ${errorText}`);
-                    
+
                     // Show error message on model card
                     try {
                         const errorData = JSON.parse(errorText);
@@ -1798,7 +1828,7 @@
             try {
                 // Hide any previous error message
                 hideModelError(modelName);
-                
+
                 addModelLog('info', 'MODEL', `â¹ï¸ Unloading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/unload`, {
                     method: 'POST'
@@ -1811,7 +1841,7 @@
                 } else {
                     const errorText = await response.text();
                     addModelLog('error', 'MODEL', `Failed to unload model ${modelName}: ${errorText}`);
-                    
+
                     // Show error message on model card
                     try {
                         const errorData = JSON.parse(errorText);
@@ -1831,7 +1861,7 @@
             if (!confirm(`Are you sure you want to delete model "${modelName}"? This action cannot be undone.`)) {
                 return;
             }
-            
+
             try {
                 addModelLog('info', 'MODEL', `Deleting model: ${modelName}`);
                 // Prefer provider alias if available in the DOM data (stored on the card as data-alias)
@@ -1855,19 +1885,19 @@
         async function showModelInfo(modelName) {
             try {
                 addModelLog('info', 'MODEL', `Opening model preview for: ${modelName}`);
-                
+
                 // Get model details from Ollama
                 const response = await fetch(`http://localhost:11434/api/show`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: modelName })
                 });
-                
+
                 let modelInfo = {};
                 if (response.ok) {
                     modelInfo = await response.json();
                 }
-                
+
                 // Get model data from our catalog
                 const catalogResponse = await fetch('http://localhost:8081/admin/models');
                 let catalogModel = null;
@@ -1875,7 +1905,7 @@
                     const catalogData = await catalogResponse.json();
                     catalogModel = catalogData.models.find(m => m.name === modelName);
                 }
-                
+
                 // Populate modal with data
                 document.getElementById('modal-model-name').textContent = modelName;
                 document.getElementById('modal-name').textContent = modelName;
@@ -1886,7 +1916,7 @@
                 document.getElementById('modal-context-length').textContent = modelInfo.context_length || 'Unknown';
                 document.getElementById('modal-size').textContent = modelInfo.size ? (modelInfo.size / 1024 / 1024 / 1024).toFixed(2) + ' GB' : 'Unknown';
                 document.getElementById('modal-format').textContent = modelInfo.format || 'Unknown';
-                
+
                 // Usage information
                 if (catalogModel?.used_by && catalogModel.used_by.length > 0) {
                     const usageText = catalogModel.used_by.map(u => `${u.name} (${u.type})`).join(', ');
@@ -1894,16 +1924,16 @@
                 } else {
                     document.getElementById('modal-used-by').textContent = 'Not used by any applications';
                 }
-                
+
                 // Show modal
                 document.getElementById('model-preview-modal').classList.add('active');
-                
+
             } catch (error) {
                 addModelLog('error', 'MODEL', `Error opening model preview for ${modelName}: ${error.message}`);
                 alert(`Error loading model information for ${modelName}`);
             }
         }
-        
+
         function closeModelModal() {
             document.getElementById('model-preview-modal').classList.remove('active');
         }
@@ -1915,7 +1945,7 @@
         function addModelLog(level, service, message) {
             const logsContainer = document.getElementById('model-logs');
             const timestamp = new Date().toLocaleTimeString();
-            
+
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `
@@ -1924,9 +1954,9 @@
                 <span class="log-service">${service}</span>
                 <span class="log-message">${message}</span>
             `;
-            
+
             logsContainer.insertBefore(logEntry, logsContainer.firstChild);
-            
+
             // Keep only last 50 log entries
             while (logsContainer.children.length > 50) {
                 logsContainer.removeChild(logsContainer.lastChild);
@@ -1948,7 +1978,7 @@
         function toggleUsedBy(uniqueId) {
             const listElement = document.getElementById(uniqueId);
             const arrowElement = document.getElementById(uniqueId + '-arrow');
-            
+
             if (listElement.classList.contains('hidden')) {
                 listElement.classList.remove('hidden');
                 arrowElement.textContent = 'â–²';
@@ -1978,7 +2008,7 @@
                     const randomMessage = randomMessages[Math.floor(Math.random() * randomMessages.length)];
                     addModelLog('debug', 'SYSTEM', randomMessage);
                 }, 5000);
-                } else {
+            } else {
                 addModelLog('info', 'SYSTEM', 'Live log streaming disabled');
                 if (logInterval) {
                     clearInterval(logInterval);
@@ -2006,27 +2036,27 @@
         function updateServiceLogs(logs) {
             const logsContainer = document.getElementById('service-logs');
             logsContainer.innerHTML = '';
-            
+
             if (logs && logs.length > 0) {
                 logs.forEach(log => {
-                        const logEntry = document.createElement('div');
-                        logEntry.className = 'log-entry';
-                    
+                    const logEntry = document.createElement('div');
+                    logEntry.className = 'log-entry';
+
                     const timestamp = new Date().toLocaleTimeString();
                     const level = log.level || 'info';
                     const service = log.service || 'UNKNOWN';
                     const message = log.message || log;
-                    
-                        logEntry.innerHTML = `
+
+                    logEntry.innerHTML = `
                         <span class="log-timestamp">[${timestamp}]</span>
                         <span class="log-level ${level}">${level.toUpperCase()}</span>
                             <span class="log-service">${service}</span>
                         <span class="log-message">${message}</span>
                         `;
-                    
+
                     logsContainer.appendChild(logEntry);
                 });
-                } else {
+            } else {
                 logsContainer.innerHTML = `
                     <div class="log-entry">
                         <span class="log-timestamp">[${new Date().toLocaleTimeString()}]</span>
@@ -2057,7 +2087,7 @@
         function updateServiceOperations(operations) {
             const operationsContainer = document.getElementById('service-operations');
             operationsContainer.innerHTML = '';
-            
+
             operations.forEach(op => {
                 const operationItem = document.createElement('div');
                 operationItem.className = `operation-item ${op.status}`;
@@ -2079,46 +2109,46 @@
                 const response = await fetch('http://localhost:8081/admin/system/metrics');
                 if (response.ok) {
                     const metrics = await response.json();
-                    
+
                     // Update system resource displays with proper formatting
                     const cpuElement = document.getElementById('cpu-usage');
                     const memoryElement = document.getElementById('memory-usage');
                     const diskElement = document.getElementById('disk-usage');
                     const connectionsElement = document.getElementById('active-connections');
                     const requestsElement = document.getElementById('requests-per-minute');
-                    
+
                     // Format CPU usage
                     if (cpuElement && metrics.cpu) {
                         cpuElement.textContent = `${metrics.cpu.usage_percent.toFixed(1)}% (${metrics.cpu.cores} cores)`;
                     }
-                    
+
                     // Format Memory usage
                     if (memoryElement && metrics.memory) {
-                        const usedGB = (metrics.memory.used / (1024**3)).toFixed(1);
-                        const totalGB = (metrics.memory.total / (1024**3)).toFixed(1);
+                        const usedGB = (metrics.memory.used / (1024 ** 3)).toFixed(1);
+                        const totalGB = (metrics.memory.total / (1024 ** 3)).toFixed(1);
                         memoryElement.textContent = `${metrics.memory.usage_percent.toFixed(1)}% (${usedGB}GB / ${totalGB}GB)`;
                     }
-                    
+
                     // Format Disk usage
                     if (diskElement && metrics.disk) {
-                        const usedGB = (metrics.disk.used / (1024**3)).toFixed(1);
-                        const totalGB = (metrics.disk.total / (1024**3)).toFixed(1);
+                        const usedGB = (metrics.disk.used / (1024 ** 3)).toFixed(1);
+                        const totalGB = (metrics.disk.total / (1024 ** 3)).toFixed(1);
                         diskElement.textContent = `${metrics.disk.usage_percent.toFixed(1)}% (${usedGB}GB / ${totalGB}GB)`;
                     }
-                    
+
                     // Format Network (using packets as connection proxy)
                     if (connectionsElement && metrics.network) {
                         const totalPackets = metrics.network.packets_sent + metrics.network.packets_recv;
                         connectionsElement.textContent = totalPackets.toLocaleString();
                     }
-                    
+
                     // Format Network throughput as requests/min proxy
                     if (requestsElement && metrics.network) {
                         const totalBytes = metrics.network.bytes_sent + metrics.network.bytes_recv;
-                        const mbPerMin = (totalBytes / (1024**2) / 60).toFixed(1);
+                        const mbPerMin = (totalBytes / (1024 ** 2) / 60).toFixed(1);
                         requestsElement.textContent = `${mbPerMin} MB/min`;
                     }
-                    
+
                     // Update GPU information
                     updateGPUInfo(metrics.gpu, metrics.gpu_debug);
                 } else {
@@ -2133,7 +2163,7 @@
         function updateGPUInfo(gpuData, gpuDebug) {
             const gpuInfoElement = document.getElementById('gpu-info');
             if (!gpuInfoElement) return;
-            
+
             if (!gpuData || gpuData.length === 0) {
                 let message = "No GPU detected";
                 if (gpuDebug && gpuDebug.error) {
@@ -2145,7 +2175,7 @@
                         message = `GPU error: ${gpuDebug.error}`;
                     }
                 }
-                
+
                 gpuInfoElement.innerHTML = `
                     <div class="resource-item">
                         <span class="resource-label">${message}</span>
@@ -2158,14 +2188,14 @@
                 `;
                 return;
             }
-            
+
             let gpuHTML = '';
             gpuData.forEach((gpu, index) => {
-                const usedGB = (gpu.memory_used / (1024**3)).toFixed(1);
-                const totalGB = (gpu.memory_total / (1024**3)).toFixed(1);
+                const usedGB = (gpu.memory_used / (1024 ** 3)).toFixed(1);
+                const totalGB = (gpu.memory_total / (1024 ** 3)).toFixed(1);
                 const tempStr = gpu.temperature ? `${gpu.temperature}Â°C` : 'N/A';
                 const powerStr = gpu.power_usage ? `${gpu.power_usage.toFixed(1)}W` : 'N/A';
-                
+
                 gpuHTML += `
                     <div class="resource-item">
                         <span class="resource-label">GPU ${gpu.id}: ${gpu.name}</span>
@@ -2187,12 +2217,12 @@
                         <span class="resource-value">${powerStr}</span>
                     </div>
                 `;
-                
+
                 if (index < gpuData.length - 1) {
                     gpuHTML += '<hr style="margin: 10px 0; border: 1px solid #eee;">';
                 }
             });
-            
+
             gpuInfoElement.innerHTML = gpuHTML;
         }
 
@@ -2215,7 +2245,7 @@
         function updateCollectionsList(collections) {
             const collectionsList = document.getElementById('collections-list');
             collectionsList.innerHTML = '';
-            
+
             if (collections.length > 0) {
                 collections.forEach(collection => {
                     const collectionItem = document.createElement('div');
@@ -2229,7 +2259,7 @@
                     `;
                     collectionsList.appendChild(collectionItem);
                 });
-                } else {
+            } else {
                 collectionsList.innerHTML = `
                     <div class="resource-item">
                         <span class="resource-label">No collections found</span>
@@ -2247,7 +2277,7 @@
             if (!confirm(`Are you sure you want to delete collection "${collectionName}"? This action cannot be undone.`)) {
                 return;
             }
-            
+
             try {
                 const response = await fetch(`http://localhost:8081/admin/collections/${collectionName}`, {
                     method: 'DELETE'
@@ -2295,27 +2325,27 @@
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('ABS AI Hub loaded successfully');
-            
+
             // Load initial data
             refreshAllServices();
             loadAppsData();
-        checkServiceStatus();
+            checkServiceStatus();
             checkModelStatus();
-            
+
             // Add modal event listeners
             const modal = document.getElementById('model-preview-modal');
             if (modal) {
                 // Close modal when clicking outside
-                modal.addEventListener('click', function(e) {
+                modal.addEventListener('click', function (e) {
                     if (e.target === modal) {
                         closeModelModal();
                     }
                 });
-                
+
                 // Close modal with Escape key
-                document.addEventListener('keydown', function(e) {
+                document.addEventListener('keydown', function (e) {
                     if (e.key === 'Escape' && modal.classList.contains('active')) {
                         closeModelModal();
                     }
@@ -2327,7 +2357,7 @@
             try {
                 // Ensure we are on the Assets tab
                 showTab('assets');
-                
+
                 const list = document.getElementById('assets-list');
                 if (!list) return;
                 list.style.display = 'block';
@@ -2386,12 +2416,12 @@
                         <div class="policy-section">
                             <div class="policy-title">Policy</div>
                             <div class="policy-items">
-                                ${asset.policy.allowed_models ? asset.policy.allowed_models.map(m => 
-                                    `<span class="policy-tag">${m}</span>`
-                                ).join('') : ''}
-                                ${asset.policy.allowed_embeddings ? asset.policy.allowed_embeddings.map(e => 
-                                    `<span class="policy-tag">${e}</span>`
-                                ).join('') : ''}
+                                ${asset.policy.allowed_models ? asset.policy.allowed_models.map(m =>
+                `<span class="policy-tag">${m}</span>`
+            ).join('') : ''}
+                                ${asset.policy.allowed_embeddings ? asset.policy.allowed_embeddings.map(e =>
+                `<span class="policy-tag">${e}</span>`
+            ).join('') : ''}
                             </div>
                         </div>
                     ` : ''}
@@ -2408,26 +2438,26 @@
             try {
                 const response = await fetch('http://localhost:8081/admin/inspector/health');
                 const health = await response.json();
-                
+
                 let message = 'Data Store Health Check:\n\n';
                 message += `PostgreSQL: ${health.postgres?.status || 'Unknown'}\n`;
                 message += `Redis: ${health.redis?.status || 'Unknown'}\n`;
                 message += `Qdrant: ${health.qdrant?.status || 'Unknown'}\n`;
-                
+
                 if (health.postgres?.error) message += `\nPostgreSQL Error: ${health.postgres.error}\n`;
                 if (health.redis?.error) message += `Redis Error: ${health.redis.error}\n`;
                 if (health.qdrant?.error) message += `Qdrant Error: ${health.qdrant.error}\n`;
-                
+
                 alert(message);
             } catch (error) {
                 alert('Failed to check inspector health: ' + error.message);
             }
         }
     </script>
-    
+
     <!-- Hub Framework Configuration -->
     <script src="/hub-framework-config.js"></script>
-    
+
     <!-- Footer -->
     <footer class="footer">
         <div class="footer-content">
@@ -2435,5 +2465,5 @@
         </div>
     </footer>
 </body>
-</html>
 
+</html>
