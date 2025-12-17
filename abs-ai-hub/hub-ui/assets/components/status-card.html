@@ -1,0 +1,19 @@
+<!-- Status Card Component (for overview) -->
+<!-- Usage: Components.load('status-card', container, {
+    id: 'ollama',
+    name: 'Ollama',
+    icon: '🤖',
+    version: '0.5.7',
+    status: 'online'
+}) -->
+
+<div class="status-card">
+    <div class="status-icon">{{icon}}</div>
+    <div class="status-info">
+        <div class="status-name">
+            {{name}}
+            <span class="status-version">v<span id="{{id}}-version-summary">{{version}}</span></span>
+        </div>
+        <div class="status-indicator {{status}}" id="{{id}}-status-summary">{{status}}</div>
+    </div>
+</div>

@@ -1,0 +1,50 @@
+<!-- Model Card Component -->
+<!-- Usage: Components.load('model-card', container, {
+    id: 'llama3-8b',
+    name: 'llama3:8b',
+    displayName: 'Llama 3 8B',
+    status: 'running',
+    isDefault: true,
+    size: '4.7 GB',
+    provider: 'ollama',
+    usedBy: ['Contract Reviewer', 'Legal Assistant']
+}) -->
+
+<div class="model-item" data-model-id="{{id}}">
+    <div class="model-main-info">
+        <div class="model-icon">
+            <i class="fas fa-brain"></i>
+        </div>
+        <div class="model-details">
+            <div class="model-name">
+                {{displayName}}
+                {{#if isDefault}}
+                <span class="model-default">⭐ Default</span>
+                {{/if}}
+            </div>
+            <div class="model-usage">
+                <span class="model-size">{{size}}</span>
+                {{#if usedBy}}
+                <button class="used-by-toggle" onclick="toggleUsedBy('{{id}}')">
+                    Show apps <i class="fas fa-chevron-down"></i>
+                </button>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+    <div class="model-status {{status}}">{{status}}</div>
+    <div class="model-actions">
+        {{#if isRunning}}
+        <button class="model-btn unload" onclick="unloadModel('{{name}}')">
+            <i class="fas fa-stop"></i> Unload
+        </button>
+        {{else}}
+        <button class="model-btn load" onclick="loadModel('{{name}}')">
+            <i class="fas fa-play"></i> Load
+        </button>
+        {{/if}}
+        <button class="model-btn info" onclick="showModelInfo('{{name}}')">
+            <i class="fas fa-info-circle"></i>
+        </button>
+    </div>
+</div>

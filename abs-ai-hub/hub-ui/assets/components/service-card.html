@@ -1,0 +1,39 @@
+<!-- Service Card Component -->
+<!-- Usage: Components.load('service-card', container, { 
+    id: 'ollama',
+    name: 'Ollama',
+    description: 'LLM Server',
+    icon: '🦙',
+    status: 'online',
+    critical: true
+}) -->
+
+<div class="service-control-card {{#if critical}}critical{{/if}}" id="{{id}}-control">
+    <div class="service-header">
+        <div class="service-info">
+            <h3>{{icon}} {{name}}</h3>
+            <p>{{description}}</p>
+        </div>
+        <div class="service-status">
+            <span class="status-indicator" id="{{id}}-status">{{status}}</span>
+            <div class="service-controls">
+                <button class="icon-btn start" title="Start Service" onclick="toggleService('{{id}}', true)">▶️</button>
+                <button class="icon-btn stop" title="Stop Service" onclick="toggleService('{{id}}', false)">⏹️</button>
+                <button class="icon-btn restart" title="Restart Service" onclick="restartService('{{id}}')">♻️</button>
+            </div>
+        </div>
+    </div>
+    <div class="service-details" id="{{id}}-details">
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="detail-label">Status</span>
+                <span class="detail-value" id="{{id}}-status-text">{{status}}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Version</span>
+                <span class="detail-value" id="{{id}}-version">-</span>
+            </div>
+        </div>
+    </div>
+    <button class="expand-btn" onclick="toggleServiceDetails('{{id}}')">View Details</button>
+</div>
