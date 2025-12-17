@@ -1,14 +1,15 @@
-# Standard Asset Schema v1.1
+# Standard Asset Schema v1.2
 
 **Status:** Engineering Specification  
 **Audience:** Platform, Gateway, Hub-UI, Infra Engineers  
-**Applies to:** ABS AI Fabric Asset Registry
+**Applies to:** ABS AI Fabric Asset Registry  
+**Supersedes:** v1.1
 
 ---
 
 ## 1. Overview
 
-The **Standard Asset Schema** defines a unified structure for representing **all managed entities** in ABS AI Fabric, including:
+The **Standard Asset Schema v1.2** defines a unified, extensible structure for representing **all managed entities** in ABS AI Fabric, including:
 
 - Services (LLM runtimes, vector stores, caches)
 - Models (7B–70B LLMs, Whisper, OCR)
@@ -17,25 +18,35 @@ The **Standard Asset Schema** defines a unified structure for representing **all
 - Datasets
 
 This schema enables:
-- Centralized asset management
+
 - Interface-driven orchestration
-- Auto-wake and auto-sleep
-- Resource governance
+- Auto-wake / auto-sleep lifecycle management
+- Explicit resource governance
 - Safe evolution of core components
+- Clear separation between **assets** and **asset packs**
 
 ---
 
 ## 2. Design Principles
 
-- **Everything is an Asset**
-- **Apps bind to interfaces, not implementations**
-- **Lifecycle intent is separate from runtime state**
-- **Resource cost is explicit**
-- **Schema must be YAML-friendly and human-readable**
+1. **Everything is an Asset**  
+   All shared capabilities are modeled uniformly.
+
+2. **Apps bind to interfaces, not implementations**  
+   Concrete runtimes are resolved by the Gateway.
+
+3. **Lifecycle intent ≠ runtime state**  
+   Declarative intent and observed state are distinct.
+
+4. **Resource cost must be explicit**  
+   GPU, memory, disk, and startup cost are first-class data.
+
+5. **Packs are groupings, not assets**  
+   Asset Packs organize assets but do not replace asset identity.
 
 ---
 
-## 3. Asset Schema Definition
+## 3. Asset Schema Definition (v1.2)
 
 ```yaml
 # =========================
@@ -43,7 +54,7 @@ This schema enables:
 # =========================
 asset_id: string                # Unique identifier (required)
 display_name: string            # Human-readable name
-version: string                 # Semantic version (e.g. "1.0.0")
+version: string                 # Semantic version (e.g. "1.2.0")
 
 # =========================
 # Contract
@@ -53,6 +64,11 @@ interface_version: string       # Interface version (e.g. v1)
 class: enum                     # app | service | model | tool | dataset
 
 description: string             # Multi-line description
+
+# =========================
+# Pack Association (Optional)
+# =========================
+pack_id: string                 # Asset Pack identifier (e.g. llm-xl)
 
 # =========================
 # Ownership & Visibility
@@ -90,8 +106,9 @@ runtime:
 # Endpoints (Optional)
 # =========================
 endpoints:
-  health: string                # Health check endpoint
+  protocol: enum                # rest | grpc | websocket (default: rest)
   api_base: string              # Base API URL
+  health: string                # Health check endpoint
 
 # =========================
 # Lifecycle
@@ -107,7 +124,11 @@ lifecycle:
 policy:
   max_concurrency: number       # Max parallel usage
   allowed_apps: list            # Apps allowed to use this asset
-  allowed_models: list          # Models allowed (for apps/services)
+
+  # Model semantics clarified
+  required_models: list         # Models required by apps
+  served_models: list           # Models served by runtimes/services
+
   defaults: object              # Asset-specific defaults
 
 # =========================
@@ -118,115 +139,88 @@ metadata: object                # Free-form additional data
 
 ---
 
-## 4. Property Purpose & Engineering Notes
+## 4. Field-Level Clarifications (v1.2 Changes)
 
-### 4.1 Identity
+### 4.1 `pack_id` (New)
 
-| Field          | Purpose                                               |
-| -------------- | ----------------------------------------------------- |
-| `asset_id`     | Stable identifier used across registry, API, and UI   |
-| `display_name` | Human-readable label for UI                           |
-| `version`      | Enables upgrade, rollback, and compatibility tracking |
+* Associates an asset with an **Extended Asset Pack**
+* Packs are defined separately (e.g. `packs.yaml`)
+* Assets remain first-class and independently lifecycle-managed
 
----
-
-### 4.2 Contract
-
-| Field               | Purpose                                            |
-| ------------------- | -------------------------------------------------- |
-| `interface`         | Declares which core interface the asset implements |
-| `interface_version` | Enforces compatibility with apps                   |
-| `class`             | Determines how the asset is managed and displayed  |
+> `pack_id` is optional and MUST NOT affect asset identity.
 
 ---
 
-### 4.3 Ownership & Visibility
+### 4.2 Policy: `required_models` vs `served_models`
 
-| Field         | Purpose                                       |
-| ------------- | --------------------------------------------- |
-| `provider`    | Identifies who owns and maintains the asset   |
-| `visibility`  | Determines whether asset is shared or private |
-| `requestable` | Enables user request flows in Hub-UI          |
+| Field             | Applies To          | Meaning                          |
+| ----------------- | ------------------- | -------------------------------- |
+| `required_models` | Apps                | Models the app needs to function |
+| `served_models`   | Services / runtimes | Models this runtime can serve    |
 
----
-
-### 4.4 Resource Requirements
-
-| Field            | Purpose                                |
-| ---------------- | -------------------------------------- |
-| `gpu_required`   | Used for scheduling and admin approval |
-| `min_vram_gb`    | Prevents invalid model activation      |
-| `min_ram_gb`     | Guards against host memory exhaustion  |
-| `disk_gb`        | Storage planning and cost visibility   |
-| `cold_start_sec` | UI warnings and auto-wake tuning       |
+This removes ambiguity present in v1.1.
 
 ---
 
-### 4.5 Runtime
+### 4.3 `endpoints.protocol` (New)
 
-| Field             | Purpose                                  |
-| ----------------- | ---------------------------------------- |
-| `runtime.type`    | Determines how asset is executed         |
-| `container`       | Docker execution details (if applicable) |
-| `install.command` | Pull/install models or tools             |
-| `install.once`    | Prevents repeated installs               |
+Explicitly declares the protocol used by the asset endpoint.
 
----
+Supported values (v1.2):
 
-### 4.6 Endpoints
+* `rest` (default)
+* `grpc`
+* `websocket`
 
-| Field      | Purpose                                    |
-| ---------- | ------------------------------------------ |
-| `health`   | Health checks for auto-wake and monitoring |
-| `api_base` | Gateway routing target                     |
+Used by:
+
+* Gateway routing
+* UI capability display
+* Future protocol-specific adapters
 
 ---
 
-### 4.7 Lifecycle
+## 5. Validation & Type Enforcement
 
-| Field            | Purpose                                         |
-| ---------------- | ----------------------------------------------- |
-| `desired`        | Declarative intent (admin or system controlled) |
-| `auto_sleep_min` | Auto-suspend tuning                             |
-| `state`          | Observed runtime state (managed by system)      |
+### 5.1 Source of Truth
 
-> **Important:**
-> `desired` ≠ `state`.
-> The system reconciles desired intent with actual state.
+* YAML is used for **authoring**
+* **Runtime validation is mandatory**
 
----
+### 5.2 Required Validation Layers
 
-### 4.8 Policy
+#### Gateway (Required)
 
-| Field             | Purpose                      |
-| ----------------- | ---------------------------- |
-| `max_concurrency` | Prevents resource exhaustion |
-| `allowed_apps`    | Enforces governance          |
-| `allowed_models`  | Restricts usage scope        |
-| `defaults`        | Asset-specific behavior      |
+* Pydantic models enforce:
 
----
+  * Field presence
+  * Enum values
+  * Type correctness
 
-### 4.9 Metadata
+#### Optional (Future)
 
-| Field      | Purpose                             |
-| ---------- | ----------------------------------- |
-| `metadata` | Extension point for future features |
+* JSON Schema generated from Pydantic
+* Used for:
+
+  * Hub-UI form validation
+  * CLI tooling
+  * IDE autocomplete
 
 ---
 
-## 5. Sample Asset Definition
+## 6. Sample Asset (v1.2)
 
-### Example: DeepSeek R1 70B Model
+### DeepSeek R1 70B – Large Reasoning Model
 
 ```yaml
 asset_id: deepseek-r1-70b
 display_name: DeepSeek R1 70B
-version: "1.0.0"
+version: "1.2.0"
 
 interface: llm-runtime
 interface_version: v1
 class: model
+pack_id: llm-xl
 
 description: |
   Large-scale reasoning model optimized for complex multi-step tasks
@@ -250,6 +244,10 @@ runtime:
     command: ollama pull deepseek-r1:70b
     once: true
 
+endpoints:
+  protocol: rest
+  api_base: http://ollama:11434
+
 lifecycle:
   desired: on-demand
   auto_sleep_min: 20
@@ -269,13 +267,24 @@ metadata:
 
 ---
 
-## 6. Summary
+## 7. Backward Compatibility Notes
 
-The Standard Asset Schema:
+* v1.1 assets remain valid with:
 
-* Unifies services, models, tools, and apps
-* Enables safe orchestration and governance
-* Supports auto-wake and evolvable core design
-* Provides a future-proof foundation for ABS AI Fabric
+  * `allowed_models` mapped to `required_models` or `served_models`
+* `pack_id` is optional and non-breaking
+* `endpoints.protocol` defaults to `rest` if omitted
 
-This schema is **intentionally minimal but complete**, and can be extended without breaking compatibility.
+---
+
+## 8. Summary
+
+Standard Asset Schema v1.2:
+
+* Resolves semantic ambiguity
+* Aligns with Extended Asset Pack architecture
+* Improves Gateway and UI clarity
+* Preserves backward compatibility
+* Remains minimal and implementation-ready
+
+This schema is the **contractual foundation** of ABS AI Fabric’s asset-based platform design.

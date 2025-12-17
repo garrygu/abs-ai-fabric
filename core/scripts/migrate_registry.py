@@ -38,17 +38,20 @@ def sanitize_path(name: str) -> str:
     return result
 
 
+def sanitize_asset_id(asset_id: str) -> str:
+    """Sanitize an asset ID for use as a directory name."""
+    return sanitize_path(asset_id)
+
+
 def save_yaml(path: str, data: dict):
     """Save data as YAML file."""
-    # Sanitize path components for Windows
+    # The path should already have sanitized directory names
+    # Just create parent dirs and write
     path_obj = Path(path)
-    safe_parts = [sanitize_path(part) for part in path_obj.parts]
-    safe_path = Path(*safe_parts)
-    
-    safe_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(safe_path, 'w', encoding='utf-8') as f:
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+    with open(path_obj, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    print(f"  Created: {safe_path}")
+    print(f"  Created: {path_obj}")
 
 
 def convert_app_asset(asset: dict) -> dict:
@@ -142,19 +145,20 @@ def migrate_catalog(catalog_path: str, output_dir: str, dry_run: bool = False):
     for asset in assets:
         asset_class = asset.get('class', 'unknown')
         asset_id = asset.get('id', 'unknown')
+        safe_id = sanitize_asset_id(asset_id)  # Sanitize for directory name
         
         if asset_class == 'app':
             converted = convert_app_asset(asset)
-            out_path = os.path.join(output_dir, 'apps', asset_id, 'asset.yaml')
+            out_path = os.path.join(output_dir, 'apps', safe_id, 'asset.yaml')
             stats['apps'] += 1
         elif asset_class == 'service':
             converted = convert_service_asset(asset)
             interface = converted.get('interface', 'service')
-            out_path = os.path.join(output_dir, 'core', interface, asset_id, 'asset.yaml')
+            out_path = os.path.join(output_dir, 'core', interface, safe_id, 'asset.yaml')
             stats['services'] += 1
         elif asset_class == 'model':
             converted = convert_model_asset(asset)
-            out_path = os.path.join(output_dir, 'models', asset_id, 'asset.yaml')
+            out_path = os.path.join(output_dir, 'models', safe_id, 'asset.yaml')
             stats['models'] += 1
         else:
             print(f"  Skipping unknown class: {asset_class} ({asset_id})")
@@ -169,7 +173,8 @@ def migrate_catalog(catalog_path: str, output_dir: str, dry_run: bool = False):
     for tool in tools:
         converted = convert_tool_asset(tool)
         tool_id = tool.get('id', 'unknown')
-        out_path = os.path.join(output_dir, 'tools', tool_id, 'asset.yaml')
+        safe_id = sanitize_asset_id(tool_id)
+        out_path = os.path.join(output_dir, 'tools', safe_id, 'asset.yaml')
         stats['tools'] += 1
         
         if not dry_run:
@@ -180,7 +185,8 @@ def migrate_catalog(catalog_path: str, output_dir: str, dry_run: bool = False):
     # Migrate datasets (simplified)
     for ds in datasets:
         ds_id = ds.get('id', 'unknown')
-        out_path = os.path.join(output_dir, 'datasets', ds_id, 'asset.yaml')
+        safe_id = sanitize_asset_id(ds_id)
+        out_path = os.path.join(output_dir, 'datasets', safe_id, 'asset.yaml')
         stats['datasets'] += 1
         
         converted = {

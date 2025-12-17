@@ -30,6 +30,11 @@
       "path": "apps/contract-reviewer/asset.yaml"
     },
     {
+      "id": "contract-reviewer-v2",
+      "interface": "application",
+      "path": "apps/contract-reviewer-v2/asset.yaml"
+    },
+    {
       "id": "deposition-summarizer",
       "interface": "application",
       "path": "apps/deposition-summarizer/asset.yaml"
@@ -60,7 +65,50 @@
       "path": "apps/rag-pdf-voice/asset.yaml"
     }
   ],
-  "models": [],
-  "tools": [],
-  "datasets": []
+  "models": [
+    {
+      "id": "llama3:8b",
+      "interface": "model",
+      "path": "models/llama3_8b/asset.yaml"
+    },
+    {
+      "id": "llama4:scout",
+      "interface": "model",
+      "path": "models/llama4_scout/asset.yaml"
+    }
+  ],
+  "tools": [
+    {
+      "id": "bge-reranker",
+      "interface": "tool",
+      "path": "tools/bge-reranker/asset.yaml"
+    },
+    {
+      "id": "ocr-service",
+      "interface": "tool",
+      "path": "tools/ocr-service/asset.yaml"
+    },
+    {
+      "id": "pdf-parser",
+      "interface": "tool",
+      "path": "tools/pdf-parser/asset.yaml"
+    },
+    {
+      "id": "text-chunker",
+      "interface": "tool",
+      "path": "tools/text-chunker/asset.yaml"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "contracts-corpus",
+      "interface": "dataset",
+      "path": "datasets/contracts-corpus/asset.yaml"
+    },
+    {
+      "id": "ndas-sample",
+      "interface": "dataset",
+      "path": "datasets/ndas-sample/asset.yaml"
+    }
+  ]
 }
