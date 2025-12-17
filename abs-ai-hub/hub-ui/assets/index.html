@@ -1124,7 +1124,7 @@
             // Update summary status indicators
             const services = ['ollama', 'qdrant', 'redis', 'postgresql', 'gateway'];
             try {
-                const resp = await fetch('http://localhost:8081/admin/services/status');
+                const resp = await fetch('http://localhost:8081/v1/admin/services/status');
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const svc = await resp.json();
                 for (const service of services) {
@@ -1158,7 +1158,7 @@
         // Service Management Functions
         async function checkServiceStatus() {
             try {
-                const response = await fetch('http://localhost:8081/admin/services/status');
+                const response = await fetch('http://localhost:8081/v1/admin/services/status');
                 if (response.ok) {
                     const services = await response.json();
 
@@ -1278,7 +1278,7 @@
         async function toggleService(serviceName, start) {
             try {
                 const action = start ? 'start' : 'stop';
-                const response = await fetch(`http://localhost:8081/admin/services/${serviceName}/${action}`, {
+                const response = await fetch(`http://localhost:8081/v1/admin/services/${serviceName}/idle-sleep?action=${action}`, {
                     method: 'POST'
                 });
 
@@ -1330,7 +1330,7 @@
         // Model Management Functions
         async function checkModelStatus() {
             try {
-                const response = await fetch('http://localhost:8081/admin/models');
+                const response = await fetch('http://localhost:8081/v1/admin/models');
                 if (response.ok) {
                     const data = await response.json();
                     const models = data.models || [];

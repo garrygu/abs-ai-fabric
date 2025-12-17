@@ -20,7 +20,6 @@ from config import AUTO_WAKE_SETTINGS, SERVICE_DEPENDENCIES, SERVICE_STARTUP_ORD
 
 router = APIRouter()
 
-@router.get("/admin/services/status")
 @router.get("/v1/admin/services/status")
 async def get_all_services_status():
     """Get status of all known services."""
@@ -34,7 +33,6 @@ async def get_all_services_status():
         }
     return results
 
-@router.get("/admin/models")
 @router.get("/v1/admin/models")
 async def get_admin_models():
     """Admin-specific model list with more metadata."""
