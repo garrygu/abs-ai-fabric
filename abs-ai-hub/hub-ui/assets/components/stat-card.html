@@ -2,11 +2,12 @@
 <!-- Usage: Components.load('stat-card', container, {
     icon: '📱',
     value: '8',
-    label: 'Applications'
+    label: 'Applications',
+    valueId: 'app-count'  // Optional: ID for dynamic value updates
 }) -->
 
 <div class="stat-card">
     <div class="stat-icon">{{icon}}</div>
-    <div class="stat-number">{{value}}</div>
+    <div class="stat-number" {{#if valueId}}id="{{valueId}}" {{/if}}>{{value}}</div>
     <div class="stat-label">{{label}}</div>
 </div>

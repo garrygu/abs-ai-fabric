@@ -85,74 +85,16 @@
                         <!-- Service Status Summary -->
                         <div class="service-summary">
                             <h3>Service Status</h3>
-                            <div class="service-status-grid">
-                                <div class="status-card">
-                                    <div class="status-icon">ðŸ¤–</div>
-                                    <div class="status-info">
-                                        <div class="status-name">Ollama <span class="status-version">v<span
-                                                    id="ollama-version-summary">-</span></span></div>
-                                        <div class="status-indicator" id="ollama-status-summary">Checking...</div>
-                                    </div>
-                                </div>
-                                <div class="status-card">
-                                    <div class="status-icon">ðŸ—„ï¸</div>
-                                    <div class="status-info">
-                                        <div class="status-name">Qdrant <span class="status-version">v<span
-                                                    id="qdrant-version-summary">-</span></span></div>
-                                        <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
-                                    </div>
-                                </div>
-                                <div class="status-card">
-                                    <div class="status-icon">âš¡</div>
-                                    <div class="status-info">
-                                        <div class="status-name">Redis <span class="status-version">v<span
-                                                    id="redis-version-summary">-</span></span></div>
-                                        <div class="status-indicator" id="redis-status-summary">Checking...</div>
-                                    </div>
-                                </div>
-                                <div class="status-card">
-                                    <div class="status-icon">ðŸ˜</div>
-                                    <div class="status-info">
-                                        <div class="status-name">PostgreSQL <span class="status-version">v<span
-                                                    id="postgresql-version-summary">-</span></span></div>
-                                        <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
-                                    </div>
-                                </div>
-                                <div class="status-card">
-                                    <div class="status-icon">ðŸŒ</div>
-                                    <div class="status-info">
-                                        <div class="status-name">Hub Gateway <span class="status-version">v<span
-                                                    id="gateway-version-summary">-</span></span></div>
-                                        <div class="status-indicator" id="gateway-status-summary">Checking...</div>
-                                    </div>
-                                </div>
+                            <div class="service-status-grid" id="service-status-grid">
+                                <!-- Rendered by initOverviewCards() -->
                             </div>
                         </div>
 
                         <!-- Asset Statistics -->
                         <div class="asset-overview">
                             <h3>Asset Statistics</h3>
-                            <div class="asset-stats">
-                                <div class="stat-card">
-                                    <div class="stat-icon">ðŸ“±</div>
-                                    <div class="stat-number" id="app-count">-</div>
-                                    <div class="stat-label">Applications</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-icon">âš™ï¸</div>
-                                    <div class="stat-number" id="service-count">-</div>
-                                    <div class="stat-label">Services</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-icon">ðŸ§ </div>
-                                    <div class="stat-number" id="model-count">-</div>
-                                    <div class="stat-label">Models</div>
-                                </div>
-                                <div class="stat-card">
-                                    <div class="stat-icon">ðŸ”§</div>
-                                    <div class="stat-number" id="tool-count">-</div>
-                                    <div class="stat-label">Tools</div>
-                                </div>
+                            <div class="asset-stats" id="asset-stats-grid">
+                                <!-- Rendered by initOverviewCards() -->
                             </div>
                         </div>
 
@@ -740,6 +682,47 @@
     <script>
         // Preload commonly used components
         Components.preload(['app-card', 'model-item', 'status-card', 'stat-card']);
+
+        // Initialize overview cards using component templates
+        async function initOverviewCards() {
+            // Service status cards data
+            const services = [
+                { id: 'ollama', name: 'Ollama', icon: '🤖', version: '-', status: 'Checking...' },
+                { id: 'qdrant', name: 'Qdrant', icon: '🗄️', version: '-', status: 'Checking...' },
+                { id: 'redis', name: 'Redis', icon: '⚡', version: '-', status: 'Checking...' },
+                { id: 'postgresql', name: 'PostgreSQL', icon: '🐘', version: '-', status: 'Checking...' },
+                { id: 'gateway', name: 'Hub Gateway', icon: '🌐', version: '-', status: 'Checking...' }
+            ];
+
+            // Render service status cards
+            const serviceGrid = document.getElementById('service-status-grid');
+            if (serviceGrid) {
+                const serviceHtmls = await Promise.all(services.map(s =>
+                    Components.render('status-card', s)
+                ));
+                serviceGrid.innerHTML = serviceHtmls.join('');
+            }
+
+            // Asset stat cards data
+            const stats = [
+                { icon: '📱', value: '-', label: 'Applications', valueId: 'app-count' },
+                { icon: '⚙️', value: '-', label: 'Services', valueId: 'service-count' },
+                { icon: '🧠', value: '-', label: 'Models', valueId: 'model-count' },
+                { icon: '🔧', value: '-', label: 'Tools', valueId: 'tool-count' }
+            ];
+
+            // Render stat cards
+            const statsGrid = document.getElementById('asset-stats-grid');
+            if (statsGrid) {
+                const statHtmls = await Promise.all(stats.map(s =>
+                    Components.render('stat-card', s)
+                ));
+                statsGrid.innerHTML = statHtmls.join('');
+            }
+        }
+
+        // Call on DOM ready
+        document.addEventListener('DOMContentLoaded', initOverviewCards);
 
         // Helper function to render a model item using component template
         async function renderModelItem(model) {
