@@ -20,6 +20,29 @@ from config import AUTO_WAKE_SETTINGS, SERVICE_DEPENDENCIES, SERVICE_STARTUP_ORD
 
 router = APIRouter()
 
+@router.get("/admin/services/status")
+@router.get("/v1/admin/services/status")
+async def get_all_services_status():
+    """Get status of all known services."""
+    results = {}
+    for svc_name in SERVICE_REGISTRY.keys():
+        status = await check_service_status(svc_name)
+        results[svc_name] = {
+            "status": "online" if status == "running" else "offline",
+            "version": "v1.0.0",
+            "last_used": SERVICE_REGISTRY[svc_name].get("last_used", 0)
+        }
+    return results
+
+@router.get("/admin/models")
+@router.get("/v1/admin/models")
+async def get_admin_models():
+    """Admin-specific model list with more metadata."""
+    # Use existing chat router logic but wrapper for admin needs
+    from .chat import list_models
+    return await list_models()
+
+
 @router.get("/v1/admin/idle-status")
 async def get_settings():
     return {

@@ -20,7 +20,8 @@ SERVICE_REGISTRY = {
     "redis": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False},  # Redis should stay running
     "onyx": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
     "postgresql": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": False}, # PostgreSQL should stay running
-    "whisper-server": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True}
+    "whisper-server": {"desired": "on", "actual": "unknown", "last_used": 0, "idle_sleep_enabled": True},
+    "gateway": {"desired": "on", "actual": "online", "last_used": 0, "idle_sleep_enabled": False}
 }
 
 # Background task management
