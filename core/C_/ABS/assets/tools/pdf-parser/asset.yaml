@@ -1,0 +1,14 @@
+asset_id: pdf-parser
+display_name: PDF Parser
+interface: tool
+interface_version: v1
+class: tool
+type: parser
+endpoint: http://parser:9100/parse/pdf
+policy:
+  scopes:
+  - tools.parse.pdf
+metadata:
+  container: abs-parser
+lifecycle:
+  desired: on-demand

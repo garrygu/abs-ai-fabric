@@ -2,8 +2,114 @@
   "id": "legal-assistant",
   "name": "Legal Assistant",
   "version": "1.0.0",
-  "description": "Rich legal assistant with chat, RAG, and contract analysis",
-  "port": 8050,
-  "health": "/healthz"
+  "description": "Rich legal assistant with chat, RAG, and contract analysis capabilities. Provides AI-powered legal document review and research assistance.",
+  "category": "Legal Apps",
+  "author": "ABS AI Hub",
+  "license": "MIT",
+  "homepage": "https://github.com/abs-ai-hub/legal-assistant",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abs-ai-hub/legal-assistant.git"
+  },
+  "keywords": [
+    "legal",
+    "assistant",
+    "chat",
+    "rag",
+    "research",
+    "document-analysis"
+  ],
+  "main": "app.py",
+  "scripts": {
+    "start": "uvicorn app:app --host 0.0.0.0 --port 8050",
+    "dev": "uvicorn app:app --host 0.0.0.0 --port 8050 --reload"
+  },
+  "dependencies": {
+    "fastapi": ">=0.104.1",
+    "uvicorn": ">=0.24.0",
+    "httpx": ">=0.25.2"
+  },
+  "configuration": {
+    "port": 8050,
+    "health_check": {
+      "endpoint": "/healthz",
+      "interval": 30
+    },
+    "gateway_integration": {
+      "enabled": true,
+      "app_id": "legal-assistant",
+      "services": ["ollama", "qdrant"]
+    },
+    "features": {
+      "chat": true,
+      "rag": true,
+      "contract_analysis": true,
+      "document_review": true
+    },
+    "supported_formats": [".pdf", ".docx", ".txt"],
+    "max_file_size": "50MB"
+  },
+  "deployment": {
+    "docker": {
+      "enabled": true,
+      "compose_file": "docker-compose.yml",
+      "network": "abs-net"
+    },
+    "environment": {
+      "APP_PORT": "8050",
+      "HUB_GATEWAY_URL": "http://hub-gateway:8081",
+      "OLLAMA_BASE_URL": "http://ollama:11434",
+      "QDRANT_URL": "http://qdrant:6333"
+    },
+    "volumes": [],
+    "healthcheck": {
+      "test": ["CMD", "curl", "-f", "http://localhost:8050/healthz"],
+      "interval": "30s",
+      "timeout": "10s",
+      "retries": 3,
+      "start_period": "40s"
+    }
+  },
+  "api": {
+    "version": "v1",
+    "base_path": "/api",
+    "endpoints": [
+      {
+        "path": "/chat",
+        "method": "POST",
+        "description": "Chat with legal assistant"
+      },
+      {
+        "path": "/documents",
+        "method": "POST",
+        "description": "Upload and analyze documents"
+      },
+      {
+        "path": "/research",
+        "method": "POST",
+        "description": "Perform legal research"
+      }
+    ]
+  },
+  "security": {
+    "cors": {
+      "enabled": true,
+      "origins": ["*"]
+    },
+    "authentication": {
+      "required": false,
+      "type": "none"
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "enabled": true,
+      "endpoint": "/metrics"
+    },
+    "logging": {
+      "level": "INFO",
+      "format": "json"
+    }
+  }
 }
 

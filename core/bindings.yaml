@@ -1,0 +1,15 @@
+# ABS AI Fabric - Core Bindings
+# This file maps interfaces to their active implementations.
+# Change bindings here to swap implementations without modifying code.
+
+version: v1
+
+core_bindings:
+  llm-runtime: ollama
+  vector-store: qdrant
+  cache-queue: redis
+
+# Extended asset bindings (optional, activated on demand)
+extended_bindings:
+  # llm-runtime-xl: deepseek-r1-70b
+  # speech: whisper

@@ -1,0 +1,125 @@
+{
+  "version": "1.0.0",
+  "description": "ABS Official App Store - Curated apps maintained by ABS team",
+  "apps": [
+    {
+      "id": "contract-reviewer-v2",
+      "name": "Contract Reviewer v2",
+      "version": "2.1.0",
+      "description": "Professional AI-powered contract analysis platform with modern three-panel interface. Analyze contracts, extract key clauses, flag risks, and produce citation-backed reports.",
+      "category": "Legal Apps",
+      "author": "ABS AI Hub",
+      "license": "MIT",
+      "keywords": ["contract", "legal", "ai", "analysis", "review", "risk-assessment"],
+      "icon": "fas fa-file-contract",
+      "source": {
+        "type": "abs-official",
+        "location": "file://abs-ai-hub/apps/contract-reviewer-v2"
+      },
+      "requirements": {
+        "services": ["qdrant", "postgresql", "redis"],
+        "resources": {
+          "cpu": "2 cores",
+          "memory": "4GB",
+          "disk": "1GB"
+        }
+      },
+      "metadata": {
+        "installable": true,
+        "verified": true,
+        "rating": 4.8,
+        "download_count": 0
+      }
+    },
+    {
+      "id": "legal-assistant",
+      "name": "Legal Assistant",
+      "version": "1.0.0",
+      "description": "Rich legal assistant with chat, RAG, and contract analysis capabilities. Provides AI-powered legal document review and research assistance.",
+      "category": "Legal Apps",
+      "author": "ABS AI Hub",
+      "license": "MIT",
+      "keywords": ["legal", "assistant", "chat", "rag", "research"],
+      "icon": "fas fa-balance-scale",
+      "source": {
+        "type": "abs-official",
+        "location": "file://abs-ai-hub/apps/legal-assistant"
+      },
+      "requirements": {
+        "services": ["qdrant", "ollama"],
+        "resources": {
+          "cpu": "2 cores",
+          "memory": "4GB",
+          "disk": "500MB"
+        }
+      },
+      "metadata": {
+        "installable": true,
+        "verified": true,
+        "rating": 4.6,
+        "download_count": 0
+      }
+    },
+    {
+      "id": "rag-pdf-voice",
+      "name": "RAG PDF Voice",
+      "version": "1.0.0",
+      "description": "Document analysis with voice interaction capabilities. Upload PDFs and have conversations with your documents using natural language queries.",
+      "category": "AI Tools",
+      "author": "ABS AI Hub",
+      "license": "MIT",
+      "keywords": ["rag", "pdf", "voice", "document", "conversational"],
+      "icon": "fas fa-file-pdf",
+      "source": {
+        "type": "abs-official",
+        "location": "file://abs-ai-hub/apps/rag-pdf-voice"
+      },
+      "requirements": {
+        "services": ["qdrant", "whisper-server"],
+        "resources": {
+          "cpu": "2 cores",
+          "memory": "4GB",
+          "disk": "1GB"
+        }
+      },
+      "metadata": {
+        "installable": true,
+        "verified": true,
+        "rating": 4.5,
+        "download_count": 0
+      }
+    },
+    {
+      "id": "whisper-server",
+      "name": "Whisper Server",
+      "version": "1.0.0",
+      "description": "Standalone speech-to-text transcription service using OpenAI Whisper. Provides high-quality audio transcription for voice-enabled applications.",
+      "category": "Utility Services",
+      "author": "ABS AI Hub",
+      "license": "MIT",
+      "keywords": ["whisper", "speech-to-text", "transcription", "audio", "asr"],
+      "icon": "fas fa-microphone",
+      "source": {
+        "type": "abs-official",
+        "location": "file://abs-ai-hub/apps/whisper-server"
+      },
+      "requirements": {
+        "services": [],
+        "resources": {
+          "cpu": "1 core",
+          "memory": "2GB",
+          "disk": "500MB"
+        }
+      },
+      "metadata": {
+        "installable": true,
+        "verified": true,
+        "rating": 4.7,
+        "download_count": 0
+      }
+    }
+  ]
+}
+
+
+

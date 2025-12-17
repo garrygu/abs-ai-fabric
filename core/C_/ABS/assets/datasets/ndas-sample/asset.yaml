@@ -1,0 +1,12 @@
+asset_id: ndas-sample
+display_name: NDAs Sample
+interface: dataset
+interface_version: v1
+class: dataset
+type: files
+storage:
+  path: /data/ndas
+policy:
+  scopes:
+  - datasets.ndas.read
+metadata: {}

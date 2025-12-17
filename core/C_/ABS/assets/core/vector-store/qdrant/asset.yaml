@@ -1,0 +1,15 @@
+asset_id: qdrant
+display_name: Qdrant
+interface: vector-store
+interface_version: v1
+class: service
+description: Vector database for similarity search and RAG applications
+container:
+  name: abs-qdrant
+endpoints:
+  health: http://qdrant:6333/collections
+metadata:
+  container: abs-qdrant
+  health: http://qdrant:6333/collections
+lifecycle:
+  desired: running

@@ -1,0 +1,16 @@
+asset_id: open-webui
+display_name: Open WebUI
+interface: application
+interface_version: v1
+class: app
+description: Open-source web interface for LLM chat and model management
+policy:
+  allowed_models:
+  - llama3.2:3b
+  - llama3.2:latest
+  allowed_embeddings:
+  - bge-small-en-v1.5
+metadata:
+  url: http://localhost:3200
+lifecycle:
+  desired: on-demand

@@ -50,3 +50,5 @@ docker-compose exec postgres psql -U hub_user -d document_hub -c "\dt *.*"
 The Document Library functionality is complete and ready - just needs the database tables to be created!
 
 
+
+

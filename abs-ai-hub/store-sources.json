@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "description": "ABS AI Hub App Store Sources Configuration",
+  "sources": [
+    {
+      "id": "abs-official",
+      "name": "ABS Official Store",
+      "type": "official",
+      "url": null,
+      "local_path": "abs-ai-hub/store/official-apps.json",
+      "enabled": true,
+      "auto_update": true,
+      "description": "Curated apps maintained and updated by ABS team"
+    },
+    {
+      "id": "local-apps",
+      "name": "Local Apps Discovery",
+      "type": "self-developed",
+      "url": null,
+      "local_path": "abs-ai-hub/apps",
+      "enabled": true,
+      "auto_update": false,
+      "description": "Auto-discover apps in local apps directory",
+      "scan_manifests": true
+    }
+  ],
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 3600,
+    "cache_path": "abs-ai-hub/store/cache"
+  }
+}
+
+
+

@@ -1,0 +1,13 @@
+asset_id: bge-reranker
+display_name: BGE Reranker
+interface: tool
+interface_version: v1
+class: tool
+type: reranker
+endpoint: http://reranker:9300/rerank
+policy:
+  scopes:
+  - tools.rerank.use
+metadata: {}
+lifecycle:
+  desired: on-demand

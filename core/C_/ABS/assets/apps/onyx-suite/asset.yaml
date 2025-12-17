@@ -1,0 +1,18 @@
+asset_id: onyx-suite
+display_name: Onyx Suite
+interface: application
+interface_version: v1
+class: app
+description: Full-feature Onyx deployment (local)
+policy:
+  allowed_models:
+  - llama3.2:3b
+  - llama3.2:latest
+  - llama3:8b
+  allowed_embeddings:
+  - bge-small-en-v1.5
+  - all-minilm
+metadata:
+  url: http://localhost:3001
+lifecycle:
+  desired: on-demand

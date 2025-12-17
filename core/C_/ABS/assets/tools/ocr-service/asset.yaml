@@ -1,0 +1,14 @@
+asset_id: ocr-service
+display_name: OCR Service
+interface: tool
+interface_version: v1
+class: tool
+type: ocr
+endpoint: http://ocr:9000/ocr
+policy:
+  scopes:
+  - tools.ocr.use
+metadata:
+  container: abs-ocr
+lifecycle:
+  desired: on-demand

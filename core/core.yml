@@ -109,6 +109,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./gateway/catalog.json:/app/catalog.json
       - ./gateway/registry.json:/app/registry.json
+      - ./bindings.yaml:/app/bindings.yaml:ro
+      - ../assets:/app/assets:ro
+      - ../abs-ai-hub/store-sources.json:/app/store-sources.json:ro
+      - ../abs-ai-hub/store:/app/store:ro
+      - ../abs-ai-hub/apps:/app/apps:ro
+      - ../abs-ai-hub/apps-registry.json:/app/apps-registry.json:ro
     ports: ["8081:8081"]
     depends_on: [redis, postgresql]
     networks: [abs-net]

@@ -1,0 +1,19 @@
+asset_id: onyx-assistant
+display_name: Onyx AI Assistant
+interface: application
+interface_version: v1
+class: app
+description: AI assistant with chat interface, RAG capabilities, and agent management
+policy:
+  allowed_models:
+  - llama3.2:3b
+  - llama3.2:latest
+  - llama3:8b
+  - llama4:scout
+  allowed_embeddings:
+  - bge-small-en-v1.5
+  - all-minilm
+metadata:
+  url: http://localhost:8000
+lifecycle:
+  desired: on-demand

@@ -74,11 +74,13 @@ C:\
    ```
 
 3. Verify services:
-   ```powershell
-   curl http://localhost:11434/api/tags      # Ollama
-   curl http://localhost:6333/collections    # Qdrant
-   redis-cli -h 127.0.0.1 ping               # Redis -> PONG
-   ```
+    ```powershell
+    curl http://localhost:8081/health            # Gateway Health
+    curl http://localhost:8081/v1/models         # Gateway Models (Unified)
+    # Direct container checks (optional):
+    curl http://localhost:11434/api/tags         # Ollama
+    redis-cli -h 127.0.0.1 ping                  # Redis -> PONG
+    ```
 
 4. (Optional) Pull models into Ollama:
    ```powershell
@@ -102,7 +104,9 @@ services:
     build: .
     environment:
       QDRANT_URL: http://qdrant:6333
-      LLM_API_BASE: http://ollama:11434
+      # Point to Gateway for Unified API (OpenAI-compatible)
+      # The Gateway handles adaptation to Ollama or vLLM automatically
+      LLM_API_BASE: http://hub-gateway:8081/v1
       REDIS_URL: redis://redis:6379/0
     networks: [abs-net]
 ```

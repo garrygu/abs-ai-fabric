@@ -1,0 +1,17 @@
+asset_id: rag-pdf-voice
+display_name: RAG PDF Voice
+interface: application
+interface_version: v1
+class: app
+description: Document analysis with voice interaction capabilities
+policy:
+  allowed_models:
+  - llama3.2:3b
+  - llama3.2:latest
+  allowed_embeddings:
+  - bge-small-en-v1.5
+  - all-minilm
+metadata:
+  url: http://localhost:8080
+lifecycle:
+  desired: on-demand

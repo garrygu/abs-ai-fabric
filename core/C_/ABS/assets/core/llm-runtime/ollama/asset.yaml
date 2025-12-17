@@ -1,0 +1,15 @@
+asset_id: ollama
+display_name: Ollama
+interface: llm-runtime
+interface_version: v1
+class: service
+description: Local LLM inference server supporting multiple models
+container:
+  name: abs-ollama
+endpoints:
+  health: http://ollama:11434/api/tags
+metadata:
+  container: abs-ollama
+  health: http://ollama:11434/api/tags
+lifecycle:
+  desired: running

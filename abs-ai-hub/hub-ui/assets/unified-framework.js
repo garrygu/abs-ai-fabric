@@ -210,7 +210,6 @@ class ABSUnifiedFramework {
         const navTabsHTML = `
             <div class="hub-nav-tabs" style="display: flex; gap: 10px; margin-bottom: 30px; justify-content: center; margin-top: 20px; padding-top: 20px;">
                 <button class="hub-nav-tab active" onclick="showTab('apps')" style="padding: 12px 24px; border: none; background: #667eea; color: white; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500; transition: all 0.3s;">📱 Apps</button>
-                <button class="hub-nav-tab" onclick="showTab('admin')" style="padding: 12px 24px; border: none; background: rgba(255, 255, 255, 0.7); color: #666; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500; transition: all 0.3s;">⚙️ Admin</button>
                 <button class="hub-nav-tab" onclick="showTab('assets')" style="padding: 12px 24px; border: none; background: rgba(255, 255, 255, 0.7); color: #666; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500; transition: all 0.3s;">📊 Assets</button>
             </div>
         `;

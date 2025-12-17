@@ -1,0 +1,15 @@
+asset_id: contracts-corpus
+display_name: Contracts Corpus
+interface: dataset
+interface_version: v1
+class: dataset
+type: rag-dataset
+storage:
+  vector_db: qdrant
+  collection: contracts_vectors
+policy:
+  scopes:
+  - datasets.contracts.read
+metadata:
+  embedding_dim: 384
+  embed_model: bge-small-en-v1.5

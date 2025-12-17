@@ -95,6 +95,51 @@
             max-width: 1200px;
             margin: 0 auto;
         }
+        
+        /* Main Navigation Tabs */
+        .main-nav {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 0;
+            margin-bottom: 20px;
+        }
+        
+        .main-nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .main-nav-tabs {
+            display: flex;
+            gap: 0;
+            border: none;
+        }
+        
+        .main-nav-tab {
+            padding: 16px 24px;
+            border: none;
+            background: transparent;
+            color: #6b7280;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .main-nav-tab:hover {
+            color: #2563eb;
+            background: #f3f4f6;
+        }
+        
+        .main-nav-tab.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            background: transparent;
+        }
 
         /* Tab Content */
         .tab-content {
@@ -1613,6 +1658,16 @@
     </style>
 </head>
 <body>
+    <!-- Main Navigation Tabs -->
+    <nav class="main-nav">
+        <div class="main-nav-container">
+            <div class="main-nav-tabs">
+                <a href="index.html" class="main-nav-tab active">🧩 My Assets</a>
+                <a href="app-store.html" class="main-nav-tab">🛍️ App Store</a>
+            </div>
+        </div>
+    </nav>
+    
     <div class="container">
         <!-- Header and Navigation Tabs Removed -->
 
@@ -1627,35 +1682,35 @@
                     </div>
                 </div>
 
-        <!-- Admin Tab -->
-        <div id="admin-tab" class="tab-content">
+        <!-- Assets Tab (Merged Admin + Assets) -->
+        <div id="assets-tab" class="tab-content">
             <div class="admin-container">
-                <!-- Admin Sidebar -->
+                <!-- Assets Sidebar (Merged from Admin) -->
                 <div class="admin-sidebar">
-                    <h3>Admin Panel</h3>
+                    <h3>Asset Management</h3>
                     <ul class="admin-sub-tabs">
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('overview')" class="active">📊 Overview</button>
+                            <button onclick="showAssetsSubTab('overview')" class="active">📊 Overview</button>
                         </li>
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('services')">⚙️ Services</button>
+                            <button onclick="showAssetsSubTab('services')">⚙️ Services</button>
                         </li>
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('models')">🧠 Models</button>
+                            <button onclick="showAssetsSubTab('models')">🧠 Models</button>
                         </li>
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('dependencies')">🔗 Dependencies</button>
+                            <button onclick="showAssetsSubTab('dependencies')">🔗 Dependencies</button>
                         </li>
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('system')">📈 System</button>
+                            <button onclick="showAssetsSubTab('system')">📈 System</button>
                         </li>
                         <li class="admin-sub-tab">
-                            <button onclick="showAdminSubTab('inspector')">🔍 Data Inspector</button>
+                            <button onclick="showAssetsSubTab('inspector')">🔍 Data Inspector</button>
                         </li>
                     </ul>
-            </div>
+                </div>
             
-                <!-- Admin Content -->
+                <!-- Assets Content (merged Admin content) -->
                 <div class="admin-content">
                     <!-- Overview Sub-Tab -->
                     <div id="overview-sub" class="admin-sub-content active">
@@ -2214,43 +2269,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Assets Tab -->
-        <div id="assets-tab" class="tab-content">
-            <h2>📊 Asset Management</h2>
-            <p>Manage and configure your AI assets, services, and applications.</p>
             
-            <div class="asset-management-grid">
-                <div class="asset-card">
-                    <div class="asset-icon">📱</div>
-                    <h3>Applications</h3>
-                    <p>Manage AI applications and their configurations</p>
-                    <a href="manage.html" class="btn btn-primary">Manage Apps</a>
-                </div>
-                
-                <div class="asset-card">
-                    <div class="asset-icon">🔧</div>
-                    <h3>Services</h3>
-                    <p>Configure core services and dependencies</p>
-                    <a href="manage.html" class="btn btn-secondary">Manage Services</a>
-                </div>
-                
-                <div class="asset-card">
-                    <div class="asset-icon">🧠</div>
-                    <h3>Models</h3>
-                    <p>Manage AI models and their availability</p>
-                    <a href="manage.html" class="btn btn-secondary">Manage Models</a>
-                </div>
-                
-                <div class="asset-card">
-                    <div class="asset-icon">📋</div>
-                    <h3>Catalog API</h3>
-                    <p>Access the unified asset catalog via API</p>
-                    <a href="http://localhost:8081/catalog" target="_blank" class="btn btn-secondary">View Catalog API</a>
-                </div>
-            </div>
-
             <div id="assets-list" style="margin-top: 20px; display: none;"></div>
         </div>
     </div>
@@ -2340,17 +2359,20 @@
             }
             
             // ▶️ Load data when specific tabs are shown
-            if (tabName === 'admin') {
-                loadAdminData();
-            } else if (tabName === 'apps') {
+            if (tabName === 'apps') {
                 loadAppsData();
             } else if (tabName === 'assets') {
-                // Assets tab doesn't need special data loading
-                console.log('Assets tab loaded');
+                // Load admin/management data when Assets tab is shown
+                loadAdminData();
             }
         }
 
-        // Admin Sub-Tab Functions
+        // Assets Sub-Tab Functions (merged from Admin)
+        function showAssetsSubTab(subTabName) {
+            // Also support old function name for backward compatibility
+            showAdminSubTab(subTabName);
+        }
+        
         function showAdminSubTab(subTabName) {
             // Hide all sub-content
             const subContents = document.querySelectorAll('.admin-sub-content');
@@ -4053,3 +4075,4 @@
     </footer>
 </body>
 </html>
+

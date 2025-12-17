@@ -1,0 +1,20 @@
+asset_id: deposition-summarizer
+display_name: Deposition Summarizer
+interface: application
+interface_version: v1
+class: app
+description: Summarize deposition transcripts and extract key information
+policy:
+  allowed_models:
+  - llama3.2:3b
+  allowed_embeddings:
+  - all-minilm
+  - bge-small-en-v1.5
+  defaults:
+    embed_model: all-minilm
+    provider: ollama
+    dim: 384
+metadata:
+  url: http://localhost:7860
+lifecycle:
+  desired: on-demand

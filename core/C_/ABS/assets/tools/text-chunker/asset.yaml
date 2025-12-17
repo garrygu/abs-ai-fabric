@@ -1,0 +1,13 @@
+asset_id: text-chunker
+display_name: Text Chunker
+interface: tool
+interface_version: v1
+class: tool
+type: chunker
+endpoint: http://chunker:9200/chunk
+policy:
+  scopes:
+  - tools.chunk.use
+metadata: {}
+lifecycle:
+  desired: on-demand

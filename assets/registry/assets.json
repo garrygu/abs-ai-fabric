@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "description": "ABS AI Fabric Asset Registry Index",
+  "core_assets": [
+    {
+      "id": "ollama",
+      "interface": "llm-runtime",
+      "path": "core/llm-runtime/ollama/asset.yaml"
+    },
+    {
+      "id": "postgresql",
+      "interface": "metadata-store",
+      "path": "core/metadata-store/postgresql/asset.yaml"
+    },
+    {
+      "id": "whisper-server",
+      "interface": "speech",
+      "path": "core/speech/whisper-server/asset.yaml"
+    },
+    {
+      "id": "qdrant",
+      "interface": "vector-store",
+      "path": "core/vector-store/qdrant/asset.yaml"
+    }
+  ],
+  "apps": [
+    {
+      "id": "contract-reviewer",
+      "interface": "application",
+      "path": "apps/contract-reviewer/asset.yaml"
+    },
+    {
+      "id": "deposition-summarizer",
+      "interface": "application",
+      "path": "apps/deposition-summarizer/asset.yaml"
+    },
+    {
+      "id": "legal-assistant",
+      "interface": "application",
+      "path": "apps/legal-assistant/asset.yaml"
+    },
+    {
+      "id": "onyx-assistant",
+      "interface": "application",
+      "path": "apps/onyx-assistant/asset.yaml"
+    },
+    {
+      "id": "onyx-suite",
+      "interface": "application",
+      "path": "apps/onyx-suite/asset.yaml"
+    },
+    {
+      "id": "open-webui",
+      "interface": "application",
+      "path": "apps/open-webui/asset.yaml"
+    },
+    {
+      "id": "rag-pdf-voice",
+      "interface": "application",
+      "path": "apps/rag-pdf-voice/asset.yaml"
+    }
+  ],
+  "models": [],
+  "tools": [],
+  "datasets": []
+}
