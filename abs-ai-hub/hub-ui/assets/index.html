@@ -876,36 +876,29 @@
         // Apps Tab Functions
         async function loadAppsData() {
             try {
-                const response = await fetch('http://localhost:8081/assets');
+                // Use new asset registry API
+                const response = await fetch('http://localhost:8081/v1/assets');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
 
-                console.log('Apps data response:', data);
+                console.log('Apps data from registry:', data);
 
                 const appsGrid = document.getElementById('apps-grid');
                 if (!appsGrid) return;
 
-                // Handle different response formats
-                let assets = [];
-                if (Array.isArray(data)) {
-                    assets = data;
-                } else if (data.value && Array.isArray(data.value)) {
-                    assets = data.value;
-                } else if (data.assets && Array.isArray(data.assets)) {
-                    assets = data.assets;
-                } else {
-                    console.error('Unexpected data format:', data);
-                    appsGrid.innerHTML = '<div class="error">Unexpected data format received from server.</div>';
-                    return;
-                }
+                // Handle response format (should be array from new API)
+                let assets = Array.isArray(data) ? data : [];
 
-                // Filter only app assets
-                const apps = assets.filter(asset => asset.class === 'app');
+                // Filter for application assets (new format uses 'interface')
+                // Support both new format (interface='application') and legacy (class='app')
+                const apps = assets.filter(asset =>
+                    asset.interface === 'application' || asset.class === 'app'
+                );
 
                 if (apps.length === 0) {
-                    appsGrid.innerHTML = '<div class="no-apps">No applications found in catalog.</div>';
+                    appsGrid.innerHTML = '<div class="no-apps">No applications found in registry.</div>';
                     return;
                 }
 
@@ -1142,22 +1135,30 @@
                 tool: 0
             };
 
-            // Handle different response formats
-            let assets = [];
-            if (Array.isArray(data)) {
-                // Direct array response (correct format)
-                assets = data;
-            } else if (data.value && Array.isArray(data.value)) {
-                // PowerShell wrapped format
-                assets = data.value;
-            } else if (data.assets && Array.isArray(data.assets)) {
-                // Legacy format
-                assets = data.assets;
-            }
+            // Handle response format
+            let assets = Array.isArray(data) ? data : [];
+
+            // Map interface/class to stat categories
+            const interfaceMap = {
+                'application': 'app',
+                'app': 'app',
+                'llm-runtime': 'service',
+                'vector-store': 'service',
+                'cache-queue': 'service',
+                'metadata-store': 'service',
+                'speech': 'service',
+                'service': 'service',
+                'model': 'model',
+                'tool': 'tool',
+                'dataset': 'tool'  // Count datasets as tools for now
+            };
 
             assets.forEach(asset => {
-                if (stats.hasOwnProperty(asset.class)) {
-                    stats[asset.class]++;
+                // Use interface (new format) or class (legacy format)
+                const type = asset.interface || asset.class;
+                const statKey = interfaceMap[type];
+                if (statKey && stats.hasOwnProperty(statKey)) {
+                    stats[statKey]++;
                 }
             });
 
