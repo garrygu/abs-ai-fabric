@@ -18,9 +18,6 @@
     <!-- Hub UI Styles (extracted) -->
     <link rel="stylesheet" href="css/hub-styles.css">
 
-    <!-- Component System -->
-    <script src="js/components.js"></script>
-
 </head>
 
 <body>
@@ -85,16 +82,74 @@
                         <!-- Service Status Summary -->
                         <div class="service-summary">
                             <h3>Service Status</h3>
-                            <div class="service-status-grid" id="service-status-grid">
-                                <!-- Rendered by initOverviewCards() -->
+                            <div class="service-status-grid">
+                                <div class="status-card">
+                                    <div class="status-icon">ðŸ¤–</div>
+                                    <div class="status-info">
+                                        <div class="status-name">Ollama <span class="status-version">v<span
+                                                    id="ollama-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="ollama-status-summary">Checking...</div>
+                                    </div>
+                                </div>
+                                <div class="status-card">
+                                    <div class="status-icon">ðŸ—„ï¸</div>
+                                    <div class="status-info">
+                                        <div class="status-name">Qdrant <span class="status-version">v<span
+                                                    id="qdrant-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
+                                    </div>
+                                </div>
+                                <div class="status-card">
+                                    <div class="status-icon">âš¡</div>
+                                    <div class="status-info">
+                                        <div class="status-name">Redis <span class="status-version">v<span
+                                                    id="redis-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="redis-status-summary">Checking...</div>
+                                    </div>
+                                </div>
+                                <div class="status-card">
+                                    <div class="status-icon">ðŸ˜</div>
+                                    <div class="status-info">
+                                        <div class="status-name">PostgreSQL <span class="status-version">v<span
+                                                    id="postgresql-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
+                                    </div>
+                                </div>
+                                <div class="status-card">
+                                    <div class="status-icon">ðŸŒ</div>
+                                    <div class="status-info">
+                                        <div class="status-name">Hub Gateway <span class="status-version">v<span
+                                                    id="gateway-version-summary">-</span></span></div>
+                                        <div class="status-indicator" id="gateway-status-summary">Checking...</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Asset Statistics -->
                         <div class="asset-overview">
                             <h3>Asset Statistics</h3>
-                            <div class="asset-stats" id="asset-stats-grid">
-                                <!-- Rendered by initOverviewCards() -->
+                            <div class="asset-stats">
+                                <div class="stat-card">
+                                    <div class="stat-icon">ðŸ“±</div>
+                                    <div class="stat-number" id="app-count">-</div>
+                                    <div class="stat-label">Applications</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-icon">âš™ï¸</div>
+                                    <div class="stat-number" id="service-count">-</div>
+                                    <div class="stat-label">Services</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-icon">ðŸ§ </div>
+                                    <div class="stat-number" id="model-count">-</div>
+                                    <div class="stat-label">Models</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-icon">ðŸ”§</div>
+                                    <div class="stat-number" id="tool-count">-</div>
+                                    <div class="stat-label">Tools</div>
+                                </div>
                             </div>
                         </div>
 
@@ -680,117 +735,6 @@
     </div>
 
     <script>
-        // Preload commonly used components
-        Components.preload(['app-card', 'model-item', 'status-card', 'stat-card']);
-
-        // Initialize overview cards using component templates
-        async function initOverviewCards() {
-            // Service status cards data
-            const services = [
-                { id: 'ollama', name: 'Ollama', icon: '🤖', version: '-', status: 'Checking...' },
-                { id: 'qdrant', name: 'Qdrant', icon: '🗄️', version: '-', status: 'Checking...' },
-                { id: 'redis', name: 'Redis', icon: '⚡', version: '-', status: 'Checking...' },
-                { id: 'postgresql', name: 'PostgreSQL', icon: '🐘', version: '-', status: 'Checking...' },
-                { id: 'gateway', name: 'Hub Gateway', icon: '🌐', version: '-', status: 'Checking...' }
-            ];
-
-            // Render service status cards
-            const serviceGrid = document.getElementById('service-status-grid');
-            if (serviceGrid) {
-                const serviceHtmls = await Promise.all(services.map(s =>
-                    Components.render('status-card', s)
-                ));
-                serviceGrid.innerHTML = serviceHtmls.join('');
-            }
-
-            // Asset stat cards data
-            const stats = [
-                { icon: '📱', value: '-', label: 'Applications', valueId: 'app-count' },
-                { icon: '⚙️', value: '-', label: 'Services', valueId: 'service-count' },
-                { icon: '🧠', value: '-', label: 'Models', valueId: 'model-count' },
-                { icon: '🔧', value: '-', label: 'Tools', valueId: 'tool-count' }
-            ];
-
-            // Render stat cards
-            const statsGrid = document.getElementById('asset-stats-grid');
-            if (statsGrid) {
-                const statHtmls = await Promise.all(stats.map(s =>
-                    Components.render('stat-card', s)
-                ));
-                statsGrid.innerHTML = statHtmls.join('');
-            }
-        }
-
-        // Call on DOM ready
-        document.addEventListener('DOMContentLoaded', initOverviewCards);
-
-        // Helper function to render a model item using component template
-        async function renderModelItem(model) {
-            const safeId = model.name.replace(/[^a-zA-Z0-9]/g, '');
-            const icon = model.type === 'embedding' ? '📤' : '🧠';
-
-            // Status
-            let statusClass = model.running ? 'running' : model.available ? 'available' : 'unavailable';
-            let statusText = model.running ? '✔ Running' : model.available ? '✔ Available' : '✗ Unavailable';
-
-            // Performance tags
-            let performanceTagsHtml = '';
-            const modelName = model.name.toLowerCase();
-            if (modelName.includes('3.2') || modelName.includes('8b')) {
-                performanceTagsHtml += '<span class="performance-tag fast">Fast</span>';
-            }
-            if (modelName.includes('legal')) {
-                performanceTagsHtml += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
-            }
-            if (modelName.includes('multilingual') || modelName.includes('bge')) {
-                performanceTagsHtml += '<span class="performance-tag multilingual">Multilingual</span>';
-            }
-
-            // Used by
-            let usedByText = '';
-            let usedByCount = 0;
-            if (model.used_by && model.used_by.length > 0) {
-                usedByText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
-                usedByCount = model.used_by.length;
-            }
-
-            // Action buttons
-            let actionsHtml = '';
-            if (model.running) {
-                actionsHtml = `
-                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
-                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
-                `;
-            } else if (model.available) {
-                actionsHtml = `
-                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
-                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
-                `;
-            } else {
-                actionsHtml = `
-                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
-                    <div class="pull-status" id="pull-status-${safeId}" style="display:none;"></div>
-                `;
-            }
-
-            return await Components.render('model-item', {
-                name: model.name,
-                icon: icon,
-                safeId: safeId,
-                statusClass: statusClass,
-                statusText: statusText,
-                isDefaultChat: model.is_default_chat,
-                isDefaultEmbed: model.is_default_embedding,
-                hasPerformanceTags: performanceTagsHtml.length > 0,
-                performanceTagsHtml: performanceTagsHtml,
-                hasUsedBy: usedByCount > 0,
-                usedByCount: usedByCount,
-                usedByPlural: usedByCount > 1 ? 's' : '',
-                usedByText: usedByText,
-                actionsHtml: actionsHtml
-            });
-        }
-
         // Tab Functions
         function showTab(tabName) {
             // Hide all tab contents
@@ -876,91 +820,106 @@
         // Apps Tab Functions
         async function loadAppsData() {
             try {
-                // Use new asset registry API
-                const response = await fetch('http://localhost:8081/v1/assets');
+                const response = await fetch('http://localhost:8081/assets');
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
 
-                console.log('Apps data from registry:', data);
+                console.log('Apps data response:', data);
+                console.log('Data keys:', Object.keys(data));
 
                 const appsGrid = document.getElementById('apps-grid');
                 if (!appsGrid) return;
 
-                // Handle response format (should be array from new API)
-                let assets = Array.isArray(data) ? data : [];
-
-                // Filter for application assets (new format uses 'interface')
-                // Support both new format (interface='application') and legacy (class='app')
-                const apps = assets.filter(asset =>
-                    asset.interface === 'application' || asset.class === 'app'
-                );
-
-                if (apps.length === 0) {
-                    appsGrid.innerHTML = '<div class="no-apps">No applications found in registry.</div>';
+                // Handle different response formats
+                let assets = [];
+                if (Array.isArray(data)) {
+                    // Direct array response (correct format)
+                    assets = data;
+                } else if (data.value && Array.isArray(data.value)) {
+                    // PowerShell wrapped format
+                    assets = data.value;
+                } else if (data.assets && Array.isArray(data.assets)) {
+                    // Legacy format
+                    assets = data.assets;
+                } else {
+                    console.error('Unexpected data format:', data);
+                    appsGrid.innerHTML = '<div class="error">Unexpected data format received from server.</div>';
                     return;
                 }
 
-                // App icons mapping
-                const appIcons = {
-                    'onyx-assistant': '🤖',
-                    'contract-reviewer': '📄',
-                    'contract-reviewer-v2': '📄',
-                    'rag-pdf-voice': '🎤',
-                    'deposition-summarizer': '📝',
-                    'open-webui': '🌐',
-                    'legal-assistant': '⚖️',
-                    'onyx-suite': '🧩'
-                };
+                // Filter only app assets
+                const apps = assets.filter(asset => asset.class === 'app');
 
-                // Generate app cards using component system
-                const cardPromises = apps.map(async app => {
+                if (apps.length === 0) {
+                    appsGrid.innerHTML = '<div class="no-apps">No applications found in catalog.</div>';
+                    return;
+                }
+
+                // Generate app cards
+                appsGrid.innerHTML = apps.map(app => {
                     const policy = app.policy || {};
                     const allowedModels = policy.allowed_models || [];
                     const allowedEmbeddings = policy.allowed_embeddings || [];
-                    const appId = app.id;
 
-                    // Build dependencies array
-                    const dependencies = [];
+                    // Get app icon based on app ID
+                    const getAppIcon = (appId) => {
+                        const icons = {
+                            'onyx-assistant': 'ðŸ¤–',
+                            'contract-reviewer': 'ðŸ“„',
+                            'rag-pdf-voice': 'ðŸŽ¤',
+                            'deposition-summarizer': 'ðŸ“',
+                            'open-webui': 'ðŸŒ'
+                        };
+                        return icons[appId] || 'ðŸ“±';
+                    };
+
+                    // Generate dependency tags
+                    const dependencyTags = [];
+
+                    const appId = app.id;
 
                     // Add service dependencies
                     if (appId === 'onyx-assistant' || appId === 'rag-pdf-voice') {
-                        dependencies.push({ name: 'Qdrant', type: 'service' });
+                        dependencyTags.push('<span class="dependency-tag service">Qdrant</span>');
                     }
                     if (appId === 'onyx-assistant') {
-                        dependencies.push({ name: 'Redis', type: 'service' });
+                        dependencyTags.push('<span class="dependency-tag service">Redis</span>');
                     }
 
-                    // Add model dependencies (first 3)
+                    // Add model dependencies (show first 3)
                     const allModels = [...allowedModels, ...allowedEmbeddings];
                     allModels.slice(0, 3).forEach(model => {
-                        const isEmbed = allowedEmbeddings.includes(model);
-                        dependencies.push({
-                            name: model + (isEmbed ? ' (embed)' : ''),
-                            type: 'model'
-                        });
+                        const isEmbedding = allowedEmbeddings.includes(model);
+                        dependencyTags.push(`<span class="dependency-tag model">${model}${isEmbedding ? ' (embed)' : ''}</span>`);
                     });
 
                     if (allModels.length > 3) {
-                        dependencies.push({ name: `+${allModels.length - 3} more`, type: '' });
+                        dependencyTags.push(`<span class="dependency-tag">+${allModels.length - 3} more</span>`);
                     }
 
-                    // Render using component template
-                    return await Components.render('app-card', {
-                        id: appId,
-                        name: app.name,
-                        description: app.description || '',
-                        icon: appIcons[appId] || '📱',
-                        url: app.metadata?.url || `/${appId}/`,
-                        status: 'checking',
-                        dependencies: dependencies.length > 0 ? dependencies : null
-                    });
-                });
+                    const appUrl = app.metadata?.url || `/${appId}/`;
 
-                // Wait for all cards to render
-                const cardHtmls = await Promise.all(cardPromises);
-                appsGrid.innerHTML = cardHtmls.join('');
+                    return `
+                        <div class="app-card">
+                            <div class="app-header">
+                                <h3>${getAppIcon(appId)} ${app.name}</h3>
+                                <span class="app-status offline" id="app-status-${appId}">Checking...</span>
+                            </div>
+                            <p>${app.description}</p>
+                            <div class="app-dependencies">
+                                <strong>Dependencies:</strong>
+                                <div class="dependency-tags">
+                                    ${dependencyTags.join('')}
+                                </div>
+                            </div>
+                            <div class="app-actions">
+                                <a href="${appUrl}" class="app-link" target="_blank">Open ${app.name}</a>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
 
                 // Check status for each app
                 apps.forEach(app => {
@@ -970,12 +929,14 @@
 
             } catch (error) {
                 console.error('Error loading apps:', error);
+                console.error('Error details:', error.message);
                 const appsGrid = document.getElementById('apps-grid');
                 if (appsGrid) {
                     appsGrid.innerHTML = `
                         <div class="error">
                             <h3>Failed to load applications</h3>
                             <p>Error: ${error.message}</p>
+                            <p>Please check the console for more details.</p>
                             <button onclick="loadAppsData()" class="btn btn-secondary">Retry</button>
                         </div>
                     `;
@@ -1135,30 +1096,22 @@
                 tool: 0
             };
 
-            // Handle response format
-            let assets = Array.isArray(data) ? data : [];
-
-            // Map interface/class to stat categories
-            const interfaceMap = {
-                'application': 'app',
-                'app': 'app',
-                'llm-runtime': 'service',
-                'vector-store': 'service',
-                'cache-queue': 'service',
-                'metadata-store': 'service',
-                'speech': 'service',
-                'service': 'service',
-                'model': 'model',
-                'tool': 'tool',
-                'dataset': 'tool'  // Count datasets as tools for now
-            };
+            // Handle different response formats
+            let assets = [];
+            if (Array.isArray(data)) {
+                // Direct array response (correct format)
+                assets = data;
+            } else if (data.value && Array.isArray(data.value)) {
+                // PowerShell wrapped format
+                assets = data.value;
+            } else if (data.assets && Array.isArray(data.assets)) {
+                // Legacy format
+                assets = data.assets;
+            }
 
             assets.forEach(asset => {
-                // Use interface (new format) or class (legacy format)
-                const type = asset.interface || asset.class;
-                const statKey = interfaceMap[type];
-                if (statKey && stats.hasOwnProperty(statKey)) {
-                    stats[statKey]++;
+                if (stats.hasOwnProperty(asset.class)) {
+                    stats[asset.class]++;
                 }
             });
 
@@ -1552,24 +1505,104 @@
                         const llmCategory = document.createElement('div');
                         llmCategory.className = 'model-category';
                         llmCategory.innerHTML = `
-                            <h3>🧠 Language Models (LLMs)</h3>
+                            <h3>ðŸ§  Language Models (LLMs)</h3>
                             <div class="model-list"></div>
                         `;
                         const llmList = llmCategory.querySelector('.model-list');
 
-                        // Render all LLM models using component helper
-                        const llmHtmls = await Promise.all(llmModels.map(model => renderModelItem(model)));
-                        llmList.innerHTML = llmHtmls.join('');
-
-                        // Restore pull indicators for models still pulling
                         llmModels.forEach(model => {
+                            const modelItem = document.createElement('div');
+                            modelItem.className = 'model-item';
+
+                            // Simplified action buttons - only primary action + info
+                            let actionButtons = '';
+                            if (model.running) {
+                                actionButtons = `
+                                    <button class=\"model-btn unload\" onclick=\"unloadModel('${model.name}')\">â¹ï¸ Unload</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">ðŸ—‘ï¸ Delete</button>
+                                `;
+                            } else if (model.available) {
+                                actionButtons = `
+                                    <button class=\"model-btn load\" onclick=\"loadModel('${model.name}')\">â–¶ï¸ Load</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">ðŸ—‘ï¸ Delete</button>
+                                `;
+                            } else {
+                                actionButtons = `
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">â¬‡ï¸ Pull</button>
+                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
+                                `;
+                            }
+
+                            // Build collapsible usage info
+                            let usageInfo = '';
+                            if (model.used_by && model.used_by.length > 0) {
+                                const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
+                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                                usageInfo = `
+                                    <div class="model-usage">
+                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
+                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
+                                            <span id="${uniqueId}-arrow">â–¼</span>
+                                        </button>
+                                        <div class="used-by-list hidden" id="${uniqueId}">
+                                            ${usageText}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+
+                            // Add default indicator
+                            let defaultIndicator = '';
+                            if (model.is_default_chat) {
+                                defaultIndicator = '<span class="model-default">â­ Default Chat</span>';
+                            }
+
+                            // Generate performance tags based on model name
+                            let performanceTags = '';
+                            const modelName = model.name.toLowerCase();
+                            if (modelName.includes('3.2') || modelName.includes('8b')) {
+                                performanceTags += '<span class="performance-tag fast">Fast</span>';
+                            }
+                            if (modelName.includes('legal')) {
+                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
+                            }
+                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
+                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
+                            }
+
+                            // Determine model icon
+                            const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
+
+                            modelItem.innerHTML = `
+                                <div class="model-main-info">
+                                    <div class="model-icon">${modelIcon}</div>
+                                    <div class="model-details">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span class="model-name">${model.name}</span>
+                                            ${defaultIndicator}
+                                            <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
+                                                ${model.running ? 'âœ“ Running' : model.available ? 'âœ“ Available' : 'âœ— Unavailable'}
+                                            </span>
+                                            <button class="model-btn info" style="margin-left:6px;" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
+                                        </div>
+                                        ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
+                                        ${usageInfo}
+                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
+                                            <span class="error-text"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="model-actions">
+                                    ${actionButtons}
+                                </div>
+                            `;
+                            llmList.appendChild(modelItem);
+                            // Restore pull indicator if this model is still pulling
                             const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
                             const statusEl = document.getElementById(elemId);
                             if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
                                 statusEl.style.display = 'inline-block';
-                                if (!statusEl.querySelector('.pull-text')) {
-                                    statusEl.innerHTML = '<span class="pull-text">Pulling...</span>';
-                                }
+                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
                             }
                         });
 
@@ -1586,19 +1619,100 @@
                         `;
                         const embedList = embedCategory.querySelector('.model-list');
 
-                        // Render all embedding models using component helper
-                        const embedHtmls = await Promise.all(embeddingModels.map(model => renderModelItem(model)));
-                        embedList.innerHTML = embedHtmls.join('');
-
-                        // Restore pull indicators for models still pulling
                         embeddingModels.forEach(model => {
+                            const modelItem = document.createElement('div');
+                            modelItem.className = 'model-item';
+
+                            // Simplified action buttons - only primary action + info
+                            let actionButtons = '';
+                            if (model.running) {
+                                actionButtons = `
+                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">â¹ï¸ Unload</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
+                                `;
+                            } else if (model.available) {
+                                actionButtons = `
+                                    <button class="model-btn load" onclick="loadModel('${model.name}')">â–¶ï¸ Load</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
+                                `;
+                            } else {
+                                actionButtons = `
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">â¬‡ï¸ Pull</button>
+                                    <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
+                                `;
+                            }
+
+                            // Build collapsible usage info
+                            let usageInfo = '';
+                            if (model.used_by && model.used_by.length > 0) {
+                                const usageText = model.used_by.map(u => `${u.name} (${u.type})`).join(', ');
+                                const uniqueId = `usage-${model.name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                                usageInfo = `
+                                    <div class="model-usage">
+                                        <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
+                                            <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
+                                            <span id="${uniqueId}-arrow">â–¼</span>
+                                        </button>
+                                        <div class="used-by-list hidden" id="${uniqueId}">
+                                            ${usageText}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+
+                            // Add default indicator
+                            let defaultIndicator = '';
+                            if (model.is_default_embed) {
+                                defaultIndicator = '<span class="model-default">â­ Default Embedding</span>';
+                            }
+
+                            // Generate performance tags based on model name
+                            let performanceTags = '';
+                            const modelName = model.name.toLowerCase();
+                            if (modelName.includes('3.2') || modelName.includes('8b')) {
+                                performanceTags += '<span class="performance-tag fast">Fast</span>';
+                            }
+                            if (modelName.includes('legal')) {
+                                performanceTags += '<span class="performance-tag legal-tuned">Legal-Tuned</span>';
+                            }
+                            if (modelName.includes('multilingual') || modelName.includes('bge')) {
+                                performanceTags += '<span class="performance-tag multilingual">Multilingual</span>';
+                            }
+
+                            // Determine model icon
+                            const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
+
+                            modelItem.innerHTML = `
+                                <div class="model-main-info">
+                                    <div class="model-icon">${modelIcon}</div>
+                                    <div class="model-details">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span class="model-name">${model.name}</span>
+                                            ${defaultIndicator}
+                                            <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
+                                                ${model.running ? 'âœ“ Running' : model.available ? 'âœ“ Available' : 'âœ— Unavailable'}
+                                            </span>
+                                        </div>
+                                        ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
+                                        ${usageInfo}
+                                        <div class="model-error-message" id="error-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display: none;">
+                                            <span class="error-text"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="model-actions">
+                                    ${actionButtons}
+                                </div>
+                            `;
+                            embedList.appendChild(modelItem);
+                            // Restore pull indicator if this model is still pulling
                             const elemId = 'pull-status-' + model.name.replace(/[^a-zA-Z0-9]/g, '');
                             const statusEl = document.getElementById(elemId);
                             if (statusEl && PULLING_MODELS.has(model.name) && !model.available) {
                                 statusEl.style.display = 'inline-block';
-                                if (!statusEl.querySelector('.pull-text')) {
-                                    statusEl.innerHTML = '<span class="pull-text">Pulling...</span>';
-                                }
+                                statusEl.querySelector('.pull-text').textContent = 'Pulling...';
                             }
                         });
 
