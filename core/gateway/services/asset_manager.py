@@ -231,13 +231,20 @@ class AssetManager:
                         registry = json.load(f)
                         assets_base = os.path.dirname(os.path.dirname(reg_path))
                         
-                        for asset_ref in registry.get("core_assets", []):
-                            asset_path = os.path.join(assets_base, asset_ref["path"])
-                            self._load_asset_file(asset_path)
+                        # Load all registry sections
+                        sections = [
+                            "core_assets",
+                            "apps", 
+                            "models",
+                            "tools",
+                            "datasets",
+                            "extended_assets"  # Legacy compatibility
+                        ]
                         
-                        for asset_ref in registry.get("extended_assets", []):
-                            asset_path = os.path.join(assets_base, asset_ref["path"])
-                            self._load_asset_file(asset_path)
+                        for section in sections:
+                            for asset_ref in registry.get(section, []):
+                                asset_path = os.path.join(assets_base, asset_ref["path"])
+                                self._load_asset_file(asset_path)
                         
                         print(f"Loaded assets from registry: {reg_path}")
                         return
