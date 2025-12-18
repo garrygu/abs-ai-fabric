@@ -1,0 +1,208 @@
+<template>
+  <div class="asset-detail">
+    <router-link :to="`/workspace/${workspaceId}/assets`" class="back-link">
+      ← Back to Assets
+    </router-link>
+
+    <div v-if="assetStore.loading" class="loading-state">
+      Loading asset...
+    </div>
+
+    <div v-else-if="asset" class="asset-content">
+      <header class="detail-header">
+        <span class="asset-icon">{{ getAssetIcon(asset.class) }}</span>
+        <div>
+          <h1>{{ asset.display_name || asset.id }}</h1>
+          <div class="meta">
+            <span class="badge">{{ asset.class }}</span>
+            <span class="badge">{{ asset.interface }}</span>
+            <span class="status" :class="asset.status?.toLowerCase()">
+              ● {{ asset.status }}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <section class="detail-section">
+        <h2>Details</h2>
+        <dl class="detail-grid">
+          <div>
+            <dt>ID</dt>
+            <dd><code>{{ asset.id }}</code></dd>
+          </div>
+          <div>
+            <dt>Version</dt>
+            <dd>{{ asset.version || 'N/A' }}</dd>
+          </div>
+          <div>
+            <dt>GPU Required</dt>
+            <dd>{{ asset.usage?.gpu ? 'Yes' : 'No' }}</dd>
+          </div>
+          <div>
+            <dt>Consumers</dt>
+            <dd>{{ asset.consumers?.length || 0 }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section v-if="asset.consumers?.length" class="detail-section">
+        <h2>Consumers</h2>
+        <ul class="consumer-list">
+          <li v-for="consumer in asset.consumers" :key="consumer">
+            {{ consumer }}
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <div v-else class="error-state">
+      Asset not found.
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAssetStore } from '@/stores/assetStore'
+
+const route = useRoute()
+const assetStore = useAssetStore()
+
+const workspaceId = computed(() => route.params.workspaceId as string)
+const assetId = computed(() => route.params.assetId as string)
+
+const asset = computed(() => 
+  assetStore.assets.find(a => a.id === assetId.value)
+)
+
+onMounted(() => {
+  if (assetId.value) {
+    assetStore.fetchAsset(assetId.value)
+  }
+})
+
+function getAssetIcon(assetClass?: string): string {
+  const icons: Record<string, string> = {
+    model: '🧠',
+    service: '⚙️',
+    tool: '🛠️',
+    dataset: '📚',
+    application: '📱'
+  }
+  return icons[assetClass?.toLowerCase() || ''] || '📦'
+}
+</script>
+
+<style scoped>
+.asset-detail {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.back-link {
+  display: inline-block;
+  color: #818cf8;
+  text-decoration: none;
+  margin-bottom: 1.5rem;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.detail-header .asset-icon {
+  font-size: 3rem;
+}
+
+.detail-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.meta {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.badge {
+  padding: 0.25rem 0.5rem;
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.status {
+  font-size: 0.85rem;
+}
+.status.ready,
+.status.running {
+  color: #22c55e;
+}
+.status.stopped {
+  color: #f59e0b;
+}
+
+.detail-section {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.detail-section h2 {
+  font-size: 1rem;
+  margin: 0 0 1rem;
+  color: #888;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.detail-grid dt {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.detail-grid dd {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+
+code {
+  background: rgba(255,255,255,0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.consumer-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.consumer-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 3rem;
+  color: #888;
+}
+</style>
