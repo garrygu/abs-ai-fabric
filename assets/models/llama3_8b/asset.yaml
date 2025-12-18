@@ -1,0 +1,33 @@
+asset_id: llama3:8b
+display_name: LLaMA 3 8B
+version: "1.0.0"
+
+interface: model
+interface_version: v1
+class: model
+
+description: Meta LLaMA 3 8B parameter model for general purpose inference
+
+runtime:
+  type: external
+  install:
+    command: ollama pull llama3:8b
+    once: true
+
+lifecycle:
+  desired: on-demand
+
+resources:
+  gpu_required: true
+  min_vram_gb: 8
+  min_ram_gb: 16
+  disk_gb: 5
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: true
+
+metadata:
+  provider: ollama
+  parameters: 8B

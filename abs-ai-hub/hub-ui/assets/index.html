@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -18,657 +18,729 @@
     <!-- Hub UI Styles (extracted) -->
     <link rel="stylesheet" href="css/hub-styles.css">
 
+    <!-- Hub UI Modules loaded at end of body -->
+
 </head>
 
 <body>
-    <!-- Main Navigation Tabs -->
+    <!-- Main Navigation (v1.0) -->
     <nav class="main-nav">
         <div class="main-nav-container">
+            <div class="workspace-badge" style="margin-right: 2rem; font-weight: 600; color: var(--text-secondary);">
+                ?? Workspace
+            </div>
             <div class="main-nav-tabs">
-                <a href="index.html" class="main-nav-tab active">📂 My Assets</a>
-                <a href="app-store.html" class="main-nav-tab">🛒 App Store</a>
+                <a href="#apps" class="main-nav-tab active" onclick="route(event, 'apps')">Apps</a>
+                <a href="#assets" class="main-nav-tab" onclick="route(event, 'assets')">Assets</a>
+                <a href="#observability" class="main-nav-tab" onclick="route(event, 'observability')">Observability</a>
+                <a href="#admin" class="main-nav-tab" onclick="route(event, 'admin')">Admin</a>
+            </div>
+            <div class="nav-user">
+                <button class="icon-btn" title="Notifications"><i class="fas fa-bell"></i></button>
+                <button class="icon-btn" title="Settings"><i class="fas fa-cog"></i></button>
+                <div class="user-profile">
+                    <div class="user-avatar"><i class="fas fa-user"></i></div>
+                    <span>User</span>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container">
-        <!-- Header and Navigation Tabs Removed -->
+    <!-- Main Content Views -->
+    <main class="main-content" style="padding: 20px;">
 
-        <!-- Apps Tab -->
-        <h2>📱 Applications</h2>
-        <p>Discover and launch AI-powered applications available in your workspace.</p>
-
-        <!-- Applications -->
-        <div class="apps-grid" id="apps-grid">
-            <!-- Apps will be loaded dynamically -->
-        </div>
-    </div>
-
-    <!-- Assets Tab (Merged Admin + Assets) -->
-    <div id="assets-tab" class="tab-content">
-        <div class="admin-container">
-            <!-- Assets Sidebar (Merged from Admin) -->
-            <div class="admin-sidebar">
-                <h3>Asset Management</h3>
-                <ul class="admin-sub-tabs">
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('overview')" class="active">📊 Overview</button>
-                    </li>
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('services')">⚙️ Services</button>
-                    </li>
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('models')">🧠 Models</button>
-                    </li>
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('dependencies')">🔗 Dependencies</button>
-                    </li>
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('system')">📈 System</button>
-                    </li>
-                    <li class="admin-sub-tab">
-                        <button onclick="showAssetsSubTab('inspector')">🔍 Data Inspector</button>
-                    </li>
-                </ul>
+        <!-- View: Apps -->
+        <div id="view-apps" class="view-container">
+            <!-- Apps Sub-Navigation -->
+            <div class="sub-nav"
+                style="margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                <button class="tab-btn active" onclick="switchAppTab('installed')">Installed Apps</button>
+                <button class="tab-btn" onclick="switchAppTab('store')">App Store</button>
             </div>
 
-            <!-- Assets Content (merged Admin content) -->
-            <div class="admin-content">
-                <!-- Overview Sub-Tab -->
-                <div id="overview-sub" class="admin-sub-content active">
-                    <h2>📊 System Overview</h2>
-
-                    <!-- Service Status Summary -->
-                    <div class="service-summary">
-                        <h3>Service Status</h3>
-                        <div class="service-status-grid">
-                            <div class="status-card">
-                                <div class="status-icon">🤖</div>
-                                <div class="status-info">
-                                    <div class="status-name">Ollama <span class="status-version">v<span
-                                                id="ollama-version-summary">-</span></span></div>
-                                    <div class="status-indicator" id="ollama-status-summary">Checking...</div>
-                                </div>
-                            </div>
-                            <div class="status-card">
-                                <div class="status-icon">🗄️</div>
-                                <div class="status-info">
-                                    <div class="status-name">Qdrant <span class="status-version">v<span
-                                                id="qdrant-version-summary">-</span></span></div>
-                                    <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
-                                </div>
-                            </div>
-                            <div class="status-card">
-                                <div class="status-icon">⚡</div>
-                                <div class="status-info">
-                                    <div class="status-name">Redis <span class="status-version">v<span
-                                                id="redis-version-summary">-</span></span></div>
-                                    <div class="status-indicator" id="redis-status-summary">Checking...</div>
-                                </div>
-                            </div>
-                            <div class="status-card">
-                                <div class="status-icon">🐘</div>
-                                <div class="status-info">
-                                    <div class="status-name">PostgreSQL <span class="status-version">v<span
-                                                id="postgresql-version-summary">-</span></span></div>
-                                    <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
-                                </div>
-                            </div>
-                            <div class="status-card">
-                                <div class="status-icon">🌐</div>
-                                <div class="status-info">
-                                    <div class="status-name">Hub Gateway <span class="status-version">v<span
-                                                id="gateway-version-summary">-</span></span></div>
-                                    <div class="status-indicator" id="gateway-status-summary">Checking...</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Asset Statistics -->
-                    <div class="asset-overview">
-                        <h3>Asset Statistics</h3>
-                        <div class="asset-stats">
-                            <div class="stat-card">
-                                <div class="stat-icon">📱</div>
-                                <div class="stat-number" id="app-count">-</div>
-                                <div class="stat-label">Applications</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon">⚙️</div>
-                                <div class="stat-number" id="service-count">-</div>
-                                <div class="stat-label">Services</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon">🧠</div>
-                                <div class="stat-number" id="model-count">-</div>
-                                <div class="stat-label">Models</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="stat-icon">🔧</div>
-                                <div class="stat-number" id="tool-count">-</div>
-                                <div class="stat-label">Tools</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Actions -->
-                    <div class="quick-actions">
-                        <h3>Quick Actions</h3>
-                        <div class="action-buttons">
-                            <a href="manage.html" class="btn btn-primary">Open Asset Manager</a>
-                            <button class="btn btn-secondary" onclick="refreshAllStatus()">Refresh All</button>
-                            <button class="btn btn-secondary" onclick="restartAllServices()">Restart All
-                                Services</button>
-                        </div>
-                    </div>
+            <div id="apps-installed-content">
+                <div class="section-header">
+                    <h2>??? Applications</h2>
+                    <p class="section-desc">Discover and launch AI-powered applications available in your workspace.</p>
                 </div>
+                <!-- Legacy Apps Grid Container (Preserved) -->
+                <div class="apps-grid" id="apps-grid">
+                    <!-- Dynamic content loads here -->
+                </div>
+            </div>
 
-                <!-- Services Sub-Tab -->
-                <div id="services-sub" class="admin-sub-content">
-                    <h2>⚙️ Service Management</h2>
-                    <div class="services-grid">
-                        <div class="service-control-card critical" id="ollama-control">
-                            <div class="service-header">
-                                <div class="service-info">
-                                    <h3>🤖 Ollama (LLM Server)</h3>
-                                    <p>Large Language Model serving with lazy-loaded models</p>
-                                </div>
-                                <div class="service-status">
-                                    <span class="status-indicator" id="ollama-status">Checking...</span>
-                                    <div class="service-controls">
-                                        <button class="icon-btn start" title="Start Service"
-                                            onclick="toggleService('ollama', true)">▶️</button>
-                                        <button class="icon-btn stop" title="Stop Service"
-                                            onclick="toggleService('ollama', false)">⏹️</button>
-                                        <button class="icon-btn restart" title="Restart Service"
-                                            onclick="restartService('ollama')">♻️</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="service-details" id="ollama-details">
-                                <div class="detail-grid">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Status</span>
-                                        <span class="detail-value" id="ollama-status-text">Checking...</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Models</span>
-                                        <span class="detail-value" id="ollama-models">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Memory</span>
-                                        <span class="detail-value" id="ollama-memory">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Version</span>
-                                        <span class="detail-value" id="ollama-version">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="expand-btn" onclick="toggleServiceDetails('ollama')">View
-                                Details</button>
-                        </div>
+            <div id="apps-store-content" style="display: none;">
+                <div class="section-header">
+                    <h2>?? App Store</h2>
+                    <p class="section-desc">Browse and install new AI applications.</p>
+                </div>
+                <div class="placeholder-state">
+                    <p>App Store content coming soon...</p>
+                </div>
+            </div>
+        </div>
 
-                        <div class="service-control-card critical" id="qdrant-control">
-                            <div class="service-header">
-                                <div class="service-info">
-                                    <h3>🗄️ Qdrant (Vector Database)</h3>
-                                    <p>Vector database for embeddings and similarity search</p>
-                                </div>
-                                <div class="service-status">
-                                    <span class="status-indicator" id="qdrant-status">Checking...</span>
-                                    <div class="service-controls">
-                                        <button class="icon-btn start" title="Start Service"
-                                            onclick="toggleService('qdrant', true)">▶️</button>
-                                        <button class="icon-btn stop" title="Stop Service"
-                                            onclick="toggleService('qdrant', false)">⏹️</button>
-                                        <button class="icon-btn restart" title="Restart Service"
-                                            onclick="restartService('qdrant')">♻️</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="service-details" id="qdrant-details">
-                                <div class="detail-grid">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Status</span>
-                                        <span class="detail-value" id="qdrant-status-text">Checking...</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Collections</span>
-                                        <span class="detail-value" id="qdrant-collections">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Vectors</span>
-                                        <span class="detail-value" id="qdrant-vectors">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Version</span>
-                                        <span class="detail-value" id="qdrant-version">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="expand-btn" onclick="toggleServiceDetails('qdrant')">View
-                                Details</button>
-                        </div>
+        <!-- View: Assets -->
+        <div id="view-assets" class="view-container" style="display: none;">
+            <div class="section-header">
+                <h2>?? Asset Inventory</h2>
+                <div class="actions">
+                    <input type="text" placeholder="Search assets..." class="search-input"
+                        style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color);">
+                </div>
+            </div>
+            <div id="assets-table-container">
+                <!-- Assets Table will go here -->
+                <p>Loading assets...</p>
+            </div>
+        </div>
 
-                        <div class="service-control-card" id="redis-control">
-                            <div class="service-header">
-                                <div class="service-info">
-                                    <h3>⚡ Redis (Cache)</h3>
-                                    <p>In-memory cache for performance optimization</p>
-                                </div>
-                                <div class="service-status">
-                                    <span class="status-indicator" id="redis-status">Checking...</span>
-                                    <div class="service-controls">
-                                        <button class="icon-btn start" title="Start Service"
-                                            onclick="toggleService('redis', true)">▶️</button>
-                                        <button class="icon-btn stop" title="Stop Service"
-                                            onclick="toggleService('redis', false)">⏹️</button>
-                                        <button class="icon-btn restart" title="Restart Service"
-                                            onclick="restartService('redis')">♻️</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="service-details" id="redis-details">
-                                <div class="detail-grid">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Status</span>
-                                        <span class="detail-value" id="redis-status-text">Checking...</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Keys</span>
-                                        <span class="detail-value" id="redis-keys">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Memory</span>
-                                        <span class="detail-value" id="redis-memory">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Version</span>
-                                        <span class="detail-value" id="redis-version">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
-                        </div>
-
-                        <div class="service-control-card critical" id="postgresql-control">
-                            <div class="service-header">
-                                <div class="service-info">
-                                    <h3>🐘 PostgreSQL (Database)</h3>
-                                    <p>Relational database for metadata and structured data storage</p>
-                                </div>
-                                <div class="service-status">
-                                    <span class="status-indicator" id="postgresql-status">Checking...</span>
-                                    <div class="service-controls">
-                                        <button class="icon-btn start" title="Start Service"
-                                            onclick="toggleService('postgresql', true)">▶️</button>
-                                        <button class="icon-btn stop" title="Stop Service"
-                                            onclick="toggleService('postgresql', false)">⏹️</button>
-                                        <button class="icon-btn restart" title="Restart Service"
-                                            onclick="restartService('postgresql')">♻️</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="service-details" id="postgresql-details">
-                                <div class="detail-grid">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Status</span>
-                                        <span class="detail-value" id="postgresql-status-text">Checking...</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Database Size</span>
-                                        <span class="detail-value" id="postgresql-size">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Connections</span>
-                                        <span class="detail-value" id="postgresql-connections">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Version</span>
-                                        <span class="detail-value" id="postgresql-version">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="expand-btn" onclick="toggleServiceDetails('postgresql')">View
-                                Details</button>
-                        </div>
-
-                        <div class="service-control-card" id="gateway-control">
-                            <div class="service-header">
-                                <div class="service-info">
-                                    <h3>🌐 Hub Gateway</h3>
-                                    <p>Central API gateway and service orchestrator</p>
-                                </div>
-                                <div class="service-status">
-                                    <span class="status-indicator" id="gateway-status">Checking...</span>
-                                    <div class="service-controls">
-                                        <button class="icon-btn start" title="Start Service"
-                                            onclick="toggleService('gateway', true)">▶️</button>
-                                        <button class="icon-btn stop" title="Stop Service"
-                                            onclick="toggleService('gateway', false)">⏹️</button>
-                                        <button class="icon-btn restart" title="Restart Service"
-                                            onclick="restartService('gateway')">♻️</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="service-details" id="gateway-details">
-                                <div class="detail-grid">
-                                    <div class="detail-item">
-                                        <span class="detail-label">Status</span>
-                                        <span class="detail-value" id="gateway-status-text">Checking...</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Version</span>
-                                        <span class="detail-value" id="gateway-version">-</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span class="detail-label">Uptime</span>
-                                        <span class="detail-value" id="gateway-uptime">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button class="expand-btn" onclick="toggleServiceDetails('gateway')">View
-                                Details</button>
-                        </div>
-                    </div>
-
-                    <!-- Service Operation History -->
-                    <div class="operation-history">
-                        <h3>📄 Recent Service Operations</h3>
-                        <div id="service-operations">
-                            <div class="operation-item success">
-                                <div class="operation-details">
-                                    <div class="operation-service">Hub Gateway</div>
-                                    <div class="operation-action">Service started successfully</div>
-                                    <div class="operation-timestamp">Just now</div>
-                                </div>
-                                <span class="operation-status success">Success</span>
-                            </div>
-                            <div class="operation-item success">
-                                <div class="operation-details">
-                                    <div class="operation-service">Ollama</div>
-                                    <div class="operation-action">Model loaded: llama3.2:latest</div>
-                                    <div class="operation-timestamp">2 minutes ago</div>
-                                </div>
-                                <span class="operation-status success">Success</span>
-                            </div>
-                            <div class="operation-item warning">
-                                <div class="operation-details">
-                                    <div class="operation-service">Qdrant</div>
-                                    <div class="operation-action">High memory usage detected</div>
-                                    <div class="operation-timestamp">5 minutes ago</div>
-                                </div>
-                                <span class="operation-status warning">Warning</span>
+        <!-- View: Observability -->
+        <div id="view-observability" class="view-container" style="display: none;">
+            <div class="section-header">
+                <h2>?? System Observability</h2>
+            </div>
+            <!-- Observability Widgets -->
+            <div id="observability-dashboard">
+                <div class="service-summary">
+                    <h3>Service Status</h3>
+                    <div class="service-status-grid">
+                        <div class="status-card">
+                            <div class="status-icon">??</div>
+                            <div class="status-info">
+                                <div class="status-name">Ollama <span class="status-version">v<span
+                                            id="ollama-version-summary">-</span></span></div>
+                                <div class="status-indicator" id="ollama-status-summary">Checking...</div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Service Logs -->
-                    <div class="logs-section">
-                        <div class="logs-header">
-                            <h4>📄 Service Logs</h4>
-                            <div class="logs-controls">
-                                <select id="service-log-selector" onchange="loadServiceLogs()">
-                                    <option value="ollama">Ollama</option>
-                                    <option value="qdrant">Qdrant</option>
-                                    <option value="redis">Redis</option>
-                                    <option value="gateway">Hub Gateway</option>
-                                </select>
-                                <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
-                                <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
+                        <div class="status-card">
+                            <div class="status-icon">???</div>
+                            <div class="status-info">
+                                <div class="status-name">Qdrant <span class="status-version">v<span
+                                            id="qdrant-version-summary">-</span></span></div>
+                                <div class="status-indicator" id="qdrant-status-summary">Checking...</div>
                             </div>
                         </div>
-                        <div class="logs-container" id="service-logs">
-                            <div class="log-entry">
-                                <span class="log-timestamp">[▶️ Loading...]</span>
-                                <span class="log-level info">INFO</span>
-                                <span class="log-service">SYSTEM</span>
-                                <span class="log-message">Select a service to view logs...</span>
+                        <div class="status-card">
+                            <div class="status-icon">?</div>
+                            <div class="status-info">
+                                <div class="status-name">Redis <span class="status-version">v<span
+                                            id="redis-version-summary">-</span></span></div>
+                                <div class="status-indicator" id="redis-status-summary">Checking...</div>
+                            </div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-icon">??</div>
+                            <div class="status-info">
+                                <div class="status-name">PostgreSQL <span class="status-version">v<span
+                                            id="postgresql-version-summary">-</span></span></div>
+                                <div class="status-indicator" id="postgresql-status-summary">Checking...</div>
+                            </div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-icon">??</div>
+                            <div class="status-info">
+                                <div class="status-name">Hub Gateway <span class="status-version">v<span
+                                            id="gateway-version-summary">-</span></span></div>
+                                <div class="status-indicator" id="gateway-status-summary">Checking...</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Models Sub-Tab -->
-                <div id="models-sub" class="admin-sub-content">
-                    <h2>🧠 Model Management</h2>
-                    <div class="model-management">
-                        <div class="model-actions">
-                            <button class="btn btn-primary" onclick="refreshModels()">Refresh Models</button>
-                            <button class="btn btn-secondary" onclick="loadAllModels()" disabled
-                                title="Disabled: Loading all models simultaneously would overwhelm system resources">▶️
-                                Load All Models</button>
-                            <button class="btn btn-secondary" onclick="clearModelLogs()">Clear Logs</button>
+                <div class="asset-overview" style="margin-top: 20px;">
+                    <h3>Asset Statistics</h3>
+                    <div class="asset-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">??</div>
+                            <div class="stat-number" id="app-count">-</div>
+                            <div class="stat-label">Applications</div>
                         </div>
-                        <div class="models-grid" id="admin-models-grid">
-                            <!-- Models will be loaded here -->
+                        <div class="stat-card">
+                            <div class="stat-icon">??</div>
+                            <div class="stat-number" id="service-count">-</div>
+                            <div class="stat-label">Services</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">??</div>
+                            <div class="stat-number" id="model-count">-</div>
+                            <div class="stat-label">Models</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">??</div>
+                            <div class="stat-number" id="tool-count">-</div>
+                            <div class="stat-label">Tools</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Admin -->
+        <div id="view-admin" class="view-container" style="display: none;">
+            <div class="section-header">
+                <h2>??? Admin Console</h2>
+            </div>
+            <!-- Admin Controls -->
+            <div id="admin-dashboard">
+                <div class="quick-actions" style="margin-bottom: 20px;">
+                    <h3>Manual Controls</h3>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="refreshAllStatus()">Refresh All</button>
+                        <button class="btn btn-secondary" onclick="restartAllServices()">Restart All Services</button>
+                    </div>
+                </div>
+                <div class="placeholder"
+                    style="padding: 20px; text-align: center; border: 1px dashed var(--border-color); border-radius: 8px;">
+                    <p>Detailed Service and Model management will be migrated here.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Legacy Content Wrapper (Hidden, to be migrated) -->
+    <div id="legacy-content-staging" style="display: none;">
+
+        <!-- Assets Tab (Merged Admin + Assets) -->
+        <div id="assets-tab" class="tab-content">
+            <div class="admin-container">
+                <!-- Assets Sidebar (Merged from Admin) -->
+                <div class="admin-sidebar">
+                    <h3>Asset Management</h3>
+                    <ul class="admin-sub-tabs">
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('overview')" class="active">?? Overview</button>
+                        </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('services')">?? Services</button>
+                        </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('models')">?? Models</button>
+                        </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('dependencies')">?? Dependencies</button>
+                        </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('system')">?? System</button>
+                        </li>
+                        <li class="admin-sub-tab">
+                            <button onclick="showAssetsSubTab('inspector')">?? Data Inspector</button>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Assets Content (merged Admin content) -->
+                <div class="admin-content">
+                    <!-- Overview Sub-Tab (Migrated to #view-observability) -->
+
+
+                    <!-- Services Sub-Tab -->
+                    <div id="services-sub" class="admin-sub-content">
+                        <h2>?? Service Management</h2>
+                        <div class="services-grid">
+                            <div class="service-control-card critical" id="ollama-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>?? Ollama (LLM Server)</h3>
+                                        <p>Large Language Model serving with lazy-loaded models</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="ollama-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('ollama', true)">??</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('ollama', false)">??</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('ollama')">??</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="ollama-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="ollama-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Models</span>
+                                            <span class="detail-value" id="ollama-models">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Memory</span>
+                                            <span class="detail-value" id="ollama-memory">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="ollama-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('ollama')">View
+                                    Details</button>
+                            </div>
+
+                            <div class="service-control-card critical" id="qdrant-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>??? Qdrant (Vector Database)</h3>
+                                        <p>Vector database for embeddings and similarity search</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="qdrant-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('qdrant', true)">??</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('qdrant', false)">??</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('qdrant')">??</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="qdrant-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="qdrant-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Collections</span>
+                                            <span class="detail-value" id="qdrant-collections">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Vectors</span>
+                                            <span class="detail-value" id="qdrant-vectors">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="qdrant-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('qdrant')">View
+                                    Details</button>
+                            </div>
+
+                            <div class="service-control-card" id="redis-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>? Redis (Cache)</h3>
+                                        <p>In-memory cache for performance optimization</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="redis-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('redis', true)">??</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('redis', false)">??</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('redis')">??</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="redis-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="redis-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Keys</span>
+                                            <span class="detail-value" id="redis-keys">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Memory</span>
+                                            <span class="detail-value" id="redis-memory">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="redis-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('redis')">View Details</button>
+                            </div>
+
+                            <div class="service-control-card critical" id="postgresql-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>?? PostgreSQL (Database)</h3>
+                                        <p>Relational database for metadata and structured data storage</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="postgresql-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('postgresql', true)">??</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('postgresql', false)">??</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('postgresql')">??</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="postgresql-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="postgresql-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Database Size</span>
+                                            <span class="detail-value" id="postgresql-size">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Connections</span>
+                                            <span class="detail-value" id="postgresql-connections">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="postgresql-version">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('postgresql')">View
+                                    Details</button>
+                            </div>
+
+                            <div class="service-control-card" id="gateway-control">
+                                <div class="service-header">
+                                    <div class="service-info">
+                                        <h3>?? Hub Gateway</h3>
+                                        <p>Central API gateway and service orchestrator</p>
+                                    </div>
+                                    <div class="service-status">
+                                        <span class="status-indicator" id="gateway-status">Checking...</span>
+                                        <div class="service-controls">
+                                            <button class="icon-btn start" title="Start Service"
+                                                onclick="toggleService('gateway', true)">??</button>
+                                            <button class="icon-btn stop" title="Stop Service"
+                                                onclick="toggleService('gateway', false)">??</button>
+                                            <button class="icon-btn restart" title="Restart Service"
+                                                onclick="restartService('gateway')">??</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="service-details" id="gateway-details">
+                                    <div class="detail-grid">
+                                        <div class="detail-item">
+                                            <span class="detail-label">Status</span>
+                                            <span class="detail-value" id="gateway-status-text">Checking...</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Version</span>
+                                            <span class="detail-value" id="gateway-version">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="detail-label">Uptime</span>
+                                            <span class="detail-value" id="gateway-uptime">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="expand-btn" onclick="toggleServiceDetails('gateway')">View
+                                    Details</button>
+                            </div>
                         </div>
 
-                        <!-- Model Operation Logs -->
+                        <!-- Service Operation History -->
+                        <div class="operation-history">
+                            <h3>?? Recent Service Operations</h3>
+                            <div id="service-operations">
+                                <div class="operation-item success">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Hub Gateway</div>
+                                        <div class="operation-action">Service started successfully</div>
+                                        <div class="operation-timestamp">Just now</div>
+                                    </div>
+                                    <span class="operation-status success">Success</span>
+                                </div>
+                                <div class="operation-item success">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Ollama</div>
+                                        <div class="operation-action">Model loaded: llama3.2:latest</div>
+                                        <div class="operation-timestamp">2 minutes ago</div>
+                                    </div>
+                                    <span class="operation-status success">Success</span>
+                                </div>
+                                <div class="operation-item warning">
+                                    <div class="operation-details">
+                                        <div class="operation-service">Qdrant</div>
+                                        <div class="operation-action">High memory usage detected</div>
+                                        <div class="operation-timestamp">5 minutes ago</div>
+                                    </div>
+                                    <span class="operation-status warning">Warning</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Service Logs -->
                         <div class="logs-section">
                             <div class="logs-header">
-                                <h4>📄 Model Operation Logs</h4>
+                                <h4>?? Service Logs</h4>
                                 <div class="logs-controls">
-                                    <button class="btn btn-primary" onclick="refreshModelLogs()">Refresh</button>
-                                    <button class="btn btn-secondary" onclick="toggleLogStreaming()">Toggle
-                                        Live</button>
+                                    <select id="service-log-selector" onchange="loadServiceLogs()">
+                                        <option value="ollama">Ollama</option>
+                                        <option value="qdrant">Qdrant</option>
+                                        <option value="redis">Redis</option>
+                                        <option value="gateway">Hub Gateway</option>
+                                    </select>
+                                    <button class="btn btn-primary" onclick="refreshServiceLogs()">Refresh</button>
+                                    <button class="btn btn-secondary" onclick="clearServiceLogs()">Clear</button>
                                 </div>
                             </div>
-                            <div class="logs-container" id="model-logs">
+                            <div class="logs-container" id="service-logs">
                                 <div class="log-entry">
-                                    <span class="log-timestamp">[▶️ Loading...]</span>
+                                    <span class="log-timestamp">[?? Loading...]</span>
                                     <span class="log-level info">INFO</span>
                                     <span class="log-service">SYSTEM</span>
-                                    <span class="log-message">Initializing model logs...</span>
+                                    <span class="log-message">Select a service to view logs...</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Dependencies Sub-Tab -->
-                <div id="dependencies-sub" class="admin-sub-content">
-                    <h2>🔗 Service Dependencies</h2>
-                    <div class="dependency-graph">
-                        <div class="dependency-visualization">
-                            <div class="dependency-flow">
-                                <!-- Core Services Row -->
-                                <div class="service-row">
-                                    <div class="service-node">
-                                        <div class="node-icon">🤖</div>
-                                        <div class="node-label">Ollama</div>
-                                        <div class="node-status online">Online</div>
-                                    </div>
-                                    <div class="service-node">
-                                        <div class="node-icon">🗄️</div>
-                                        <div class="node-label">Qdrant</div>
-                                        <div class="node-status online">Online</div>
-                                    </div>
-                                    <div class="service-node">
-                                        <div class="node-icon">⚡</div>
-                                        <div class="node-label">Redis</div>
-                                        <div class="node-status online">Online</div>
+                    <!-- Models Sub-Tab -->
+                    <div id="models-sub" class="admin-sub-content">
+                        <h2>?? Model Management</h2>
+                        <div class="model-management">
+                            <div class="model-actions">
+                                <button class="btn btn-primary" onclick="refreshModels()">Refresh Models</button>
+                                <button class="btn btn-secondary" onclick="loadAllModels()" disabled
+                                    title="Disabled: Loading all models simultaneously would overwhelm system resources">??
+                                    Load All Models</button>
+                                <button class="btn btn-secondary" onclick="clearModelLogs()">Clear Logs</button>
+                            </div>
+                            <div class="models-grid" id="admin-models-grid">
+                                <!-- Models will be loaded here -->
+                            </div>
+
+                            <!-- Model Operation Logs -->
+                            <div class="logs-section">
+                                <div class="logs-header">
+                                    <h4>?? Model Operation Logs</h4>
+                                    <div class="logs-controls">
+                                        <button class="btn btn-primary" onclick="refreshModelLogs()">Refresh</button>
+                                        <button class="btn btn-secondary" onclick="toggleLogStreaming()">Toggle
+                                            Live</button>
                                     </div>
                                 </div>
-
-                                <!-- Flow Arrow -->
-                                <div class="flow-arrow">⬆️</div>
-
-                                <!-- Hub Gateway -->
-                                <div class="service-row">
-                                    <div class="service-node">
-                                        <div class="node-icon">🌐</div>
-                                        <div class="node-label">Hub Gateway</div>
-                                        <div class="node-status online">Online</div>
-                                    </div>
-                                </div>
-
-                                <!-- Flow Arrow -->
-                                <div class="flow-arrow">⬇️</div>
-
-                                <!-- Applications Row -->
-                                <div class="service-row">
-                                    <div class="service-node">
-                                        <div class="node-icon">🤖</div>
-                                        <div class="node-label">Onyx</div>
-                                        <div class="node-status online">Online</div>
-                                    </div>
-                                    <div class="service-node">
-                                        <div class="node-icon">📄</div>
-                                        <div class="node-label">Contract Reviewer</div>
-                                        <div class="node-status online">Online</div>
-                                    </div>
-                                    <div class="service-node">
-                                        <div class="node-icon">🎤</div>
-                                        <div class="node-label">RAG PDF Voice</div>
-                                        <div class="node-status online">Online</div>
+                                <div class="logs-container" id="model-logs">
+                                    <div class="log-entry">
+                                        <span class="log-timestamp">[?? Loading...]</span>
+                                        <span class="log-level info">INFO</span>
+                                        <span class="log-service">SYSTEM</span>
+                                        <span class="log-message">Initializing model logs...</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="dependency-info">
-                            <h4>Dependency Status</h4>
-                            <div class="dependency-list" id="dependency-list">
-                                <div class="dep-item">
-                                    <span class="dep-service">Contract Reviewer</span>
-                                    <span class="dep-depends">→ Hub Gateway</span>
-                                    <span class="dep-status healthy">✔ Healthy</span>
+                    </div>
+
+                    <!-- Dependencies Sub-Tab -->
+                    <div id="dependencies-sub" class="admin-sub-content">
+                        <h2>?? Service Dependencies</h2>
+                        <div class="dependency-graph">
+                            <div class="dependency-visualization">
+                                <div class="dependency-flow">
+                                    <!-- Core Services Row -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">??</div>
+                                            <div class="node-label">Ollama</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">???</div>
+                                            <div class="node-label">Qdrant</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">?</div>
+                                            <div class="node-label">Redis</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Flow Arrow -->
+                                    <div class="flow-arrow">??</div>
+
+                                    <!-- Hub Gateway -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">??</div>
+                                            <div class="node-label">Hub Gateway</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Flow Arrow -->
+                                    <div class="flow-arrow">??</div>
+
+                                    <!-- Applications Row -->
+                                    <div class="service-row">
+                                        <div class="service-node">
+                                            <div class="node-icon">??</div>
+                                            <div class="node-label">Onyx</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">??</div>
+                                            <div class="node-label">Contract Reviewer</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                        <div class="service-node">
+                                            <div class="node-icon">??</div>
+                                            <div class="node-label">RAG PDF Voice</div>
+                                            <div class="node-status online">Online</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="dep-item">
-                                    <span class="dep-service">Onyx</span>
-                                    <span class="dep-depends">→ Hub Gateway, Ollama, Qdrant, Redis</span>
-                                    <span class="dep-status healthy">✔ Healthy</span>
-                                </div>
-                                <div class="dep-item">
-                                    <span class="dep-service">RAG PDF Voice</span>
-                                    <span class="dep-depends">→ Hub Gateway, Whisper Server</span>
-                                    <span class="dep-status healthy">✔ Healthy</span>
-                                </div>
-                                <div class="dep-item">
-                                    <span class="dep-service">Hub Gateway</span>
-                                    <span class="dep-depends">→ Ollama, Qdrant, Redis</span>
-                                    <span class="dep-status healthy">✔ Healthy</span>
+                            </div>
+                            <div class="dependency-info">
+                                <h4>Dependency Status</h4>
+                                <div class="dependency-list" id="dependency-list">
+                                    <div class="dep-item">
+                                        <span class="dep-service">Contract Reviewer</span>
+                                        <span class="dep-depends">? Hub Gateway</span>
+                                        <span class="dep-status healthy">? Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">Onyx</span>
+                                        <span class="dep-depends">? Hub Gateway, Ollama, Qdrant, Redis</span>
+                                        <span class="dep-status healthy">? Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">RAG PDF Voice</span>
+                                        <span class="dep-depends">? Hub Gateway, Whisper Server</span>
+                                        <span class="dep-status healthy">? Healthy</span>
+                                    </div>
+                                    <div class="dep-item">
+                                        <span class="dep-service">Hub Gateway</span>
+                                        <span class="dep-depends">? Ollama, Qdrant, Redis</span>
+                                        <span class="dep-status healthy">? Healthy</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- System Sub-Tab -->
-                <div id="system-sub" class="admin-sub-content">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2>📈 System Monitoring</h2>
-                        <button onclick="updateSystemMetrics()" class="btn btn-primary"
-                            style="padding: 8px 16px; font-size: 14px;">
-                            🔄 Refresh Metrics
-                        </button>
-                    </div>
-                    <div class="system-monitoring">
-                        <div class="monitoring-grid">
-                            <div class="monitor-card">
-                                <h3>System Resources</h3>
-                                <div class="resource-item">
-                                    <span class="resource-label">CPU Usage:</span>
-                                    <span class="resource-value" id="cpu-usage">-</span>
-                                </div>
-                                <div class="resource-item">
-                                    <span class="resource-label">Memory Usage:</span>
-                                    <span class="resource-value" id="memory-usage">-</span>
-                                </div>
-                                <div class="resource-item">
-                                    <span class="resource-label">Disk Usage:</span>
-                                    <span class="resource-value" id="disk-usage">-</span>
-                                </div>
-                            </div>
-                            <div class="monitor-card">
-                                <h3>GPU Status</h3>
-                                <div id="gpu-info">
+                    <!-- System Sub-Tab -->
+                    <div id="system-sub" class="admin-sub-content">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2>?? System Monitoring</h2>
+                            <button onclick="updateSystemMetrics()" class="btn btn-primary"
+                                style="padding: 8px 16px; font-size: 14px;">
+                                ?? Refresh Metrics
+                            </button>
+                        </div>
+                        <div class="system-monitoring">
+                            <div class="monitoring-grid">
+                                <div class="monitor-card">
+                                    <h3>System Resources</h3>
                                     <div class="resource-item">
-                                        <span class="resource-label">Loading GPU info...</span>
+                                        <span class="resource-label">CPU Usage:</span>
+                                        <span class="resource-value" id="cpu-usage">-</span>
+                                    </div>
+                                    <div class="resource-item">
+                                        <span class="resource-label">Memory Usage:</span>
+                                        <span class="resource-value" id="memory-usage">-</span>
+                                    </div>
+                                    <div class="resource-item">
+                                        <span class="resource-label">Disk Usage:</span>
+                                        <span class="resource-value" id="disk-usage">-</span>
+                                    </div>
+                                </div>
+                                <div class="monitor-card">
+                                    <h3>GPU Status</h3>
+                                    <div id="gpu-info">
+                                        <div class="resource-item">
+                                            <span class="resource-label">Loading GPU info...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="monitor-card">
+                                    <h3>Network Status</h3>
+                                    <div class="resource-item">
+                                        <span class="resource-label">Active Connections:</span>
+                                        <span class="resource-value" id="active-connections">-</span>
+                                    </div>
+                                    <div class="resource-item">
+                                        <span class="resource-label">Requests/min:</span>
+                                        <span class="resource-value" id="requests-per-minute">-</span>
                                     </div>
                                 </div>
                             </div>
-                            <div class="monitor-card">
-                                <h3>Network Status</h3>
+                        </div>
+
+                        <!-- Collection Management -->
+                        <div class="monitor-card">
+                            <h3>??? Qdrant Collections</h3>
+                            <div id="collections-list">
                                 <div class="resource-item">
-                                    <span class="resource-label">Active Connections:</span>
-                                    <span class="resource-value" id="active-connections">-</span>
+                                    <span class="resource-label">?? Loading collections...</span>
+                                    <span class="resource-value">-</span>
                                 </div>
-                                <div class="resource-item">
-                                    <span class="resource-label">Requests/min:</span>
-                                    <span class="resource-value" id="requests-per-minute">-</span>
-                                </div>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <button class="btn btn-primary" onclick="refreshCollections()">Refresh
+                                    Collections</button>
+                                <button class="btn btn-secondary" onclick="showCreateCollection()">Create
+                                    Collection</button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Collection Management -->
-                    <div class="monitor-card">
-                        <h3>🗄️ Qdrant Collections</h3>
-                        <div id="collections-list">
-                            <div class="resource-item">
-                                <span class="resource-label">▶️ Loading collections...</span>
-                                <span class="resource-value">-</span>
+                    <!-- Inspector Sub-Tab -->
+                    <div id="inspector-sub" class="admin-sub-content">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2>?? Tri-Store Data Inspector</h2>
+                            <button onclick="openInspector()" class="btn btn-primary"
+                                style="padding: 8px 16px; font-size: 14px;">
+                                ?? Open Inspector
+                            </button>
+                        </div>
+                        <div class="inspector-info">
+                            <div class="info-card">
+                                <h3>About the Data Inspector</h3>
+                                <p>The Tri-Store Data Inspector allows you to inspect and compare document data across
+                                    all three storage systems:</p>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li><strong>PostgreSQL:</strong> Primary metadata and structured data</li>
+                                    <li><strong>Redis:</strong> Cached data with TTL information</li>
+                                    <li><strong>Qdrant:</strong> Vector embeddings and search data</li>
+                                </ul>
+                                <p>Use this tool to:</p>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    <li>Verify data consistency across stores</li>
+                                    <li>Debug missing or inconsistent data</li>
+                                    <li>Monitor Redis TTL expiration</li>
+                                    <li>Compare checksums and field differences</li>
+                                </ul>
                             </div>
-                        </div>
-                        <div style="margin-top: 15px;">
-                            <button class="btn btn-primary" onclick="refreshCollections()">Refresh
-                                Collections</button>
-                            <button class="btn btn-secondary" onclick="showCreateCollection()">Create
-                                Collection</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Inspector Sub-Tab -->
-                <div id="inspector-sub" class="admin-sub-content">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2>🔍 Tri-Store Data Inspector</h2>
-                        <button onclick="openInspector()" class="btn btn-primary"
-                            style="padding: 8px 16px; font-size: 14px;">
-                            🔍 Open Inspector
-                        </button>
-                    </div>
-                    <div class="inspector-info">
-                        <div class="info-card">
-                            <h3>About the Data Inspector</h3>
-                            <p>The Tri-Store Data Inspector allows you to inspect and compare document data across
-                                all three storage systems:</p>
-                            <ul style="margin: 10px 0; padding-left: 20px;">
-                                <li><strong>PostgreSQL:</strong> Primary metadata and structured data</li>
-                                <li><strong>Redis:</strong> Cached data with TTL information</li>
-                                <li><strong>Qdrant:</strong> Vector embeddings and search data</li>
-                            </ul>
-                            <p>Use this tool to:</p>
-                            <ul style="margin: 10px 0; padding-left: 20px;">
-                                <li>Verify data consistency across stores</li>
-                                <li>Debug missing or inconsistent data</li>
-                                <li>Monitor Redis TTL expiration</li>
-                                <li>Compare checksums and field differences</li>
-                            </ul>
-                        </div>
-                        <div class="info-card">
-                            <h3>Quick Actions</h3>
-                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                <button onclick="openInspector()" class="btn btn-primary">
-                                    🔍 Open Inspector
-                                </button>
-                                <button onclick="checkInspectorHealth()" class="btn btn-secondary">
-                                    ❤️ Health Check
-                                </button>
+                            <div class="info-card">
+                                <h3>Quick Actions</h3>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button onclick="openInspector()" class="btn btn-primary">
+                                        ?? Open Inspector
+                                    </button>
+                                    <button onclick="checkInspectorHealth()" class="btn btn-secondary">
+                                        ?? Health Check
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div id="assets-list" style="margin-top: 20px; display: none;"></div>
-    </div>
+            <div id="assets-list" style="margin-top: 20px; display: none;"></div>
+        </div>
     </div>
 
     <!-- Model Preview Modal -->
@@ -755,7 +827,7 @@
                 clickedTab.classList.add('active');
             }
 
-            // ▶️ Load data when specific tabs are shown
+            // ?? Load data when specific tabs are shown
             if (tabName === 'apps') {
                 loadAppsData();
             } else if (tabName === 'assets') {
@@ -790,7 +862,7 @@
                 clickedButton.classList.add('active');
             }
 
-            // ▶️ Load specific data for the sub-tab
+            // ?? Load specific data for the sub-tab
             switch (subTabName) {
                 case 'overview':
                     loadOverviewData();
@@ -865,13 +937,13 @@
                     // Get app icon based on app ID
                     const getAppIcon = (appId) => {
                         const icons = {
-                            'onyx-assistant': '🤖',
-                            'contract-reviewer': '📄',
-                            'rag-pdf-voice': '🎤',
-                            'deposition-summarizer': '📝',
-                            'open-webui': '🌐'
+                            'onyx-assistant': '??',
+                            'contract-reviewer': '??',
+                            'rag-pdf-voice': '??',
+                            'deposition-summarizer': '??',
+                            'open-webui': '??'
                         };
-                        return icons[appId] || '📱';
+                        return icons[appId] || '??';
                     };
 
                     // Generate dependency tags
@@ -944,12 +1016,12 @@
         }
 
         async function checkAppStatus(appId, appUrl) {
-            console.log(`🔍 Checking status for ${appId} at ${appUrl}`);
+            console.log(`?? Checking status for ${appId} at ${appUrl}`);
             if (!appUrl) return;
 
             const statusElement = document.getElementById(`app-status-${appId}`);
             if (!statusElement) {
-                console.log(`❌ No status element found for ${appId}`);
+                console.log(`? No status element found for ${appId}`);
                 return;
             }
 
@@ -1000,11 +1072,11 @@
                     if (response.ok) {
                         statusElement.textContent = 'Online';
                         statusElement.className = 'app-status online';
-                        console.log(`✅ ${appId} is online`);
+                        console.log(`? ${appId} is online`);
                     } else {
                         statusElement.textContent = 'Offline';
                         statusElement.className = 'app-status offline';
-                        console.log(`❌ ${appId} health check failed: ${response.status}`);
+                        console.log(`? ${appId} health check failed: ${response.status}`);
                     }
                 } catch (error) {
                     // If CORS error or network error, mark as unknown/checking
@@ -1016,7 +1088,7 @@
                     } else {
                         statusElement.textContent = 'Offline';
                         statusElement.className = 'app-status offline';
-                        console.log(`❌ ${appId} status check error:`, error.message);
+                        console.log(`? ${appId} status check error:`, error.message);
                     }
                 }
                 return;
@@ -1474,7 +1546,7 @@
 
         async function loadAllModels() {
             // This function is disabled to prevent overwhelming system resources
-            addModelLog('warning', 'MODEL', '⚠️ Load All Models is disabled to prevent system overload. Please load models individually as needed.');
+            addModelLog('warning', 'MODEL', '?? Load All Models is disabled to prevent system overload. Please load models individually as needed.');
             alert('Load All Models is disabled to prevent overwhelming system resources.\n\nPlease load models individually as needed.');
         }
 
@@ -1504,7 +1576,7 @@
                         const llmCategory = document.createElement('div');
                         llmCategory.className = 'model-category';
                         llmCategory.innerHTML = `
-                            <h3>🧠 Language Models (LLMs)</h3>
+                            <h3>?? Language Models (LLMs)</h3>
                             <div class="model-list"></div>
                         `;
                         const llmList = llmCategory.querySelector('.model-list');
@@ -1517,17 +1589,17 @@
                             let actionButtons = '';
                             if (model.running) {
                                 actionButtons = `
-                                    <button class=\"model-btn unload\" onclick=\"unloadModel('${model.name}')\">⏹️ Unload</button>
-                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">🗑️ Delete</button>
+                                    <button class=\"model-btn unload\" onclick=\"unloadModel('${model.name}')\">?? Unload</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">??? Delete</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
-                                    <button class=\"model-btn load\" onclick=\"loadModel('${model.name}')\">▶️ Load</button>
-                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">🗑️ Delete</button>
+                                    <button class=\"model-btn load\" onclick=\"loadModel('${model.name}')\">?? Load</button>
+                                    <button class=\"model-btn delete\" onclick=\"deleteModel('${model.name}')\">??? Delete</button>
                                 `;
                             } else {
                                 actionButtons = `
-                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">?? Pull</button>
                                     <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
@@ -1541,7 +1613,7 @@
                                     <div class="model-usage">
                                         <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
                                             <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
-                                            <span id="${uniqueId}-arrow">▼</span>
+                                            <span id="${uniqueId}-arrow">?</span>
                                         </button>
                                         <div class="used-by-list hidden" id="${uniqueId}">
                                             ${usageText}
@@ -1553,7 +1625,7 @@
                             // Add default indicator
                             let defaultIndicator = '';
                             if (model.is_default_chat) {
-                                defaultIndicator = '<span class="model-default">⭐ Default Chat</span>';
+                                defaultIndicator = '<span class="model-default">? Default Chat</span>';
                             }
 
                             // Generate performance tags based on model name
@@ -1570,7 +1642,7 @@
                             }
 
                             // Determine model icon
-                            const modelIcon = model.type === 'embedding' ? '📤' : '🧠';
+                            const modelIcon = model.type === 'embedding' ? '??' : '??';
 
                             modelItem.innerHTML = `
                                 <div class="model-main-info">
@@ -1580,9 +1652,9 @@
                                             <span class="model-name">${model.name}</span>
                                             ${defaultIndicator}
                                             <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                                ${model.running ? '✔ Running' : model.available ? '✔ Available' : '✗ Unavailable'}
+                                                ${model.running ? '? Running' : model.available ? '? Available' : '? Unavailable'}
                                             </span>
-                                            <button class="model-btn info" style="margin-left:6px;" onclick="showModelInfo('${model.name}')">ℹ️</button>
+                                            <button class="model-btn info" style="margin-left:6px;" onclick="showModelInfo('${model.name}')">??</button>
                                         </div>
                                         ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
                                         ${usageInfo}
@@ -1613,7 +1685,7 @@
                         const embedCategory = document.createElement('div');
                         embedCategory.className = 'model-category';
                         embedCategory.innerHTML = `
-                            <h3>📤 Embedding Models</h3>
+                            <h3>?? Embedding Models</h3>
                             <div class="model-list"></div>
                         `;
                         const embedList = embedCategory.querySelector('.model-list');
@@ -1626,19 +1698,19 @@
                             let actionButtons = '';
                             if (model.running) {
                                 actionButtons = `
-                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">â¹ï¸ Unload</button>
-                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
+                                    <button class="model-btn unload" onclick="unloadModel('${model.name}')">⏹️ Unload</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
                                 `;
                             } else if (model.available) {
                                 actionButtons = `
-                                    <button class="model-btn load" onclick="loadModel('${model.name}')">â–¶ï¸ Load</button>
-                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">ðŸ—‘ï¸ Delete</button>
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸</button>
+                                    <button class="model-btn load" onclick="loadModel('${model.name}')">▶️ Load</button>
+                                    <button class="model-btn delete" onclick="deleteModel('${model.name}')">🗑️ Delete</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️</button>
                                 `;
                             } else {
                                 actionButtons = `
-                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">â¬‡ï¸ Pull</button>
+                                    <button class="model-btn pull" onclick="pullModel('${model.name}')">⬇️ Pull</button>
                                     <div class="pull-status" id="pull-status-${model.name.replace(/[^a-zA-Z0-9]/g, '')}" style="display:none;"></div>
                                 `;
                             }
@@ -1652,7 +1724,7 @@
                                     <div class="model-usage">
                                         <button class="used-by-toggle" onclick="toggleUsedBy('${uniqueId}')">
                                             <span>Used by ${model.used_by.length} app${model.used_by.length > 1 ? 's' : ''}</span>
-                                            <span id="${uniqueId}-arrow">â–¼</span>
+                                            <span id="${uniqueId}-arrow">▼</span>
                                         </button>
                                         <div class="used-by-list hidden" id="${uniqueId}">
                                             ${usageText}
@@ -1664,7 +1736,7 @@
                             // Add default indicator
                             let defaultIndicator = '';
                             if (model.is_default_embed) {
-                                defaultIndicator = '<span class="model-default">â­ Default Embedding</span>';
+                                defaultIndicator = '<span class="model-default">⭐ Default Embedding</span>';
                             }
 
                             // Generate performance tags based on model name
@@ -1681,7 +1753,7 @@
                             }
 
                             // Determine model icon
-                            const modelIcon = model.type === 'embedding' ? 'ðŸ”¤' : 'ðŸ§ ';
+                            const modelIcon = model.type === 'embedding' ? '🔤' : '🧠';
 
                             modelItem.innerHTML = `
                                 <div class="model-main-info">
@@ -1691,7 +1763,7 @@
                                             <span class="model-name">${model.name}</span>
                                             ${defaultIndicator}
                                             <span class="model-status ${model.running ? 'running' : model.available ? 'available' : 'unavailable'}">
-                                                ${model.running ? 'âœ“ Running' : model.available ? 'âœ“ Available' : 'âœ— Unavailable'}
+                                                ${model.running ? '✓ Running' : model.available ? '✓ Available' : '✗ Unavailable'}
                                             </span>
                                         </div>
                                         ${performanceTags ? `<div class="model-performance-tags">${performanceTags}</div>` : ''}
@@ -1723,7 +1795,7 @@
                         const debugCategory = document.createElement('div');
                         debugCategory.className = 'model-category';
                         debugCategory.innerHTML = `
-                            <h3>ðŸ” All Available Models (Debug)</h3>
+                            <h3>🔍 All Available Models (Debug)</h3>
                             <div class="model-list"></div>
                         `;
                         const debugList = debugCategory.querySelector('.model-list');
@@ -1737,7 +1809,7 @@
                                     ${model.running ? 'Running' : model.available ? 'Available' : 'Unavailable'}
                                 </span>
                                 <div class="model-actions">
-                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">â„¹ï¸ Info</button>
+                                    <button class="model-btn info" onclick="showModelInfo('${model.name}')">ℹ️ Info</button>
                                 </div>
                             `;
                             debugList.appendChild(modelItem);
@@ -1802,7 +1874,7 @@
                 // Hide any previous error message
                 hideModelError(modelName);
 
-                addModelLog('info', 'MODEL', `â–¶ï¸ Loading model: ${modelName}`);
+                addModelLog('info', 'MODEL', `▶️ Loading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/load`, {
                     method: 'POST'
                 });
@@ -1835,7 +1907,7 @@
                 // Hide any previous error message
                 hideModelError(modelName);
 
-                addModelLog('info', 'MODEL', `â¹ï¸ Unloading model: ${modelName}`);
+                addModelLog('info', 'MODEL', `⏹️ Unloading model: ${modelName}`);
                 const response = await fetch(`http://localhost:8081/admin/models/${encodeURIComponent(modelName)}/unload`, {
                     method: 'POST'
                 });
@@ -1987,10 +2059,10 @@
 
             if (listElement.classList.contains('hidden')) {
                 listElement.classList.remove('hidden');
-                arrowElement.textContent = 'â–²';
+                arrowElement.textContent = '▲';
             } else {
                 listElement.classList.add('hidden');
-                arrowElement.textContent = 'â–¼';
+                arrowElement.textContent = '▼';
             }
         }
 
@@ -2199,7 +2271,7 @@
             gpuData.forEach((gpu, index) => {
                 const usedGB = (gpu.memory_used / (1024 ** 3)).toFixed(1);
                 const totalGB = (gpu.memory_total / (1024 ** 3)).toFixed(1);
-                const tempStr = gpu.temperature ? `${gpu.temperature}Â°C` : 'N/A';
+                const tempStr = gpu.temperature ? `${gpu.temperature}°C` : 'N/A';
                 const powerStr = gpu.power_usage ? `${gpu.power_usage.toFixed(1)}W` : 'N/A';
 
                 gpuHTML += `
@@ -2260,7 +2332,7 @@
                         <span class="resource-label">${collection.name}</span>
                         <span class="resource-value">
                             ${collection.vectors_count || 0} vectors
-                            <button class="model-btn delete" onclick="deleteCollection('${collection.name}')" style="margin-left: 10px;">ðŸ—‘ï¸ Delete</button>
+                            <button class="model-btn delete" onclick="deleteCollection('${collection.name}')" style="margin-left: 10px;">🗑️ Delete</button>
                         </span>
                     `;
                     collectionsList.appendChild(collectionItem);
@@ -2464,12 +2536,39 @@
     <!-- Hub Framework Configuration -->
     <script src="/hub-framework-config.js"></script>
 
+    </div> <!-- End legacy-content-staging -->
+
+    <!-- Router and API scripts moved to js/router.js and js/api.js -->
+
+
+
+
     <!-- Footer -->
     <footer class="footer">
         <div class="footer-content">
             <p>ABS Legal AI Suite v1.0.0 | Secure On-Prem Deployment</p>
         </div>
     </footer>
+
+    <!-- Hub UI Modules (defer ensures order: api.js completes before router.js) -->
+    <script src="js/api.js" defer></script>
+    <script src="js/router.js" defer></script>
+
+    <!-- Fallback bootstrap if modules don't auto-init -->
+    <script>
+        window.addEventListener('load', function () {
+            console.log('[Bootstrap] Checking if router initialized...');
+            // If loadAssetsTable exists but router hasn't run, init now
+            if (typeof window.loadAssetsTable === 'function' && typeof window.initRouter === 'function') {
+                console.log('[Bootstrap] Modules loaded, ensuring init...');
+                // Router should have already run, but we can trigger asset load if on that view
+                const hash = window.location.hash.replace('#', '') || 'apps';
+                if (hash === 'assets' && document.getElementById('assets-table-container')?.innerHTML?.includes('Loading')) {
+                    window.loadAssetsTable();
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

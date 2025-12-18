@@ -1,19 +1,38 @@
 asset_id: postgresql
 display_name: PostgreSQL Database
+version: "1.0.0"
+
 interface: metadata-store
 interface_version: v1
 class: service
+
 description: Core metadata and structured data storage for document hub
-container:
-  name: document-hub-postgres
+
+runtime:
+  type: container
+  container:
+    name: document-hub-postgres
+
 endpoints:
+  protocol: rest
   health: /api/health/postgresql
-metadata:
-  container: document-hub-postgres
-  health: /api/health/postgresql
-  management: /api/manage/postgresql
-  metrics: /api/metrics/postgresql
-  port: 5432
-  database: document_hub
+
 lifecycle:
   desired: running
+
+resources:
+  gpu_required: false
+  min_ram_gb: 2
+  disk_gb: 20
+  cold_start_sec: 5
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false
+
+metadata:
+  port: 5432
+  database: document_hub
+  management: /api/manage/postgresql
+  metrics: /api/metrics/postgresql

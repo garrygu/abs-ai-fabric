@@ -7,15 +7,30 @@ export const useAppStore = defineStore('apps', () => {
     const apps = ref<App[]>([])
     const loading = ref(false)
     const error = ref<string | null>(null)
+    const activeTab = ref<'installed' | 'store'>('installed')
 
     // Getters
     const installedApps = computed(() =>
-        apps.value.filter(a => a.status === 'running' || a.status === 'ready')
+        apps.value.filter(a => a.status === 'online' || a.status === 'offline')
     )
 
-    const availableApps = computed(() =>
-        apps.value.filter(a => a.status === 'available')
+    const onlineApps = computed(() =>
+        apps.value.filter(a => a.status === 'online')
     )
+
+    const offlineApps = computed(() =>
+        apps.value.filter(a => a.status === 'offline')
+    )
+
+    const appsByCategory = computed(() => {
+        const grouped: Record<string, App[]> = {}
+        apps.value.forEach(app => {
+            const cat = app.category || 'Uncategorized'
+            if (!grouped[cat]) grouped[cat] = []
+            grouped[cat].push(app)
+        })
+        return grouped
+    })
 
     // Actions
     async function fetchApps() {
@@ -30,12 +45,25 @@ export const useAppStore = defineStore('apps', () => {
         }
     }
 
+    function setActiveTab(tab: 'installed' | 'store') {
+        activeTab.value = tab
+    }
+
+    function getApp(id: string): App | undefined {
+        return apps.value.find(a => a.id === id)
+    }
+
     return {
         apps,
         loading,
         error,
+        activeTab,
         installedApps,
-        availableApps,
-        fetchApps
+        onlineApps,
+        offlineApps,
+        appsByCategory,
+        fetchApps,
+        setActiveTab,
+        getApp
     }
 })

@@ -1,111 +1,228 @@
 <template>
   <div class="apps-view">
     <header class="view-header">
-      <h1>📱 Apps</h1>
-      <p class="view-desc">AI applications powered by your assets.</p>
+      <div class="header-content">
+        <h1>📱 Applications</h1>
+        <p class="view-desc">Discover and launch AI-powered applications available in your workspace.</p>
+      </div>
     </header>
 
-    <div class="apps-grid">
-      <div 
-        v-for="app in appStore.installedApps" 
-        :key="app.id"
-        class="app-card"
-        @click="goToApp(app.id)"
+    <!-- Sub Navigation Tabs -->
+    <div class="sub-nav">
+      <button 
+        class="tab-btn" 
+        :class="{ active: appStore.activeTab === 'installed' }"
+        @click="appStore.setActiveTab('installed')"
       >
-        <span class="app-icon">{{ app.icon || '🤖' }}</span>
-        <h3>{{ app.name }}</h3>
-        <p>{{ app.description || 'AI Application' }}</p>
-        <span class="status" :class="app.status">● {{ app.status }}</span>
+        Installed Apps
+      </button>
+      <button 
+        class="tab-btn"
+        :class="{ active: appStore.activeTab === 'store' }"
+        @click="appStore.setActiveTab('store')"
+      >
+        App Store
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="appStore.loading" class="loading-state">
+      <span class="spinner">⏳</span> Loading applications...
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="appStore.error" class="error-state">
+      <span class="error-icon">❌</span>
+      <p>{{ appStore.error }}</p>
+      <button @click="appStore.fetchApps()" class="btn btn-primary">Retry</button>
+    </div>
+
+    <!-- Installed Apps Tab -->
+    <div v-else-if="appStore.activeTab === 'installed'" class="apps-content">
+      <div v-if="appStore.installedApps.length === 0" class="empty-state">
+        <p>No apps installed yet.</p>
+        <button @click="appStore.setActiveTab('store')" class="btn btn-primary">
+          Browse App Store
+        </button>
       </div>
 
-      <div v-if="appStore.installedApps.length === 0" class="empty-state">
-        No apps installed yet. Check the App Store!
+      <div v-else class="apps-grid">
+        <AppCard 
+          v-for="app in appStore.installedApps" 
+          :key="app.id"
+          :app="app"
+          @open="openApp"
+        />
+      </div>
+    </div>
+
+    <!-- App Store Tab -->
+    <div v-else-if="appStore.activeTab === 'store'" class="apps-content">
+      <div class="store-header">
+        <h2>🛒 App Store</h2>
+        <p>Browse and install new AI applications</p>
+      </div>
+      <div class="apps-grid">
+        <AppCard 
+          v-for="app in storeApps" 
+          :key="app.id"
+          :app="app"
+          :showInstall="true"
+          @install="installApp"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/appStore'
+import type { App } from '@/services/gateway'
+import AppCard from '@/components/AppCard.vue'
 
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
 
+// Mock store apps for now
+const storeApps = ref<App[]>([
+  {
+    id: 'legal-researcher-pro',
+    name: 'Legal Researcher Pro',
+    description: 'Advanced caselaw search and analysis.',
+    category: 'Legal Apps',
+    url: '#',
+    port: 0,
+    status: 'offline',
+    dependencies: ['llama3.2:3b', 'llama3.2:latest']
+  },
+  {
+    id: 'deposition-summarizer',
+    name: 'Deposition Summarizer',
+    description: 'Summarize deposition transcripts and extract key information.',
+    category: 'Legal Apps',
+    url: '#',
+    port: 0,
+    status: 'offline',
+    dependencies: ['llama3.2:3b', 'all-minilm:latest']
+  }
+])
+
 onMounted(() => {
   appStore.fetchApps()
 })
 
-function goToApp(id: string) {
-  router.push(`/workspace/${route.params.workspaceId}/apps/${id}`)
+function openApp(app: App) {
+  if (app.port) {
+    window.open(`http://localhost:${app.port}`, '_blank')
+  } else {
+    router.push(`/workspace/${route.params.workspaceId}/apps/${app.id}`)
+  }
+}
+
+function installApp(app: App) {
+  console.log('Installing app:', app.id)
+  alert(`Installing ${app.name}...`)
 }
 </script>
 
 <style scoped>
 .apps-view {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+}
+
+.view-header {
+  margin-bottom: 1.5rem;
 }
 
 .view-header h1 {
   margin: 0;
+  font-size: 1.75rem;
 }
 
 .view-desc {
-  color: #888;
+  color: var(--text-secondary);
   margin-top: 0.5rem;
+}
+
+.sub-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.tab-btn.active {
+  color: var(--accent-primary);
+  background: var(--accent-subtle);
+  border-bottom: 2px solid var(--accent-primary);
 }
 
 .apps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-top: 1.5rem;
 }
 
-.app-card {
-  background: #1a1a2e;
-  border-radius: 12px;
-  padding: 1.5rem;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+.loading-state,
+.error-state,
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary);
 }
 
-.app-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+.error-state {
+  color: var(--status-error);
 }
 
-.app-icon {
-  font-size: 2.5rem;
+.store-header {
+  margin-bottom: 1.5rem;
 }
 
-.app-card h3 {
-  margin: 1rem 0 0.5rem;
+.store-header h2 {
+  margin: 0 0 0.25rem;
 }
 
-.app-card p {
-  color: #888;
-  font-size: 0.9rem;
+.store-header p {
+  color: var(--text-secondary);
   margin: 0;
 }
 
-.status {
-  display: inline-block;
-  margin-top: 1rem;
-  font-size: 0.85rem;
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
 }
 
-.status.running {
-  color: #22c55e;
+.btn-primary {
+  background: var(--accent-primary);
+  color: white;
 }
 
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 3rem;
-  color: #888;
+.btn-primary:hover {
+  background: var(--accent-hover);
 }
 </style>

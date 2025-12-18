@@ -1,14 +1,31 @@
 asset_id: ocr-service
 display_name: OCR Service
+version: "1.0.0"
+
 interface: tool
 interface_version: v1
 class: tool
-type: ocr
-endpoint: http://ocr:9000/ocr
-policy:
-  scopes:
-  - tools.ocr.use
-metadata:
-  container: abs-ocr
+
+description: Optical character recognition for image-based documents
+
+runtime:
+  type: container
+  container:
+    name: abs-ocr
+
+endpoints:
+  protocol: rest
+  api_base: http://ocr:9000/ocr
+
 lifecycle:
   desired: on-demand
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false
+
+metadata:
+  type: ocr
+  scopes:
+    - tools.ocr.use

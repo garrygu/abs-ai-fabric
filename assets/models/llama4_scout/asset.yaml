@@ -1,0 +1,34 @@
+asset_id: llama4:scout
+display_name: LLaMA 4 Scout
+version: "1.0.0"
+
+interface: model
+interface_version: v1
+class: model
+
+description: Meta LLaMA 4 Scout 17B parameter model optimized for reasoning tasks
+
+runtime:
+  type: external
+  install:
+    command: ollama pull llama4:scout
+    once: true
+
+lifecycle:
+  desired: on-demand
+
+resources:
+  gpu_required: true
+  min_vram_gb: 16
+  min_ram_gb: 32
+  disk_gb: 10
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: true
+
+metadata:
+  provider: ollama
+  parameters: 17B
+  format: GGUF Q4_K_M

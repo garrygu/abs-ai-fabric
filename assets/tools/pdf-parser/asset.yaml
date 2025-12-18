@@ -1,14 +1,31 @@
 asset_id: pdf-parser
 display_name: PDF Parser
+version: "1.0.0"
+
 interface: tool
 interface_version: v1
 class: tool
-type: parser
-endpoint: http://parser:9100/parse/pdf
-policy:
-  scopes:
-  - tools.parse.pdf
-metadata:
-  container: abs-parser
+
+description: Extract text and structure from PDF documents
+
+endpoints:
+  protocol: rest
+  api_base: http://parser:9100/parse/pdf
+
+runtime:
+  type: container
+  container:
+    name: abs-parser
+
 lifecycle:
   desired: on-demand
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false
+
+metadata:
+  type: parser
+  scopes:
+    - tools.parse.pdf

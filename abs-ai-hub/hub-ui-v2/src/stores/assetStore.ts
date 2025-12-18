@@ -9,14 +9,51 @@ export const useAssetStore = defineStore('assets', () => {
     const error = ref<string | null>(null)
     const selectedAssetId = ref<string | null>(null)
 
+    // UI State
+    const viewMode = ref<'table' | 'grid'>('table')
+    const searchQuery = ref('')
+    const activeTypeFilter = ref<string | null>(null) // null = All
+
     // Getters
     const selectedAsset = computed(() =>
         assets.value.find(a => a.id === selectedAssetId.value)
     )
 
+    // Get unique asset types/classes
+    const assetTypes = computed(() => {
+        const types = new Set<string>()
+        assets.value.forEach(asset => {
+            if (asset.class) types.add(asset.class)
+        })
+        return Array.from(types).sort()
+    })
+
+    // Filtered assets based on search and type filter
+    const filteredAssets = computed(() => {
+        let result = assets.value
+
+        // Filter by type
+        if (activeTypeFilter.value) {
+            result = result.filter(a => a.class === activeTypeFilter.value)
+        }
+
+        // Filter by search query
+        if (searchQuery.value.trim()) {
+            const query = searchQuery.value.toLowerCase()
+            result = result.filter(a =>
+                a.id.toLowerCase().includes(query) ||
+                (a.display_name?.toLowerCase().includes(query)) ||
+                (a.class?.toLowerCase().includes(query)) ||
+                (a.interface?.toLowerCase().includes(query))
+            )
+        }
+
+        return result
+    })
+
     const assetsByClass = computed(() => {
         const grouped: Record<string, Asset[]> = {}
-        assets.value.forEach(asset => {
+        filteredAssets.value.forEach(asset => {
             const cls = asset.class || 'unknown'
             if (!grouped[cls]) grouped[cls] = []
             grouped[cls].push(asset)
@@ -27,6 +64,16 @@ export const useAssetStore = defineStore('assets', () => {
     const healthyAssets = computed(() =>
         assets.value.filter(a => a.status === 'ready' || a.status === 'running')
     )
+
+    // Asset counts by type
+    const assetCounts = computed(() => {
+        const counts: Record<string, number> = { all: assets.value.length }
+        assets.value.forEach(asset => {
+            const cls = asset.class || 'unknown'
+            counts[cls] = (counts[cls] || 0) + 1
+        })
+        return counts
+    })
 
     // Actions - Always re-fetch, Gateway is source of truth
     async function fetchAssets() {
@@ -65,19 +112,40 @@ export const useAssetStore = defineStore('assets', () => {
         selectedAssetId.value = id
     }
 
+    function setViewMode(mode: 'table' | 'grid') {
+        viewMode.value = mode
+    }
+
+    function setSearchQuery(query: string) {
+        searchQuery.value = query
+    }
+
+    function setTypeFilter(type: string | null) {
+        activeTypeFilter.value = type
+    }
+
     return {
         // State
         assets,
         loading,
         error,
         selectedAssetId,
+        viewMode,
+        searchQuery,
+        activeTypeFilter,
         // Getters
         selectedAsset,
+        assetTypes,
+        filteredAssets,
         assetsByClass,
         healthyAssets,
+        assetCounts,
         // Actions
         fetchAssets,
         fetchAsset,
-        selectAsset
+        selectAsset,
+        setViewMode,
+        setSearchQuery,
+        setTypeFilter
     }
 })

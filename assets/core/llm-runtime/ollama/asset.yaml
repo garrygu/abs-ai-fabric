@@ -1,15 +1,39 @@
 asset_id: ollama
 display_name: Ollama
+version: "1.0.0"
+
 interface: llm-runtime
 interface_version: v1
 class: service
+
 description: Local LLM inference server supporting multiple models
-container:
-  name: abs-ollama
+
+runtime:
+  type: container
+  container:
+    name: abs-ollama
+
 endpoints:
+  protocol: rest
+  api_base: http://ollama:11434
   health: http://ollama:11434/api/tags
-metadata:
-  container: abs-ollama
-  health: http://ollama:11434/api/tags
+
 lifecycle:
   desired: running
+
+resources:
+  gpu_required: true
+  min_vram_gb: 8
+  min_ram_gb: 16
+  cold_start_sec: 30
+
+policy:
+  served_models:
+    - llama3.2:3b
+    - llama3:8b
+    - llama4:scout
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false

@@ -1,13 +1,26 @@
 asset_id: text-chunker
 display_name: Text Chunker
+version: "1.0.0"
+
 interface: tool
 interface_version: v1
 class: tool
-type: chunker
-endpoint: http://chunker:9200/chunk
-policy:
-  scopes:
-  - tools.chunk.use
-metadata: {}
+
+description: Split documents into semantic chunks for RAG applications
+
+endpoints:
+  protocol: rest
+  api_base: http://chunker:9200/chunk
+
 lifecycle:
   desired: on-demand
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false
+
+metadata:
+  type: chunker
+  scopes:
+    - tools.chunk.use

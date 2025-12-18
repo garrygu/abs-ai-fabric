@@ -39,6 +39,15 @@
       </div>
 
       <div class="nav-end">
+        <!-- Theme Toggle -->
+        <button 
+          class="theme-toggle" 
+          @click="themeStore.toggleTheme()"
+          :title="themeStore.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+        >
+          {{ themeStore.theme === 'dark' ? '☀️' : '🌙' }}
+        </button>
+        
         <span class="workspace-badge">🏢 {{ workspaceId }}</span>
         <span class="health-indicator" :class="{ healthy: systemHealth.allHealthy }">
           {{ systemHealth.allHealthy ? '🟢' : '🟡' }}
@@ -62,9 +71,11 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
+import { useThemeStore } from '@/stores/themeStore'
 
 const route = useRoute()
 const systemHealth = useSystemHealthStore()
+const themeStore = useThemeStore()
 
 const workspaceId = computed(() => 
   (route.params.workspaceId as string) || 'default'
@@ -76,16 +87,17 @@ const workspaceId = computed(() =>
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0f0f1a;
-  color: #fff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .main-nav {
   display: flex;
   align-items: center;
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
-  border-bottom: 1px solid #2a2a4a;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .nav-brand {
@@ -109,18 +121,19 @@ const workspaceId = computed(() =>
   padding: 0.5rem 1rem;
   border-radius: 6px;
   text-decoration: none;
-  color: #888;
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
 .nav-tab:hover {
-  background: rgba(255,255,255,0.05);
-  color: #fff;
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
 }
 
 .nav-tab.active {
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
+  background: var(--accent-subtle);
+  color: var(--accent-primary);
 }
 
 .nav-end {
@@ -130,9 +143,25 @@ const workspaceId = computed(() =>
   gap: 1rem;
 }
 
+.theme-toggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.theme-toggle:hover {
+  background: var(--border-color);
+  border-color: var(--border-hover);
+}
+
 .workspace-badge {
   padding: 0.25rem 0.75rem;
-  background: rgba(255,255,255,0.1);
+  background: var(--accent-subtle);
+  color: var(--accent-primary);
   border-radius: 4px;
   font-size: 0.85rem;
 }
@@ -144,13 +173,15 @@ const workspaceId = computed(() =>
 .main-content {
   flex: 1;
   padding: 1.5rem;
+  background: var(--bg-primary);
 }
 
 .footer {
   padding: 1rem;
   text-align: center;
   font-size: 0.8rem;
-  color: #666;
-  border-top: 1px solid #2a2a4a;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 </style>

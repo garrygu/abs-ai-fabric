@@ -1,5 +1,5 @@
 """
-Standard Asset Schema v1.2 - Pydantic Models
+Standard Asset Schema v1.0 - Pydantic Models
 
 Runtime validation for ABS AI Fabric asset definitions.
 Use these models to parse and validate asset.yaml files.
@@ -12,7 +12,7 @@ Usage:
 
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # =========================
@@ -56,6 +56,7 @@ class LifecycleState(str, Enum):
     IDLE = "idle"
     WARMING = "warming"
     RUNNING = "running"
+    SUSPENDED = "suspended"  # v1.0: Added for auto-sleep
     ERROR = "error"
 
 
@@ -114,10 +115,15 @@ class Endpoints(BaseModel):
 
 
 class Lifecycle(BaseModel):
-    """Asset lifecycle configuration."""
+    """
+    Asset lifecycle configuration.
+    
+    Note: `state` is Gateway-owned and read-only.
+    Asset authors MUST NOT set `state` in asset.yaml.
+    """
     desired: LifecycleDesired = LifecycleDesired.ON_DEMAND
     auto_sleep_min: Optional[int] = None
-    state: LifecycleState = LifecycleState.REGISTERED
+    state: Optional[LifecycleState] = None  # Gateway-owned, not authored
 
 
 class Policy(BaseModel):
@@ -125,11 +131,11 @@ class Policy(BaseModel):
     max_concurrency: Optional[int] = None
     allowed_apps: Optional[List[str]] = None
     
-    # v1.2: Split model semantics
-    required_models: Optional[List[str]] = None  # Models required by apps
-    served_models: Optional[List[str]] = None    # Models served by runtimes
+    # v1.0: Split model semantics
+    required_models: Optional[List[str]] = None  # Models required by apps only
+    served_models: Optional[List[str]] = None    # Models served by runtimes only
     
-    # Legacy compatibility (v1.1)
+    # Legacy compatibility
     allowed_models: Optional[List[str]] = None
     allowed_embeddings: Optional[List[str]] = None
     
@@ -142,7 +148,7 @@ class Policy(BaseModel):
 
 class Asset(BaseModel):
     """
-    Standard Asset Schema v1.2
+    Standard Asset Schema v1.0
     
     Represents any managed entity in ABS AI Fabric:
     services, models, tools, applications, datasets.
@@ -160,7 +166,7 @@ class Asset(BaseModel):
     
     description: Optional[str] = None
     
-    # Pack Association (v1.2)
+    # Pack Association (v1.0)
     pack_id: Optional[str] = Field(default=None, description="Asset Pack identifier")
     
     # Ownership
@@ -187,6 +193,44 @@ class Asset(BaseModel):
     class Config:
         populate_by_name = True  # Allow using 'class' as field name via alias
         extra = "allow"  # Allow additional fields for future compatibility
+    
+    # =========================
+    # v1.0 Compliance Validators
+    # =========================
+    
+    @model_validator(mode='after')
+    def validate_v1_compliance(self):
+        """Enforce v1.0 schema governance rules."""
+        
+        # Rule 1: lifecycle.state is Gateway-owned, MUST NOT be authored
+        if self.lifecycle and self.lifecycle.state is not None:
+            raise ValueError(
+                "lifecycle.state is Gateway-owned and must not be set in asset.yaml. "
+                "The Gateway will populate this field at runtime."
+            )
+        
+        # Rule 2: metadata._status is Gateway-owned, MUST NOT be authored
+        if self.metadata and "_status" in self.metadata:
+            raise ValueError(
+                "metadata._status is Gateway-owned and must not be set in asset.yaml. "
+                "The Gateway will populate this field at runtime."
+            )
+        
+        # Rule 3: Policy semantics enforcement
+        if self.policy:
+            # required_models applies ONLY to apps
+            if self.asset_class != AssetClass.APP and self.policy.required_models:
+                raise ValueError(
+                    f"required_models is only valid for app assets, not {self.asset_class.value}"
+                )
+            
+            # served_models applies ONLY to services/runtimes
+            if self.asset_class == AssetClass.APP and self.policy.served_models:
+                raise ValueError(
+                    "served_models is not valid for app assets, use required_models instead"
+                )
+        
+        return self
 
 
 # =========================

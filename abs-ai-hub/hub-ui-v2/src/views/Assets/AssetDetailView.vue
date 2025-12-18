@@ -102,7 +102,7 @@ function getAssetIcon(assetClass?: string): string {
 
 .back-link {
   display: inline-block;
-  color: #818cf8;
+  color: var(--accent-primary);
   text-decoration: none;
   margin-bottom: 1.5rem;
 }
@@ -135,8 +135,8 @@ function getAssetIcon(assetClass?: string): string {
 
 .badge {
   padding: 0.25rem 0.5rem;
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
+  background: var(--accent-subtle);
+  color: var(--accent-primary);
   border-radius: 4px;
   font-size: 0.8rem;
 }
@@ -145,16 +145,22 @@ function getAssetIcon(assetClass?: string): string {
   font-size: 0.85rem;
 }
 .status.ready,
-.status.running {
-  color: #22c55e;
+.status.running,
+.status.online {
+  color: var(--status-success);
 }
-.status.stopped {
-  color: #f59e0b;
+.status.stopped,
+.status.offline {
+  color: var(--status-warning);
+}
+.status.error {
+  color: var(--status-error);
 }
 
 .detail-section {
-  background: #1a1a2e;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1rem;
 }
@@ -162,7 +168,7 @@ function getAssetIcon(assetClass?: string): string {
 .detail-section h2 {
   font-size: 1rem;
   margin: 0 0 1rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 
 .detail-grid {
@@ -172,7 +178,7 @@ function getAssetIcon(assetClass?: string): string {
 }
 
 .detail-grid dt {
-  color: #666;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -182,7 +188,7 @@ function getAssetIcon(assetClass?: string): string {
 }
 
 code {
-  background: rgba(255,255,255,0.1);
+  background: var(--bg-tertiary);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   font-family: monospace;
@@ -196,13 +202,17 @@ code {
 
 .consumer-list li {
   padding: 0.5rem 0;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.consumer-list li:last-child {
+  border-bottom: none;
 }
 
 .loading-state,
 .error-state {
   text-align: center;
   padding: 3rem;
-  color: #888;
+  color: var(--text-secondary);
 }
 </style>

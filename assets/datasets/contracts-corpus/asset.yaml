@@ -1,15 +1,27 @@
 asset_id: contracts-corpus
 display_name: Contracts Corpus
+version: "1.0.0"
+
 interface: dataset
 interface_version: v1
 class: dataset
-type: rag-dataset
-storage:
-  vector_db: qdrant
-  collection: contracts_vectors
-policy:
-  scopes:
-  - datasets.contracts.read
+
+description: Vectorized contract documents for RAG applications
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: admin
+  visibility: shared
+  requestable: true
+
 metadata:
+  type: rag-dataset
+  storage:
+    vector_db: qdrant
+    collection: contracts_vectors
   embedding_dim: 384
   embed_model: bge-small-en-v1.5
+  scopes:
+    - datasets.contracts.read

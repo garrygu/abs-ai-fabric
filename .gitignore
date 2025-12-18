@@ -8,7 +8,7 @@
 
 # Data directories
 data/
-models/
+# models/
 *.db
 *.sqlite
 

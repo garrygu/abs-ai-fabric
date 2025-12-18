@@ -1,12 +1,24 @@
 asset_id: ndas-sample
 display_name: NDAs Sample
+version: "1.0.0"
+
 interface: dataset
 interface_version: v1
 class: dataset
-type: files
-storage:
-  path: /data/ndas
-policy:
+
+description: Sample NDA documents for testing and demos
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: admin
+  visibility: shared
+  requestable: true
+
+metadata:
+  type: files
+  storage:
+    path: /data/ndas
   scopes:
-  - datasets.ndas.read
-metadata: {}
+    - datasets.ndas.read

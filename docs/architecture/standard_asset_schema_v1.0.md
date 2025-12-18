@@ -1,15 +1,18 @@
-# Standard Asset Schema v1.2
+# Standard Asset Schema v1.0
 
 **Status:** Engineering Specification  
 **Audience:** Platform, Gateway, Hub-UI, Infra Engineers  
 **Applies to:** ABS AI Fabric Asset Registry  
-**Supersedes:** v1.1
+
+> **Note:** Earlier internal drafts used version numbers v1.1–v1.2.
+> The schema has now been stabilized and reset to **v1.0** to align
+> with the finalized Asset Management and Pack architecture.
 
 ---
 
 ## 1. Overview
 
-The **Standard Asset Schema v1.2** defines a unified, extensible structure for representing **all managed entities** in ABS AI Fabric, including:
+The **Standard Asset Schema v1.0** defines a unified, extensible structure for representing **all managed entities** in ABS AI Fabric, including:
 
 - Services (LLM runtimes, vector stores, caches)
 - Models (7B–70B LLMs, Whisper, OCR)
@@ -46,7 +49,7 @@ This schema enables:
 
 ---
 
-## 3. Asset Schema Definition (v1.2)
+## 3. Asset Schema Definition (v1.0)
 
 ```yaml
 # =========================
@@ -62,6 +65,10 @@ version: string                 # Semantic version (e.g. "1.2.0")
 interface: string               # Interface implemented (e.g. llm-runtime)
 interface_version: string       # Interface version (e.g. v1)
 class: enum                     # app | service | model | tool | dataset
+
+# Note: `class` is a presentation and organizational category.
+# Behavioral compatibility is defined exclusively by `interface`
+# and `interface_version`.
 
 description: string             # Multi-line description
 
@@ -88,8 +95,12 @@ resources:
   disk_gb: number               # Disk footprint
   cold_start_sec: number        # Expected cold-start time
 
+# Note: Resource fields are used for scheduling decisions,
+# pack budgeting, and UI display. They are not hard guarantees
+# unless enforced by the runtime.
+
 # =========================
-# Runtime Definition
+# Runtime Definition (Optional)
 # =========================
 runtime:
   type: enum                    # container | native | external
@@ -102,6 +113,8 @@ runtime:
     command: string             # One-time install or pull command
     once: boolean               # Run only once
 
+# Note: Assets without runtime behavior (e.g. static datasets)
+# may omit the `runtime` section entirely.
 # =========================
 # Endpoints (Optional)
 # =========================
@@ -114,9 +127,9 @@ endpoints:
 # Lifecycle
 # =========================
 lifecycle:
-  desired: enum                 # running | on-demand | suspended
+  desired: enum                 # running | on-demand | suspended (Author-defined)
   auto_sleep_min: number        # Idle time before suspension
-  state: enum                   # registered | installed | idle | warming | running | error
+  state: enum                   # Gateway-owned, read-only (see Section 4.4)
 
 # =========================
 # Policy
@@ -135,11 +148,17 @@ policy:
 # Metadata
 # =========================
 metadata: object                # Free-form additional data
+  # Reserved keys (Gateway-only):
+  # _status:
+  #   last_used_at: timestamp
+  #   last_started_at: timestamp  
+  #   active_requests: number
+  #   reason: string
 ````
 
 ---
 
-## 4. Field-Level Clarifications (v1.2 Changes)
+## 4. Field-Level Clarifications (v1.0 Normative Rules)
 
 ### 4.1 `pack_id` (New)
 
@@ -158,7 +177,7 @@ metadata: object                # Free-form additional data
 | `required_models` | Apps                | Models the app needs to function |
 | `served_models`   | Services / runtimes | Models this runtime can serve    |
 
-This removes ambiguity present in v1.1.
+This removes ambiguity present in previous versions.
 
 ---
 
@@ -166,7 +185,7 @@ This removes ambiguity present in v1.1.
 
 Explicitly declares the protocol used by the asset endpoint.
 
-Supported values (v1.2):
+Supported values (v1.0):
 
 * `rest` (default)
 * `grpc`
@@ -177,6 +196,90 @@ Used by:
 * Gateway routing
 * UI capability display
 * Future protocol-specific adapters
+
+---
+
+### 4.4 Lifecycle: Intent vs Observed State (Critical)
+
+The `lifecycle` section separates **declarative intent** from **observed state**:
+
+| Field                | Authority        | Description                              |
+| -------------------- | ---------------- | ---------------------------------------- |
+| `lifecycle.desired`  | **Asset author** | What the system *should* do              |
+| `lifecycle.state`    | **Gateway only** | What is *actually happening* (read-only) |
+
+#### Normative Rules
+
+1. **Asset authors MUST NOT set `lifecycle.state`**
+2. **Gateway MUST populate and update `lifecycle.state`**
+3. **UI MUST display observed state, not desired state**
+
+#### Valid States
+
+| State        | Meaning                                                |
+| ------------ | ------------------------------------------------------ |
+| `registered` | Asset is known but not installed                       |
+| `installed`  | Runtime/artifacts exist but not running                |
+| `idle`       | Ready to serve, no active requests                     |
+| `warming`    | Starting up (cold start, model load)                   |
+| `running`    | Actively serving requests                              |
+| `suspended`  | Auto-stopped due to inactivity                         |
+| `error`      | Failed health check or startup                         |
+
+> State transitions are enforced by the Gateway according to the 
+> **Asset Status Lifecycle State Machine v1.0**.
+
+---
+
+### 4.5 Status Metadata Convention
+
+To avoid schema churn, **observed status details** are stored under a reserved metadata key:
+
+```yaml
+metadata:
+  _status:
+    last_used_at: "2024-12-18T10:30:00Z"
+    last_started_at: "2024-12-18T08:00:00Z"
+    active_requests: 2
+    reason: "Auto-woken on request"
+```
+
+#### Rules
+
+* `metadata._status` is **Gateway-owned and read-only**
+* Asset authors MUST NOT define `_status`
+* UI may read `_status` for display purposes
+* The `_` prefix indicates a reserved/system key
+
+---
+
+### 4.6 Ownership & Visibility Semantics
+
+The `ownership` block controls access and discoverability:
+
+```yaml
+ownership:
+  provider: system | admin | user
+  visibility: shared | private
+  requestable: boolean
+```
+
+#### Canonical Meanings
+
+| Field         | Values           | Meaning                                     |
+| ------------- | ---------------- | ------------------------------------------- |
+| `provider`    | `system`         | Platform-managed, lifecycle controlled      |
+|               | `admin`          | Admin-provisioned, may require approval     |
+|               | `user`           | User-created, self-managed                  |
+| `visibility`  | `shared`         | Visible to all users in workspace           |
+|               | `private`        | Visible only to owner/admin                 |
+| `requestable` | `true` / `false` | Whether UI shows "Request Access" button    |
+
+#### Interaction with Packs
+
+* Ownership defines the **base layer** of access control
+* Packs may impose **additional restrictions** (approval, limits)
+* Pack rules MUST NOT weaken asset-level ownership rules
 
 ---
 
@@ -208,14 +311,14 @@ Used by:
 
 ---
 
-## 6. Sample Asset (v1.2)
+## 6. Sample Asset (v1.0)
 
 ### DeepSeek R1 70B – Large Reasoning Model
 
 ```yaml
 asset_id: deepseek-r1-70b
 display_name: DeepSeek R1 70B
-version: "1.2.0"
+version: "1.0.0"
 
 interface: llm-runtime
 interface_version: v1
@@ -251,7 +354,7 @@ endpoints:
 lifecycle:
   desired: on-demand
   auto_sleep_min: 20
-  state: installed
+  # Note: state is Gateway-owned, not set here
 
 policy:
   max_concurrency: 1
@@ -269,7 +372,7 @@ metadata:
 
 ## 7. Backward Compatibility Notes
 
-* v1.1 assets remain valid with:
+* assets of old versions remain valid with:
 
   * `allowed_models` mapped to `required_models` or `served_models`
 * `pack_id` is optional and non-breaking
@@ -279,7 +382,7 @@ metadata:
 
 ## 8. Summary
 
-Standard Asset Schema v1.2:
+Standard Asset Schema v1.0:
 
 * Resolves semantic ambiguity
 * Aligns with Extended Asset Pack architecture

@@ -1,13 +1,26 @@
 asset_id: bge-reranker
 display_name: BGE Reranker
+version: "1.0.0"
+
 interface: tool
 interface_version: v1
 class: tool
-type: reranker
-endpoint: http://reranker:9300/rerank
-policy:
-  scopes:
-  - tools.rerank.use
-metadata: {}
+
+description: Reranking service using BGE model for improved retrieval
+
+endpoints:
+  protocol: rest
+  api_base: http://reranker:9300/rerank
+
 lifecycle:
   desired: on-demand
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: false
+
+metadata:
+  type: reranker
+  scopes:
+    - tools.rerank.use
