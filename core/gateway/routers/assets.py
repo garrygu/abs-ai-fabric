@@ -38,7 +38,7 @@ async def list_assets():
     manager = await get_asset_manager()
     assets = manager.get_all_assets()
     
-    return [asset.to_dict() for asset in assets.values()]
+    return [asset.to_dict() for asset in assets]
 
 @router.get("/v1/assets/summary")
 async def assets_summary():

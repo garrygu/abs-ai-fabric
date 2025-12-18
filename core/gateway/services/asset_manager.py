@@ -5,7 +5,7 @@ Loads asset definitions from the assets/ directory and resolves
 interface bindings from bindings.yaml.
 
 This is the core service that enables the "Everything is an Asset" architecture.
-Now with Schema v1.2 validation.
+Now with Schema v1.0 validation and lifecycle state population.
 """
 
 import os
@@ -33,7 +33,7 @@ class Asset:
     Represents a loaded asset definition.
     
     Wraps the raw YAML data and provides typed accessors.
-    Optionally validated via Pydantic schema v1.2.
+    Optionally validated via Pydantic schema v1.0.
     """
     
     def __init__(self, data: Dict[str, Any], path: str, validated: bool = False):
@@ -50,8 +50,11 @@ class Asset:
         self.asset_class = data.get("class", "unknown")
         self.description = data.get("description", "")
         
-        # v1.2: Pack association
+        # v1.0: Pack association
         self.pack_id = data.get("pack_id", None)
+        
+        # v1.0: Ownership & visibility
+        self.ownership = data.get("ownership", {})
         
         # Runtime
         self.container = data.get("container", data.get("runtime", {}).get("container", {}))
@@ -60,13 +63,13 @@ class Asset:
         # Endpoints
         self.endpoints = data.get("endpoints", {})
         
-        # Resources (v1.2)
+        # Resources (v1.0)
         self.resources = data.get("resources", {})
         
         # Policy
         self.policy = data.get("policy", {})
         
-        # Lifecycle
+        # Lifecycle (authored intent only - state is Gateway-populated)
         self.lifecycle = data.get("lifecycle", {})
         
         # Legacy fields
@@ -92,19 +95,64 @@ class Asset:
         return self.resources.get("gpu_required", False)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize to dictionary."""
+        """
+        Serialize to dictionary for API response.
+        
+        Note: lifecycle.state and metadata._status are Gateway-populated
+        based on v1.0 governance rules.
+        """
+        # Derive lifecycle.state based on v1.0 state machine
+        lifecycle_with_state = self.lifecycle.copy()
+        if "state" not in lifecycle_with_state:
+            # Gateway populates state based on desired + current observation
+            desired = lifecycle_with_state.get("desired", "on-demand")
+            if desired == "running":
+                lifecycle_with_state["state"] = "running"
+            elif desired == "suspended":
+                lifecycle_with_state["state"] = "suspended"
+            else:  # on-demand
+                lifecycle_with_state["state"] = "idle"  # Default to idle for on-demand
+        
         return {
+            # Identity
+            "id": self.asset_id,  # Alias for UI compatibility
             "asset_id": self.asset_id,
             "display_name": self.display_name,
+            "name": self.display_name,  # Alias for UI compatibility
+            "version": self.version,
+            
+            # Contract
             "interface": self.interface,
             "interface_version": self.interface_version,
-            "version": self.version,
             "class": self.asset_class,
+            "description": self.description,
+            
+            # Pack
             "pack_id": self.pack_id,
+            
+            # Ownership (v1.0)
+            "ownership": self.ownership,
+            
+            # Runtime & Endpoints
+            "runtime": self.runtime,
             "endpoints": self.endpoints,
+            
+            # Resources
             "resources": self.resources,
-            "lifecycle": self.lifecycle,
+            
+            # Policy
+            "policy": self.policy,
+            
+            # Lifecycle with Gateway-populated state
+            "lifecycle": lifecycle_with_state,
+            
+            # Metadata (UI reads from here)
             "metadata": self.metadata,
+            
+            # For backward compat with old UI
+            "status": lifecycle_with_state.get("state", "ready"),
+            
+            # Validation status
             "_validated": self._validated
         }
 
