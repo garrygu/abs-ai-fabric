@@ -164,6 +164,44 @@
             >
               {{ expandedServices[service.name] ? '▼' : '▶' }} Policy
             </button>
+            
+            <!-- Diagnostic & Ops Actions Menu -->
+            <div class="actions-menu-wrapper">
+              <button 
+                class="btn btn-sm btn-icon"
+                @click.stop="toggleMenu(service.name)"
+                :title="'Diagnostic & Ops Actions'"
+              >
+                ⋮
+              </button>
+              <div 
+                v-if="openMenus[service.name]" 
+                class="actions-menu"
+                @click.stop
+              >
+                <button 
+                  class="menu-item"
+                  @click="viewServiceLogs(service)"
+                >
+                  <span class="menu-icon">📜</span>
+                  <span>View Recent Logs</span>
+                </button>
+                <button 
+                  class="menu-item"
+                  @click="jumpToObservability(service)"
+                >
+                  <span class="menu-icon">🔍</span>
+                  <span>Jump to Observability</span>
+                </button>
+                <button 
+                  class="menu-item"
+                  @click="downloadServiceLogs(service)"
+                >
+                  <span class="menu-icon">💾</span>
+                  <span>Download Logs</span>
+                </button>
+              </div>
+            </div>
           </span>
         </div>
         
@@ -228,6 +266,87 @@
             >
               🔥 Keep warm for 30 min
             </button>
+          </div>
+          
+          <!-- Governance & Usage -->
+          <div class="governance-section">
+            <div class="policy-header">
+              <h4>🔐 Governance & Usage</h4>
+              <span class="policy-subtitle">Policy controls - Apps don't own infra, policies do</span>
+            </div>
+            
+            <div v-if="loadingPolicies[service.name]" class="policy-loading">
+              Loading policy data...
+            </div>
+            
+            <div v-else-if="assetPolicies[service.name]" class="governance-grid">
+              <!-- Allowed Apps (for services/runtimes) -->
+              <div v-if="assetPolicies[service.name].allowed_apps && assetPolicies[service.name].allowed_apps.length > 0" class="governance-item">
+                <label class="governance-label">Allowed Apps:</label>
+                <div class="governance-value-list">
+                  <span 
+                    v-for="app in assetPolicies[service.name].allowed_apps" 
+                    :key="app"
+                    class="governance-tag"
+                  >
+                    {{ app }}
+                  </span>
+                </div>
+                <span class="policy-desc">Apps that can use this service</span>
+              </div>
+              
+              <!-- Max Concurrency -->
+              <div v-if="assetPolicies[service.name].max_concurrency" class="governance-item">
+                <label class="governance-label">Max Concurrency:</label>
+                <span class="governance-value">{{ assetPolicies[service.name].max_concurrency }}</span>
+                <span class="policy-desc">Maximum concurrent requests</span>
+              </div>
+              
+              <!-- Required Models (for apps) -->
+              <div v-if="assetPolicies[service.name].required_models && assetPolicies[service.name].required_models.length > 0" class="governance-item">
+                <label class="governance-label">Required Models:</label>
+                <div class="governance-value-list">
+                  <span 
+                    v-for="model in assetPolicies[service.name].required_models" 
+                    :key="model"
+                    class="governance-tag"
+                  >
+                    {{ model }}
+                  </span>
+                </div>
+                <span class="policy-desc">Models required by this app</span>
+              </div>
+              
+              <!-- Served Models (for runtimes) -->
+              <div v-if="assetPolicies[service.name].served_models && assetPolicies[service.name].served_models.length > 0" class="governance-item">
+                <label class="governance-label">Served Models:</label>
+                <div class="governance-value-list">
+                  <span 
+                    v-for="model in assetPolicies[service.name].served_models" 
+                    :key="model"
+                    class="governance-tag"
+                  >
+                    {{ model }}
+                  </span>
+                </div>
+                <span class="policy-desc">Models served by this runtime</span>
+              </div>
+              
+              <!-- No Policy Data -->
+              <div v-if="!assetPolicies[service.name].allowed_apps && !assetPolicies[service.name].max_concurrency && !assetPolicies[service.name].required_models && !assetPolicies[service.name].served_models" class="governance-item">
+                <span class="policy-desc">No policy data available for this service</span>
+              </div>
+            </div>
+            
+            <div v-else class="governance-item">
+              <button 
+                class="btn btn-sm"
+                @click="loadServicePolicy(service)"
+                :disabled="loadingPolicies[service.name]"
+              >
+                {{ loadingPolicies[service.name] ? 'Loading...' : '📋 Load Policy Data' }}
+              </button>
+            </div>
           </div>
         </div>
         </div>
@@ -446,10 +565,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAssetStore } from '@/stores/assetStore'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
 import { gateway } from '@/services/gateway'
 
+const router = useRouter()
+const route = useRoute()
 const assetStore = useAssetStore()
 const systemHealth = useSystemHealthStore()
 
@@ -472,22 +594,27 @@ const loading = reactive({
 })
 
 // Service Metadata
-const SERVICE_CONFIG: Record<string, { icon: string, port?: number, displayName?: string }> = {
-  gateway: { icon: '🌐', port: 8081, displayName: 'Gateway' },
-  ollama: { icon: '🦙', port: 11434, displayName: 'Ollama' },
-  qdrant: { icon: '🔍', port: 6333, displayName: 'Qdrant' },
-  redis: { icon: '📦', port: 6379, displayName: 'Redis' },
-  postgresql: { icon: '🐘', port: 5432, displayName: 'PostgreSQL' },
-  onyx: { icon: '🤖', displayName: 'Onyx Assistant' },
-  'whisper-server': { icon: '👂', displayName: 'Whisper' }
+const SERVICE_CONFIG: Record<string, { icon: string, port?: number, displayName?: string, assetId?: string }> = {
+  gateway: { icon: '🌐', port: 8081, displayName: 'Gateway', assetId: 'hub-gateway' },
+  ollama: { icon: '🦙', port: 11434, displayName: 'Ollama', assetId: 'llm-runtime' },
+  qdrant: { icon: '🔍', port: 6333, displayName: 'Qdrant', assetId: 'vector-store' },
+  redis: { icon: '📦', port: 6379, displayName: 'Redis', assetId: 'cache-queue' },
+  postgresql: { icon: '🐘', port: 5432, displayName: 'PostgreSQL', assetId: 'metadata-store' },
+  onyx: { icon: '🤖', displayName: 'Onyx Assistant', assetId: 'onyx-assistant' },
+  'whisper-server': { icon: '👂', displayName: 'Whisper', assetId: 'speech' }
 }
 
 const serviceLoading = reactive<Record<string, boolean>>({})
 const expandedServices = reactive<Record<string, boolean>>({})
+const openMenus = reactive<Record<string, boolean>>({})
 
 // Idle status and policy data
 const idleStatus = ref<any>(null)
 const globalIdleTimeout = ref(60) // Default from backend
+
+// Asset policy data (for governance)
+const assetPolicies = ref<Record<string, any>>({})
+const loadingPolicies = ref<Record<string, boolean>>({})
 
 // Services Computed from Store
 const services = computed(() => {
@@ -629,6 +756,13 @@ onMounted(async () => {
   // Fetch idle status separately so it doesn't block services from loading
   fetchIdleStatus().catch(err => {
     console.warn('Idle status unavailable, services will work with defaults:', err)
+  })
+  
+  // Close menus when clicking outside
+  document.addEventListener('click', () => {
+    Object.keys(openMenus).forEach(key => {
+      openMenus[key] = false
+    })
   })
 })
 
@@ -803,6 +937,11 @@ function togglePolicyControls(serviceName: string) {
   expandedServices[serviceName] = !expandedServices[serviceName]
   if (expandedServices[serviceName]) {
     fetchIdleStatus() // Refresh idle status when expanding
+    // Auto-load policy data when expanding
+    const service = services.value.find(s => s.name === serviceName)
+    if (service && !assetPolicies.value[serviceName]) {
+      loadServicePolicy(service)
+    }
   }
 }
 
@@ -886,6 +1025,122 @@ async function keepWarm(service: any, durationMinutes: number) {
     showToast(`❌ Failed to keep warm: ${e}`, 'error')
   } finally {
     service.policyLoading = false
+  }
+}
+
+// Governance & Usage - Load Policy Data
+async function loadServicePolicy(service: any) {
+  const config = SERVICE_CONFIG[service.name]
+  const assetId = config?.assetId || service.name
+  
+  loadingPolicies.value[service.name] = true
+  try {
+    const asset = await gateway.getAsset(assetId)
+    if (asset && asset.policy) {
+      assetPolicies.value[service.name] = {
+        allowed_apps: asset.policy.allowed_apps || [],
+        max_concurrency: asset.policy.max_concurrency,
+        required_models: asset.policy.required_models || [],
+        served_models: asset.policy.served_models || []
+      }
+    } else {
+      assetPolicies.value[service.name] = {}
+    }
+  } catch (e) {
+    console.warn(`Failed to load policy for ${service.name}:`, e)
+    // Try alternative asset IDs
+    const alternatives = [service.name, `${service.name}-runtime`, `abs-${service.name}`]
+    for (const altId of alternatives) {
+      if (altId === assetId) continue
+      try {
+        const asset = await gateway.getAsset(altId)
+        if (asset && asset.policy) {
+          assetPolicies.value[service.name] = {
+            allowed_apps: asset.policy.allowed_apps || [],
+            max_concurrency: asset.policy.max_concurrency,
+            required_models: asset.policy.required_models || [],
+            served_models: asset.policy.served_models || []
+          }
+          break
+        }
+      } catch {
+        // Continue to next alternative
+      }
+    }
+    if (!assetPolicies.value[service.name]) {
+      assetPolicies.value[service.name] = {}
+    }
+  } finally {
+    loadingPolicies.value[service.name] = false
+  }
+}
+
+// Diagnostic & Ops Actions
+function toggleMenu(serviceName: string) {
+  // Close all other menus
+  Object.keys(openMenus).forEach(key => {
+    if (key !== serviceName) {
+      openMenus[key] = false
+    }
+  })
+  openMenus[serviceName] = !openMenus[serviceName]
+}
+
+function viewServiceLogs(service: any) {
+  openMenus[service.name] = false
+  // Switch to Logs tab and filter by service
+  activeTab.value = 'logs'
+  logFilter.value = service.name.toLowerCase()
+  showToast(`📜 Viewing logs for ${service.displayName}`)
+}
+
+function jumpToObservability(service: any) {
+  openMenus[service.name] = false
+  // Navigate to Observability page with service filter
+  const workspaceId = route.params.workspaceId || 'default'
+  router.push({
+    path: `/workspace/${workspaceId}/observability`,
+    query: { 
+      service: service.name,
+      filter: service.name.toLowerCase()
+    }
+  })
+  showToast(`🔍 Opening Observability for ${service.displayName}`)
+}
+
+async function downloadServiceLogs(service: any) {
+  openMenus[service.name] = false
+  try {
+    // Try to fetch logs from backend
+    const config = SERVICE_CONFIG[service.name]
+    const assetId = config?.assetId || service.name
+    
+    // For now, create a simple log file with service info
+    // In production, this would fetch actual logs from the backend
+    const logContent = `Service: ${service.displayName} (${service.name})
+Status: ${service.running ? 'Running' : 'Stopped'}
+Health: ${service.statusText}
+Port: ${service.port || 'N/A'}
+Timestamp: ${new Date().toISOString()}
+
+[Logs would be fetched from backend in production]
+For support, include this file along with service logs from Docker:
+docker logs ${service.name} --tail 1000 > ${service.name}-logs.txt
+`
+    
+    const blob = new Blob([logContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${service.name}-logs-${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    showToast(`💾 Logs downloaded for ${service.displayName}`)
+  } catch (e) {
+    showToast(`❌ Failed to download logs: ${e}`, 'error')
   }
 }
 
@@ -1307,6 +1562,120 @@ function formatLogTime(date: Date): string {
   gap: 0.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border-color);
+}
+
+/* Governance & Usage Section */
+.governance-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.governance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.governance-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.governance-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.governance-value {
+  font-weight: 500;
+  color: var(--accent-primary);
+  font-size: 1rem;
+}
+
+.governance-value-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+
+.governance-tag {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.policy-loading {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Actions Menu (⋮) */
+.actions-menu-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-icon {
+  min-width: 32px;
+  padding: 0.4rem 0.5rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actions-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.menu-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.menu-item:active {
+  background: var(--bg-secondary);
+}
+
+.menu-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
 /* Error Banner */
