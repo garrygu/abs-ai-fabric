@@ -61,7 +61,44 @@
         <button class="btn btn-sm" @click="refreshAll" :disabled="loading.refresh">🔄 Refresh</button>
       </div>
       
-      <div class="services-table">
+      <!-- Health & Readiness Legend -->
+      <div class="health-legend">
+        <h3>❤️ Health & Readiness</h3>
+        <div class="legend-items">
+          <div class="legend-item">
+            <span class="legend-emoji">🟢</span>
+            <span class="legend-label">Healthy</span>
+            <span class="legend-desc">/health OK</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-emoji">🟡</span>
+            <span class="legend-label">Degraded</span>
+            <span class="legend-desc">Running but dependency issue</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-emoji">🔴</span>
+            <span class="legend-label">Unhealthy</span>
+            <span class="legend-desc">Running but failing checks</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-emoji">⚪</span>
+            <span class="legend-label">Stopped</span>
+            <span class="legend-desc">Not running</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Backend Connection Error -->
+      <div v-if="systemHealth.error" class="error-banner">
+        <span class="error-icon">⚠️</span>
+        <div class="error-content">
+          <strong>Backend Unavailable</strong>
+          <p>{{ systemHealth.error }}</p>
+          <p class="error-hint">Make sure the gateway service is running on port 8081</p>
+        </div>
+      </div>
+
+      <div class="services-table" v-if="!systemHealth.error || systemHealth.services.length > 0">
 
 
         <div class="service-row header">
@@ -74,6 +111,9 @@
         <div 
           v-for="service in services" 
           :key="service.name" 
+          class="service-row-wrapper"
+        >
+        <div 
           class="service-row"
           :class="service.status"
         >
@@ -85,9 +125,12 @@
              <span class="status-indicator" :class="service.running ? 'running' : 'stopped'"></span>
              {{ service.running ? 'Running' : 'Stopped' }}
           </span>
-          <span class="col-health">
-            <span class="status-dot" :class="service.statusClass">●</span>
-            {{ service.statusText }}
+          <span class="col-health" :title="service.healthDescription">
+            <span class="health-emoji">{{ service.healthEmoji }}</span>
+            <span class="health-text">{{ service.statusText }}</span>
+            <span class="health-hint" v-if="service.healthDescription !== '/health OK'">
+              ({{ service.healthDescription }})
+            </span>
           </span>
           <span class="col-port">{{ service.port || '-' }}</span>
           <span class="col-actions">
@@ -114,7 +157,79 @@
             >
               🔄 Restart
             </button>
+            <button 
+              class="btn btn-sm btn-secondary"
+              @click="togglePolicyControls(service.name)"
+              :title="expandedServices[service.name] ? 'Hide policy controls' : 'Show policy controls'"
+            >
+              {{ expandedServices[service.name] ? '▼' : '▶' }} Policy
+            </button>
           </span>
+        </div>
+        
+        <!-- Policy & Automation Controls (Expandable) -->
+        <div v-if="expandedServices[service.name]" class="policy-controls">
+          <div class="policy-header">
+            <h4>🕒 Auto-Wake / Auto-Sleep</h4>
+            <span class="policy-subtitle">Cost-saving automation controls</span>
+          </div>
+          
+          <div class="policy-grid">
+            <div class="policy-item">
+              <label class="policy-label">
+                <input 
+                  type="checkbox" 
+                  :checked="service.idleSleepEnabled"
+                  @change="updateAutoSleep(service, $event)"
+                  :disabled="service.policyLoading"
+                />
+                <span>Enable auto-sleep</span>
+              </label>
+              <span class="policy-desc">Automatically suspend when idle</span>
+            </div>
+            
+            <div class="policy-item">
+              <label class="policy-label">
+                Idle timeout (minutes):
+                <input 
+                  type="number" 
+                  :value="service.idleTimeout || globalIdleTimeout"
+                  @change="updateIdleTimeout(service, $event)"
+                  :disabled="!service.idleSleepEnabled || service.policyLoading"
+                  min="1"
+                  max="1440"
+                  class="policy-input"
+                />
+              </label>
+              <span class="policy-desc">Time before auto-suspend</span>
+            </div>
+            
+            <div class="policy-item">
+              <label class="policy-label">Current idle duration:</label>
+              <span class="policy-value">{{ formatIdleDuration(service.idleDuration) }}</span>
+              <span class="policy-desc">{{ service.idleDuration > 0 ? 'Time since last use' : 'Not idle' }}</span>
+            </div>
+          </div>
+          
+          <div class="policy-actions">
+            <button 
+              v-if="service.running"
+              class="btn btn-sm btn-warning"
+              @click="suspendService(service)"
+              :disabled="service.policyLoading"
+            >
+              ⏸️ Suspend now
+            </button>
+            <button 
+              v-if="service.running"
+              class="btn btn-sm btn-success"
+              @click="keepWarm(service, 30)"
+              :disabled="service.policyLoading"
+            >
+              🔥 Keep warm for 30 min
+            </button>
+          </div>
+        </div>
         </div>
       </div>
     </section>
@@ -330,7 +445,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAssetStore } from '@/stores/assetStore'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
 import { gateway } from '@/services/gateway'
@@ -368,6 +483,11 @@ const SERVICE_CONFIG: Record<string, { icon: string, port?: number, displayName?
 }
 
 const serviceLoading = reactive<Record<string, boolean>>({})
+const expandedServices = reactive<Record<string, boolean>>({})
+
+// Idle status and policy data
+const idleStatus = ref<any>(null)
+const globalIdleTimeout = ref(60) // Default from backend
 
 // Services Computed from Store
 const services = computed(() => {
@@ -379,16 +499,62 @@ const services = computed(() => {
     const config = SERVICE_CONFIG[s.name] || { icon: '❓', displayName: s.name }
     let statusText = 'Unknown'
     let statusClass = 'status-unknown'
+    let healthEmoji = '⚪'
+    let healthDescription = 'Unknown state'
     
-    switch(s.status) {
-        case 'healthy': statusText = 'Healthy'; statusClass = 'status-success'; break;
-        case 'degraded': statusText = 'Degraded'; statusClass = 'status-warning'; break;
-        case 'unhealthy': statusText = 'Unhealthy'; statusClass = 'status-error'; break;
-        case 'running': statusText = 'Running'; statusClass = 'status-success'; break;
-        case 'stopped': statusText = 'Stopped'; statusClass = 'status-stopped'; break;
-        case 'error': statusText = 'Error'; statusClass = 'status-error'; break;
-        default: statusText = s.status; statusClass = 'status-unknown';
+    // Determine health status based on service status and running state
+    if (!s.running || s.status === 'stopped') {
+      statusText = 'Stopped'
+      statusClass = 'status-stopped'
+      healthEmoji = '⚪'
+      healthDescription = 'Not running'
+    } else {
+      switch(s.status) {
+        case 'healthy':
+          statusText = 'Healthy'
+          statusClass = 'status-success'
+          healthEmoji = '🟢'
+          healthDescription = '/health OK'
+          break
+        case 'degraded':
+          statusText = 'Degraded'
+          statusClass = 'status-warning'
+          healthEmoji = '🟡'
+          healthDescription = 'Running but dependency issue'
+          break
+        case 'unhealthy':
+          statusText = 'Unhealthy'
+          statusClass = 'status-error'
+          healthEmoji = '🔴'
+          healthDescription = 'Running but failing checks'
+          break
+        case 'running':
+          // If status is 'running' but we don't have health check, assume healthy
+          statusText = 'Running'
+          statusClass = 'status-success'
+          healthEmoji = '🟢'
+          healthDescription = '/health OK'
+          break
+        case 'error':
+          statusText = 'Error'
+          statusClass = 'status-error'
+          healthEmoji = '🔴'
+          healthDescription = 'Error state'
+          break
+        default:
+          statusText = s.status
+          statusClass = 'status-unknown'
+          healthEmoji = '⚪'
+          healthDescription = 'Unknown state'
+      }
     }
+    
+    // Get idle/policy data from idleStatus
+    const serviceRegistry = idleStatus.value?.serviceRegistry || {}
+    const serviceInfo = serviceRegistry[s.name] || {}
+    const lastUsed = serviceInfo.last_used || 0
+    const currentTime = Date.now() / 1000
+    const idleDuration = lastUsed > 0 ? Math.max(0, currentTime - lastUsed) : 0
     
     return {
       ...s,
@@ -397,7 +563,13 @@ const services = computed(() => {
       port: config.port,
       statusText,
       statusClass,
-      loading: serviceLoading[s.name] || false
+      healthEmoji,
+      healthDescription,
+      loading: serviceLoading[s.name] || false,
+      idleSleepEnabled: serviceInfo.idle_sleep_enabled ?? true,
+      idleTimeout: serviceInfo.idle_timeout_minutes,
+      idleDuration,
+      policyLoading: false
     }
   }).sort((a, b) => {
      // Config order
@@ -449,10 +621,25 @@ const config = reactive({
 })
 
 onMounted(async () => {
+  // Load services first (critical), then idle status (optional)
   await Promise.all([
     loadModels(),
     systemHealth.fetchStatus()
   ])
+  // Fetch idle status separately so it doesn't block services from loading
+  fetchIdleStatus().catch(err => {
+    console.warn('Idle status unavailable, services will work with defaults:', err)
+  })
+})
+
+// Watch for tab changes to refresh idle status
+watch(activeTab, (newTab) => {
+  if (newTab === 'services') {
+    // Don't block on idle status fetch
+    fetchIdleStatus().catch(err => {
+      console.warn('Failed to refresh idle status:', err)
+    })
+  }
 })
 
 // Toast notifications
@@ -588,6 +775,117 @@ async function restartService(service: any) {
     showToast(`❌ Failed to restart: ${e}`, 'error')
   } finally {
     serviceLoading[service.name] = false
+  }
+}
+
+// Policy & Automation Controls
+async function fetchIdleStatus() {
+  try {
+    const status = await gateway.getIdleStatus()
+    idleStatus.value = status
+    globalIdleTimeout.value = status.idleTimeout || 60
+  } catch (e) {
+    console.warn('Failed to fetch idle status, using defaults:', e)
+    // Set default values so UI doesn't break
+    if (!idleStatus.value) {
+      idleStatus.value = {
+        autoWakeEnabled: true,
+        idleTimeout: 60,
+        idleSleepEnabled: true,
+        serviceRegistry: {}
+      }
+      globalIdleTimeout.value = 60
+    }
+  }
+}
+
+function togglePolicyControls(serviceName: string) {
+  expandedServices[serviceName] = !expandedServices[serviceName]
+  if (expandedServices[serviceName]) {
+    fetchIdleStatus() // Refresh idle status when expanding
+  }
+}
+
+function formatIdleDuration(seconds: number): string {
+  if (seconds <= 0) return 'Not idle'
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`
+  }
+  return `${minutes}m`
+}
+
+async function updateAutoSleep(service: any, event: Event) {
+  const target = event.target as HTMLInputElement
+  service.policyLoading = true
+  try {
+    const result = await gateway.updateServiceAutoSleep(service.name, target.checked)
+    if (result.status === 'success') {
+      showToast(`✅ Auto-sleep ${target.checked ? 'enabled' : 'disabled'} for ${service.displayName}`)
+      await fetchIdleStatus()
+    } else {
+      showToast(`❌ Failed to update auto-sleep`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to update: ${e}`, 'error')
+  } finally {
+    service.policyLoading = false
+  }
+}
+
+async function updateIdleTimeout(service: any, event: Event) {
+  const target = event.target as HTMLInputElement
+  const timeout = parseInt(target.value)
+  if (isNaN(timeout) || timeout < 1) return
+  
+  service.policyLoading = true
+  try {
+    const result = await gateway.updateServiceAutoSleep(service.name, service.idleSleepEnabled, timeout)
+    if (result.status === 'success') {
+      showToast(`✅ Idle timeout updated to ${timeout} minutes`)
+      await fetchIdleStatus()
+    } else {
+      showToast(`❌ Failed to update timeout`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to update: ${e}`, 'error')
+  } finally {
+    service.policyLoading = false
+  }
+}
+
+async function suspendService(service: any) {
+  service.policyLoading = true
+  try {
+    const result = await gateway.suspendService(service.name)
+    if (result.status === 'success') {
+      showToast(`⏸️ ${service.displayName} suspended`)
+      await Promise.all([systemHealth.fetchStatus(), fetchIdleStatus()])
+    } else {
+      showToast(`❌ Failed to suspend: ${result.message}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to suspend: ${e}`, 'error')
+  } finally {
+    service.policyLoading = false
+  }
+}
+
+async function keepWarm(service: any, durationMinutes: number) {
+  service.policyLoading = true
+  try {
+    const result = await gateway.keepServiceWarm(service.name, durationMinutes)
+    if (result.status === 'success') {
+      showToast(`🔥 ${service.displayName} will stay warm for ${durationMinutes} minutes`)
+      await fetchIdleStatus()
+    } else {
+      showToast(`❌ Failed to keep warm: ${result.message}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to keep warm: ${e}`, 'error')
+  } finally {
+    service.policyLoading = false
   }
 }
 
@@ -798,16 +1096,19 @@ function formatLogTime(date: Date): string {
   overflow: hidden;
 }
 
+.service-row-wrapper {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.service-row-wrapper:last-child {
+  border-bottom: none;
+}
+
 .service-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1.5fr 0.5fr 2fr;
   padding: 1rem;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.service-row:last-child {
-  border-bottom: none;
 }
 
 .service-row.header {
@@ -853,6 +1154,200 @@ function formatLogTime(date: Date): string {
 .status-dot.stopped { color: var(--text-muted); } /* Legacy support */
 .status-dot.error { color: var(--status-error); }
 .status-dot.restarting { color: var(--accent-primary); }
+
+/* Health & Readiness Legend */
+.health-legend {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color);
+}
+
+.health-legend h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.legend-emoji {
+  font-size: 1.2rem;
+}
+
+.legend-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 80px;
+}
+
+.legend-desc {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* Health Column Styling */
+.col-health {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: help;
+}
+
+.health-emoji {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.health-text {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.health-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Policy & Automation Controls */
+.policy-controls {
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  padding: 1.5rem;
+  margin: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+.policy-header {
+  margin-bottom: 1rem;
+}
+
+.policy-header h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.policy-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.policy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.policy-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.policy-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.policy-input {
+  width: 80px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.policy-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.policy-value {
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-size: 0.95rem;
+}
+
+.policy-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.policy-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Error Banner */
+.error-banner {
+  background: var(--status-error);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.error-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-content strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.error-content p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
+.error-hint {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  font-style: italic;
+}
 
 /* Models Grid */
 .models-grid {
