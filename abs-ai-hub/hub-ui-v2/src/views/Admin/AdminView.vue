@@ -6,6 +6,11 @@
         <p class="view-desc">System administration and configuration.</p>
       </div>
     </header>
+    
+    <!-- Toast Notification -->
+    <div v-if="toastMessage" class="toast" :class="toastType">
+      {{ toastMessage }}
+    </div>
 
     <!-- Tab Navigation -->
     <div class="admin-tabs">
@@ -53,13 +58,16 @@
     <section v-if="activeTab === 'services'" class="admin-section">
       <div class="section-header">
         <h2>🔧 Service Controls</h2>
-        <button class="btn btn-sm" @click="loadServices">🔄 Refresh</button>
+        <button class="btn btn-sm" @click="refreshAll" :disabled="loading.refresh">🔄 Refresh</button>
       </div>
       
       <div class="services-table">
+
+
         <div class="service-row header">
           <span class="col-name">Service</span>
           <span class="col-status">Status</span>
+          <span class="col-health">Health</span>
           <span class="col-port">Port</span>
           <span class="col-actions">Actions</span>
         </div>
@@ -74,13 +82,17 @@
             {{ service.name }}
           </span>
           <span class="col-status">
-            <span class="status-dot" :class="service.status">●</span>
+             <span class="status-indicator" :class="service.running ? 'running' : 'stopped'"></span>
+             {{ service.running ? 'Running' : 'Stopped' }}
+          </span>
+          <span class="col-health">
+            <span class="status-dot" :class="service.statusClass">●</span>
             {{ service.statusText }}
           </span>
           <span class="col-port">{{ service.port || '-' }}</span>
           <span class="col-actions">
             <button 
-              v-if="service.status === 'stopped'"
+              v-if="!service.running"
               class="btn btn-sm btn-success"
               @click="startService(service)"
               :disabled="service.loading"
@@ -88,7 +100,7 @@
               ▶ Start
             </button>
             <button 
-              v-if="service.status === 'running'"
+              v-if="service.running"
               class="btn btn-sm btn-warning"
               @click="stopService(service)"
               :disabled="service.loading"
@@ -259,6 +271,61 @@
         </div>
       </div>
     </section>
+
+    <!-- Clear Cache Confirmation Modal (outside tab sections) -->
+    <Teleport to="body">
+      <div v-if="showClearCacheModal" class="modal-overlay" @click.self="showClearCacheModal = false">
+        <div class="modal-content small">
+          <div class="modal-header warning-header">
+            <h2>⚠️ Clear Cache</h2>
+            <button @click="showClearCacheModal = false" class="close-btn">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="warning-text">
+              <strong>Select cache types to clear:</strong>
+            </p>
+            <ul class="cache-list selectable">
+              <li :class="{ selected: cacheSelection.documents }" @click="cacheSelection.documents = !cacheSelection.documents">
+                <div class="cache-checkbox">
+                  <input type="checkbox" :checked="cacheSelection.documents" readonly>
+                  <span class="checkmark"></span>
+                </div>
+                <span class="cache-icon">📄</span>
+                <span><strong>Document Cache</strong> - Parsed document metadata and content</span>
+              </li>
+              <li :class="{ selected: cacheSelection.embeddings }" @click="cacheSelection.embeddings = !cacheSelection.embeddings">
+                <div class="cache-checkbox">
+                  <input type="checkbox" :checked="cacheSelection.embeddings" readonly>
+                  <span class="checkmark"></span>
+                </div>
+                <span class="cache-icon">🔢</span>
+                <span><strong>Embedding Cache</strong> - Vector embeddings for RAG queries</span>
+              </li>
+              <li :class="{ selected: cacheSelection.cache }" @click="cacheSelection.cache = !cacheSelection.cache">
+                <div class="cache-checkbox">
+                  <input type="checkbox" :checked="cacheSelection.cache" readonly>
+                  <span class="checkmark"></span>
+                </div>
+                <span class="cache-icon">💾</span>
+                <span><strong>Response Cache</strong> - Cached API responses</span>
+              </li>
+            </ul>
+            <p class="warning-note">
+              ⚡ Apps using cached data will experience slower first requests while caches rebuild.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button @click="showClearCacheModal = false" class="btn btn-secondary">Cancel</button>
+            <button 
+              @click="confirmClearCache" 
+              class="btn btn-danger" 
+              :disabled="loading.cache || (!cacheSelection.documents && !cacheSelection.embeddings && !cacheSelection.cache)">
+              {{ loading.cache ? 'Clearing...' : '🗑️ Clear Selected' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -285,23 +352,77 @@ const activeTab = ref('actions')
 const loading = reactive({
   refresh: false,
   assets: false,
-  cache: false
+  cache: false,
+  health: false
 })
 
-// Services
-const services = ref([
-  { name: 'Gateway', icon: '🌐', status: 'running', statusText: 'Running', port: 8081, loading: false },
-  { name: 'Ollama', icon: '🦙', status: 'running', statusText: 'Running', port: 11434, loading: false },
-  { name: 'Qdrant', icon: '🔍', status: 'running', statusText: 'Running', port: 6333, loading: false },
-  { name: 'Redis', icon: '📦', status: 'stopped', statusText: 'Stopped', port: 6379, loading: false },
-  { name: 'PostgreSQL', icon: '🐘', status: 'running', statusText: 'Running', port: 5432, loading: false }
-])
+// Service Metadata
+const SERVICE_CONFIG: Record<string, { icon: string, port?: number, displayName?: string }> = {
+  gateway: { icon: '🌐', port: 8081, displayName: 'Gateway' },
+  ollama: { icon: '🦙', port: 11434, displayName: 'Ollama' },
+  qdrant: { icon: '🔍', port: 6333, displayName: 'Qdrant' },
+  redis: { icon: '📦', port: 6379, displayName: 'Redis' },
+  postgresql: { icon: '🐘', port: 5432, displayName: 'PostgreSQL' },
+  onyx: { icon: '🤖', displayName: 'Onyx Assistant' },
+  'whisper-server': { icon: '👂', displayName: 'Whisper' }
+}
+
+const serviceLoading = reactive<Record<string, boolean>>({})
+
+// Services Computed from Store
+const services = computed(() => {
+  // Sort by order in config or name
+  const sortedNames = Object.keys(SERVICE_CONFIG)
+  
+  // Merge store data with config
+  return systemHealth.services.map(s => {
+    const config = SERVICE_CONFIG[s.name] || { icon: '❓', displayName: s.name }
+    let statusText = 'Unknown'
+    let statusClass = 'status-unknown'
+    
+    switch(s.status) {
+        case 'healthy': statusText = 'Healthy'; statusClass = 'status-success'; break;
+        case 'degraded': statusText = 'Degraded'; statusClass = 'status-warning'; break;
+        case 'unhealthy': statusText = 'Unhealthy'; statusClass = 'status-error'; break;
+        case 'running': statusText = 'Running'; statusClass = 'status-success'; break;
+        case 'stopped': statusText = 'Stopped'; statusClass = 'status-stopped'; break;
+        case 'error': statusText = 'Error'; statusClass = 'status-error'; break;
+        default: statusText = s.status; statusClass = 'status-unknown';
+    }
+    
+    return {
+      ...s,
+      displayName: config.displayName || s.name,
+      icon: config.icon,
+      port: config.port,
+      statusText,
+      statusClass,
+      loading: serviceLoading[s.name] || false
+    }
+  }).sort((a, b) => {
+     // Config order
+     const idxA = sortedNames.indexOf(a.name)
+     const idxB = sortedNames.indexOf(b.name)
+     if (idxA === -1 && idxB === -1) return a.name.localeCompare(b.name)
+     if (idxA === -1) return 1
+     if (idxB === -1) return -1
+     return idxA - idxB
+  })
+})
 
 // Models
 const models = ref<any[]>([])
 const showPullModal = ref(false)
 const pullModelName = ref('')
 const pulling = ref(false)
+
+// Clear Cache Modal
+const showClearCacheModal = ref(false)
+const cacheSelection = reactive({
+  documents: true,
+  embeddings: true,
+  cache: true
+})
 
 // Logs
 const logs = ref([
@@ -328,8 +449,21 @@ const config = reactive({
 })
 
 onMounted(async () => {
-  await loadModels()
+  await Promise.all([
+    loadModels(),
+    systemHealth.fetchStatus()
+  ])
 })
+
+// Toast notifications
+const toastMessage = ref<string | null>(null)
+const toastType = ref<'success' | 'error'>('success')
+
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  toastMessage.value = message
+  toastType.value = type
+  setTimeout(() => { toastMessage.value = null }, 4000)
+}
 
 // Actions
 async function refreshAll() {
@@ -339,6 +473,9 @@ async function refreshAll() {
       assetStore.fetchAssets(),
       systemHealth.fetchStatus()
     ])
+    showToast('✅ All data refreshed successfully')
+  } catch (e) {
+    showToast(`❌ Refresh failed: ${e}`, 'error')
   } finally {
     loading.refresh = false
   }
@@ -347,56 +484,111 @@ async function refreshAll() {
 async function reloadAssets() {
   loading.assets = true
   try {
-    await assetStore.fetchAssets()
+    const result = await gateway.reloadAssets()
+    if (result.success) {
+      await assetStore.fetchAssets()
+      showToast(`✅ ${result.asset_count || 0} assets reloaded`)
+    } else {
+      showToast(`❌ Failed to reload: ${result.message}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Reload failed: ${e}`, 'error')
   } finally {
     loading.assets = false
   }
 }
 
-async function clearCache() {
+function clearCache() {
+  // Show confirmation modal first
+  showClearCacheModal.value = true
+}
+
+async function confirmClearCache() {
+  showClearCacheModal.value = false
   loading.cache = true
   try {
-    // Simulated - would call gateway.clearCache()
-    await new Promise(r => setTimeout(r, 1000))
-    alert('Cache cleared successfully!')
+    const result = await gateway.clearCache(cacheSelection)
+    if (result.success) {
+      const total = result.cleared?.total || 0
+      const docs = result.cleared?.documents || 0
+      const embeds = result.cleared?.embeddings || 0
+      const cache = result.cleared?.cache || 0
+      showToast(`✅ cache cleared - Docs: ${docs}, Embeds: ${embeds}, Resp: ${cache}`)
+    } else {
+      showToast(`❌ ${result.message || 'Failed to clear cache'}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Clear cache failed: ${e}`, 'error')
   } finally {
     loading.cache = false
   }
 }
 
-function checkHealth() {
-  alert('Health check initiated. See Observability page for results.')
+async function checkHealth() {
+  loading.health = true
+  try {
+    const result = await gateway.healthCheck()
+    const status = result.overall === 'healthy' ? '✅ Healthy' : 
+                   result.overall === 'degraded' ? '⚠️ Degraded' : '🔴 Warning'
+    showToast(`${status} - CPU: ${result.resources?.cpu_usage?.toFixed(0)}%, Mem: ${result.resources?.memory_usage?.toFixed(0)}%`)
+  } catch (e) {
+    showToast(`❌ Health check failed: ${e}`, 'error')
+  } finally {
+    loading.health = false
+  }
 }
 
-// Services
-async function loadServices() {
-  // Would fetch from gateway
-}
-
+// Services - now using Gateway API
 async function startService(service: any) {
-  service.loading = true
-  await new Promise(r => setTimeout(r, 1000))
-  service.status = 'running'
-  service.statusText = 'Running'
-  service.loading = false
+  serviceLoading[service.name] = true
+  try {
+    const result = await gateway.startAsset(service.name) // Use raw name
+    if (result.success) {
+      showToast(`✅ ${service.displayName} started`)
+      // Refresh status after short delay to allow container to spin up
+      setTimeout(() => systemHealth.fetchStatus(), 1000)
+    } else {
+      showToast(`❌ Failed to start: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to start: ${e}`, 'error')
+  } finally {
+    serviceLoading[service.name] = false
+  }
 }
 
 async function stopService(service: any) {
-  service.loading = true
-  await new Promise(r => setTimeout(r, 1000))
-  service.status = 'stopped'
-  service.statusText = 'Stopped'
-  service.loading = false
+  serviceLoading[service.name] = true
+  try {
+    const result = await gateway.stopAsset(service.name)
+    if (result.success) {
+      showToast(`⏸️ ${service.displayName} stopped`)
+      setTimeout(() => systemHealth.fetchStatus(), 1000)
+    } else {
+      showToast(`❌ Failed to stop: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to stop: ${e}`, 'error')
+  } finally {
+    serviceLoading[service.name] = false
+  }
 }
 
 async function restartService(service: any) {
-  service.loading = true
-  service.status = 'restarting'
-  service.statusText = 'Restarting...'
-  await new Promise(r => setTimeout(r, 2000))
-  service.status = 'running'
-  service.statusText = 'Running'
-  service.loading = false
+  serviceLoading[service.name] = true
+  try {
+    const result = await gateway.restartAsset(service.name)
+    if (result.success) {
+      showToast(`🔄 ${service.displayName} restarted`)
+      setTimeout(() => systemHealth.fetchStatus(), 2000)
+    } else {
+      showToast(`❌ Failed to restart: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to restart: ${e}`, 'error')
+  } finally {
+    serviceLoading[service.name] = false
+  }
 }
 
 // Models
@@ -608,7 +800,7 @@ function formatLogTime(date: Date): string {
 
 .service-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 0.5fr 2fr;
+  grid-template-columns: 2fr 1fr 1.5fr 0.5fr 2fr;
   padding: 1rem;
   align-items: center;
   border-bottom: 1px solid var(--border-color);
@@ -636,10 +828,29 @@ function formatLogTime(date: Date): string {
 }
 
 .status-dot {
+  font-size: 1.2rem;
   margin-right: 0.5rem;
 }
-.status-dot.running { color: var(--status-success); }
-.status-dot.stopped { color: var(--status-warning); }
+
+.status-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: var(--text-muted);
+}
+.status-indicator.running { background-color: var(--success); }
+.status-indicator.stopped { background-color: var(--danger); } 
+
+.status-dot.status-success { color: var(--success); }
+.status-dot.status-warning { color: var(--warning); }
+.status-dot.status-error { color: var(--danger); }
+.status-dot.status-stopped { color: var(--text-muted); }
+.status-dot.status-unknown { color: #ccc; }
+
+.status-dot.running { color: var(--success); } /* Legacy support */
+.status-dot.stopped { color: var(--text-muted); } /* Legacy support */
 .status-dot.error { color: var(--status-error); }
 .status-dot.restarting { color: var(--accent-primary); }
 
@@ -971,5 +1182,161 @@ input:checked + .slider:before {
   text-align: center;
   padding: 2rem;
   color: var(--text-secondary);
+}
+
+/* Toast Notifications */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast.success {
+  background: rgba(34, 197, 94, 0.95);
+  color: white;
+}
+
+.toast.error {
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Clear Cache Modal */
+.warning-header {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--status-warning);
+}
+
+.warning-header h2 {
+  color: var(--status-warning);
+}
+
+.warning-text {
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+}
+
+.cache-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.cache-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.cache-list.selectable li {
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.cache-list.selectable li:hover {
+  background: var(--bg-secondary);
+}
+
+.cache-list.selectable li.selected {
+  background: rgba(34, 197, 94, 0.05);
+  border-color: var(--status-success);
+}
+
+/* Custom Checkbox */
+.cache-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  margin-right: 0.25rem;
+}
+
+.cache-checkbox input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.checkmark {
+  height: 20px;
+  width: 20px;
+  background-color: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.cache-checkbox:hover input ~ .checkmark {
+  border-color: var(--primary-color);
+}
+
+.cache-checkbox input:checked ~ .checkmark {
+  background-color: var(--status-success);
+  border-color: var(--status-success);
+}
+
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.cache-checkbox input:checked ~ .checkmark:after {
+  display: block;
+}
+
+.cache-checkbox .checkmark:after {
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.cache-icon {
+  font-size: 1.25rem;
+}
+
+.cache-list li span:last-child {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.cache-list li strong {
+  color: var(--text-primary);
+}
+
+.warning-note {
+  padding: 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  border-left: 3px solid var(--status-warning);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
 }
 </style>

@@ -11,13 +11,13 @@ export const useSystemHealthStore = defineStore('systemHealth', () => {
 
     // Getters
     const allHealthy = computed(() =>
-        services.value.every(s => s.status === 'running')
+        services.value.every((s: ServiceStatus) => s.status === 'healthy')
     )
 
     const servicesByStatus = computed(() => ({
-        running: services.value.filter(s => s.status === 'running'),
-        stopped: services.value.filter(s => s.status === 'stopped'),
-        error: services.value.filter(s => s.status === 'error')
+        running: services.value.filter((s: ServiceStatus) => ['running', 'healthy', 'degraded'].includes(s.status)),
+        stopped: services.value.filter((s: ServiceStatus) => s.status === 'stopped'),
+        error: services.value.filter((s: ServiceStatus) => ['error', 'unhealthy'].includes(s.status))
     }))
 
     // Actions
@@ -25,7 +25,17 @@ export const useSystemHealthStore = defineStore('systemHealth', () => {
         loading.value = true
         error.value = null
         try {
-            services.value = await gateway.getServicesStatus()
+            const result = await gateway.getServicesStatus()
+            // Transform object { serviceName: { status, version, running } } to array
+            services.value = Object.entries(result).map(([name, data]) => {
+                const serviceData = data as { status: string; running?: boolean; version?: string }
+                return {
+                    name,
+                    status: serviceData.status as ServiceStatus['status'],
+                    running: serviceData.running,
+                    version: serviceData.version
+                }
+            })
             lastUpdated.value = new Date()
         } catch (e) {
             error.value = e instanceof Error ? e.message : 'Failed to fetch system health'
