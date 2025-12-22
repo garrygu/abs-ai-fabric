@@ -5,18 +5,20 @@
       <div class="app-title">
         <h3>{{ app.name }}</h3>
         
-        <!-- Trust Badge (Phase 2A.1) -->
-        <div class="app-tier-badge" :class="`tier-${getTier(app)}`">
-          <span v-if="getTier(app) === 'abs'">🟧 ABS Official</span>
-          <span v-else-if="getTier(app) === 'partner'">🟦 Partner</span>
-          <span v-else-if="getTier(app) === 'community'">🟨 Community</span>
-          <span v-else>⚠️ Unverified</span>
+        <!-- Trust Badge Row (Phase 2A.1) - Right under app title, left-aligned, small and subtle -->
+        <div class="app-badge-row">
+          <div class="app-tier-badge" :class="`tier-${getTier(app)}`">
+            <span v-if="getTier(app) === 'abs'">🟧 ABS Official</span>
+            <span v-else-if="getTier(app) === 'partner'">🟦 Partner</span>
+            <span v-else-if="getTier(app) === 'community'">🟨 Community</span>
+            <span v-else>⚠️ Unverified</span>
+          </div>
+          
+          <!-- Semantic Status Badge (Phase 2A.2) -->
+          <span class="app-status-badge" :class="`semantic-${getSemanticStatus(app)}`">
+            {{ getStatusLabel(app) }}
+          </span>
         </div>
-        
-        <!-- Semantic Status Badge (Phase 2A.2) -->
-        <span class="app-status-badge" :class="`semantic-${getSemanticStatus(app)}`">
-          {{ getStatusLabel(app) }}
-        </span>
       </div>
     </div>
 
@@ -86,15 +88,46 @@ const props = defineProps<{
   showInstall?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   open: [app: App]
   install: [app: App]
+  showDetails: [app: App]
+  showRequirements: [app: App]
 }>()
 
 const dependenciesExpanded = ref(false)
 
 function getTier(app: App): string {
-  return (app.metadata as any)?.tier || 'local'
+  // Check metadata first (if explicitly set)
+  const metadataTier = (app.metadata as any)?.tier || (app as any).tier
+  if (metadataTier && ['abs', 'partner', 'community'].includes(metadataTier)) {
+    return metadataTier
+  }
+  
+  // Assign based on app name/ID
+  const appId = app.id?.toLowerCase() || ''
+  const appName = app.name?.toLowerCase() || ''
+  
+  // ABS Official apps
+  if (appId.includes('contract-reviewer') || appName.includes('contract reviewer')) {
+    return 'abs'
+  }
+  if (appId.includes('legal-assistant') || appName.includes('legal assistant')) {
+    return 'abs'
+  }
+  
+  // Partner apps (Onyx related)
+  if (appId.includes('onyx') || appName.includes('onyx')) {
+    return 'partner'
+  }
+  
+  // Community apps
+  if (appId.includes('open-webui') || appName.includes('open webui')) {
+    return 'community'
+  }
+  
+  // Default: Unverified
+  return 'local'
 }
 
 function getSemanticStatus(app: App): string {
@@ -144,13 +177,11 @@ function toggleDependencies() {
 }
 
 function showDetails() {
-  console.log('Show details for:', props.app.name)
-  // TODO: Implement details modal/drawer
+  emit('showDetails', props.app)
 }
 
 function showRequirements() {
-  console.log('Show requirements for:', props.app.name)
-  // TODO: Implement requirements modal
+  emit('showRequirements', props.app)
 }
 
 function getAppIcon(category: string): string {
@@ -233,14 +264,24 @@ function formatDep(dep: string): string {
   text-overflow: ellipsis;
 }
 
-/* Phase 2A.1: Trust Badges */
-.app-tier-badge {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  display: inline-block;
+/* Badge Row - Container for trust and status badges */
+.app-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 0.25rem;
-  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+/* Phase 2A.1: Trust Badges - Small and subtle, right under app title */
+.app-tier-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  display: inline-block;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .tier-abs {
@@ -274,8 +315,6 @@ function formatDep(dep: string): string {
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 500;
-  margin-top: 0.25rem;
-  margin-left: 0.5rem;
 }
 
 .semantic-ready {

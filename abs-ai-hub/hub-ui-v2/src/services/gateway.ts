@@ -30,6 +30,9 @@ export interface App {
     status: 'online' | 'offline' | 'error'
     dependencies: string[]
     path?: string
+    metadata?: any
+    policy?: any
+    lifecycle?: any
 }
 
 export interface ServiceStatus {
@@ -134,11 +137,14 @@ class GatewayService {
         )
 
         return uiApps.map(a => {
+            const metadata = (a as any).metadata || {}
+            const policy = (a as any).policy || {}
+            const lifecycle = (a as any).lifecycle || {}
+
             // Get dependencies from policy.required_models
-            const deps = (a as any).policy?.required_models || a.consumers || []
+            const deps = policy.required_models || a.consumers || []
 
             // Determine status from asset status
-            // 'idle' is valid for on-demand apps - they're available but on standby
             let status: 'online' | 'offline' | 'error' = 'offline'
             if (a.status === 'ready' || a.status === 'running' || a.status === 'online' || a.status === 'idle') {
                 status = 'online'
@@ -146,19 +152,26 @@ class GatewayService {
                 status = 'error'
             }
 
-            // Get the actual app URL from metadata
-            const appUrl = (a as any).metadata?.url || ''
+            // Get the app URL and category from metadata
+            const appUrl = metadata.url || ''
+            const category = metadata.category || a.class || 'Application'
 
-            return {
+            const app: App = {
                 id: a.id,
                 name: a.display_name || a.id,
                 description: (a as any).description || (a.version ? `Version ${a.version}` : ''),
-                category: a.class || 'Application',
+                category,
                 url: appUrl,
-                port: 0,
+                port: metadata.port || 0,
                 status,
-                dependencies: deps
+                dependencies: deps,
+                metadata: { ...metadata },
+                policy: { ...policy },
+                lifecycle: { ...lifecycle }
             }
+
+            console.log(`[Gateway] Mapped app ${app.id}:`, app)
+            return app
         })
     }
 

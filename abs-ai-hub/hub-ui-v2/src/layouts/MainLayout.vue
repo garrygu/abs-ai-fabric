@@ -39,6 +39,9 @@
       </div>
 
       <div class="nav-end">
+        <!-- CES Demo: Powered by ABS Workstations -->
+        <PoweredByBanner />
+        
         <!-- Theme Toggle -->
         <button 
           class="theme-toggle" 
@@ -72,6 +75,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
 import { useThemeStore } from '@/stores/themeStore'
+import PoweredByBanner from '@/components/PoweredByBanner.vue'
 
 const route = useRoute()
 const systemHealth = useSystemHealthStore()

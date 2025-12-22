@@ -54,6 +54,7 @@
           :key="app.id"
           :app="app"
           @open="openApp"
+          @showDetails="(app) => showAppDetails(app, true)"
         />
       </div>
     </div>
@@ -71,9 +72,21 @@
           :app="app"
           :showInstall="true"
           @install="installApp"
+          @showRequirements="(app) => showAppDetails(app, false)"
         />
       </div>
     </div>
+
+    <!-- App Details Drawer -->
+    <AppDetailsDrawer
+      v-if="drawerApp"
+      :visible="showDrawer"
+      :app="drawerApp"
+      :isInstalled="drawerIsInstalled"
+      @close="closeDrawer"
+      @open="handleDrawerOpen"
+      @install="handleDrawerInstall"
+    />
   </div>
 </template>
 
@@ -83,6 +96,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/appStore'
 import type { App } from '@/services/gateway'
 import AppCard from '@/components/AppCard.vue'
+import AppDetailsDrawer from '@/components/AppDetailsDrawer.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -112,6 +126,11 @@ const storeApps = ref<App[]>([
   }
 ])
 
+// Drawer state
+const showDrawer = ref(false)
+const drawerApp = ref<App | null>(null)
+const drawerIsInstalled = ref(false)
+
 onMounted(() => {
   appStore.fetchApps()
 })
@@ -130,6 +149,25 @@ function openApp(app: App) {
 function installApp(app: App) {
   console.log('Installing app:', app.id)
   alert(`Installing ${app.name}...`)
+}
+
+function showAppDetails(app: App, isInstalled: boolean) {
+  drawerApp.value = app
+  drawerIsInstalled.value = isInstalled
+  showDrawer.value = true
+}
+
+function closeDrawer() {
+  showDrawer.value = false
+  drawerApp.value = null
+}
+
+function handleDrawerOpen(app: App) {
+  openApp(app)
+}
+
+function handleDrawerInstall(app: App) {
+  installApp(app)
 }
 </script>
 

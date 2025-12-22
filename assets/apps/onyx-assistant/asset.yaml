@@ -35,4 +35,5 @@ metadata:
     - rag
     - agent-management
     - ai-assistant
+  tier: abs
   status: active

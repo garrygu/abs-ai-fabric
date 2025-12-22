@@ -36,4 +36,5 @@ metadata:
     - summarization
     - transcript-analysis
     - legal-tech
+  tier: abs
   status: active

@@ -32,4 +32,5 @@ metadata:
     - model-management
     - open-source
     - web-interface
+  tier: abs
   status: active

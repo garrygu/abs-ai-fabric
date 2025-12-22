@@ -34,4 +34,5 @@ metadata:
     - enterprise
     - full-suite
     - llm-platform
+  tier: abs
   status: active

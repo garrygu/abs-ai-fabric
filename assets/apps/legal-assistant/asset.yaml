@@ -41,4 +41,5 @@ metadata:
     - chat
     - rag
     - contract-analysis
+  tier: abs
   status: active

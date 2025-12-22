@@ -258,6 +258,7 @@ metadata:
     - contract-analysis
     - nlp
     - legal
+  tier: abs
   
   # True metadata
   documentation_url: https://docs.example.com/contract-reviewer
@@ -304,6 +305,65 @@ metadata:
 - **Description**: Lifecycle management status
 - **Default**: `active`
 - **Semantic Note**: This is **lifecycle state**, not metadata. May move to `lifecycle.status` in v2.
+
+#### `metadata.tier` (optional)
+- **Type**: `string`
+- **Allowed Values**: `abs`, `partner`, `community`, `local`
+- **Description**: Application origin/tier for trust signaling and governance
+- **Default**: `local`
+- **Semantic Note**: This is a **UI/governance hint**. May move to `ui.tier` or `governance.tier` in v2.
+
+**Tier Definitions**:
+
+- **`abs`**: Official applications built and maintained by ABS
+  - Highest trust level
+  - Full support and warranty
+  - Integrated with ABS Legal AI Suite
+  - Examples: Contract Reviewer v2, Legal Assistant
+
+- **`partner`**: Certified partner applications
+  - Verified by ABS
+  - Official partnership agreement
+  - Supported by partner vendor
+  - Examples: Onyx Suite, specialized legal tech integrations
+
+- **`community`**: Open-source community applications
+  - Public source code
+  - Community-maintained
+  - No official support
+  - Use at own discretion
+  - Examples: Open WebUI, community tools
+
+- **`local`**: User-developed or custom applications
+  - Developed internally
+  - Organization-specific
+  - No external vetting
+  - Full user responsibility
+
+**Use Cases**:
+
+1. **UI Badges**:
+   ```vue
+   <span class="tier-badge tier-abs">🏅 ABS Official</span>
+   <span class="tier-badge tier-partner">🤝 Partner</span>
+   <span class="tier-badge tier-community">🌍 Community</span>
+   <span class="tier-badge tier-local">🏠 Local</span>
+   ```
+
+2. **Filtering**:
+   ```typescript
+   // Show only trusted apps (abs + partner)
+   const trustedApps = apps.filter(a => ['abs', 'partner'].includes(a.metadata.tier))
+   ```
+
+3. **Governance**:
+   - Enforce policies based on tier (e.g., only `abs`/`partner` in production)
+   - Require approval workflows for `community`/`local` apps
+   - Apply different security scanning rules per tier
+
+4. **Marketplace Sections**:
+   - Group apps by tier in app store
+   - Separate "Official Apps" from "Community Apps"
 
 #### `metadata.documentation_url` (optional)
 - **Type**: `string`
