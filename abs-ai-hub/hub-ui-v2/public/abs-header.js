@@ -16,146 +16,157 @@
  */
 
 class ABSUnifiedHeader extends HTMLElement {
-    constructor() {
-        super();
-        this.attachShadow({ mode: 'open' });
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
 
-        // Configuration with defaults
-        this.config = {
-            appId: 'unknown',
-            appName: 'ABS Application',
-            appIcon: '📱',
-            hubUrl: 'http://localhost:5173',
-            gatewayUrl: 'http://localhost:8081',
-            showAppLauncher: true,
-            customMenuItems: []
-        };
+    // Configuration with defaults
+    this.config = {
+      appId: 'unknown',
+      appName: 'ABS Application',
+      appIcon: '📱',
+      hubUrl: 'http://localhost:5173',
+      gatewayUrl: 'http://localhost:8081',
+      showAppLauncher: true,
+      customMenuItems: []
+    };
 
-        this.state = {
-            apps: [],
-            showLauncher: false,
-            searchQuery: '',
-            loading: true
-        };
+    this.state = {
+      apps: [],
+      showLauncher: false,
+      searchQuery: '',
+      loading: true
+    };
+  }
+
+  static get observedAttributes() {
+    return ['app-id', 'app-name', 'app-icon', 'hub-url', 'gateway-url', 'settings-url'];
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    const configMap = {
+      'app-id': 'appId',
+      'app-name': 'appName',
+      'app-icon': 'appIcon',
+      'hub-url': 'hubUrl',
+      'gateway-url': 'gatewayUrl',
+      'settings-url': 'settingsUrl'
+    };
+
+    if (configMap[name]) {
+      this.config[configMap[name]] = newValue;
+      this.render();
+    }
+  }
+
+  async connectedCallback() {
+    // Apply initial config from attributes
+    this.config.appId = this.getAttribute('app-id') || this.config.appId;
+    this.config.appName = this.getAttribute('app-name') || this.config.appName;
+    this.config.appIcon = this.getAttribute('app-icon') || this.config.appIcon;
+    this.config.hubUrl = this.getAttribute('hub-url') || this.config.hubUrl;
+    this.config.gatewayUrl = this.getAttribute('gateway-url') || this.config.gatewayUrl;
+    this.config.settingsUrl = this.getAttribute('settings-url') || null;
+
+    // Check for global config override
+    if (window.ABS_HEADER_CONFIG) {
+      Object.assign(this.config, window.ABS_HEADER_CONFIG);
     }
 
-    static get observedAttributes() {
-        return ['app-id', 'app-name', 'app-icon', 'hub-url', 'gateway-url'];
+    // Initial render
+    this.render();
+
+    // Fetch apps from gateway
+    await this.loadApps();
+
+    // Setup event listeners
+    this.setupEventListeners();
+  }
+
+  async loadApps() {
+    try {
+      const response = await fetch(`${this.config.gatewayUrl}/v1/assets?class=app`);
+      if (!response.ok) throw new Error('Failed to fetch apps');
+
+      const data = await response.json();
+      this.state.apps = Array.isArray(data) ? data : (data.assets || []);
+      this.state.loading = false;
+      this.render();
+    } catch (error) {
+      console.warn('[ABS Header] Failed to load apps:', error);
+      this.state.apps = this.getFallbackApps();
+      this.state.loading = false;
+      this.render();
     }
+  }
 
-    attributeChangedCallback(name, oldValue, newValue) {
-        const configMap = {
-            'app-id': 'appId',
-            'app-name': 'appName',
-            'app-icon': 'appIcon',
-            'hub-url': 'hubUrl',
-            'gateway-url': 'gatewayUrl'
-        };
+  getFallbackApps() {
+    return [
+      { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer v2', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
+      { id: 'legal-assistant', display_name: 'Legal Assistant', metadata: { url: 'http://localhost:7862', category: 'Legal Apps' } },
+      { id: 'onyx-assistant', display_name: 'Onyx AI Assistant', metadata: { url: 'http://localhost:8000', category: 'AI Assistants' } },
+      { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } }
+    ];
+  }
 
-        if (configMap[name]) {
-            this.config[configMap[name]] = newValue;
-            this.render();
-        }
-    }
+  getAppIcon(category) {
+    const icons = {
+      'Legal Apps': '⚖️',
+      'AI Assistants': '🤖',
+      'AI Platforms': '🔮',
+      'Application': '📱'
+    };
+    return icons[category] || '📱';
+  }
 
-    async connectedCallback() {
-        // Apply initial config from attributes
-        this.config.appId = this.getAttribute('app-id') || this.config.appId;
-        this.config.appName = this.getAttribute('app-name') || this.config.appName;
-        this.config.appIcon = this.getAttribute('app-icon') || this.config.appIcon;
-        this.config.hubUrl = this.getAttribute('hub-url') || this.config.hubUrl;
-        this.config.gatewayUrl = this.getAttribute('gateway-url') || this.config.gatewayUrl;
+  get filteredApps() {
+    if (!this.state.searchQuery) return this.state.apps;
+    const query = this.state.searchQuery.toLowerCase();
+    return this.state.apps.filter(app =>
+      (app.display_name || app.id).toLowerCase().includes(query) ||
+      (app.description || '').toLowerCase().includes(query)
+    );
+  }
 
-        // Check for global config override
-        if (window.ABS_HEADER_CONFIG) {
-            Object.assign(this.config, window.ABS_HEADER_CONFIG);
-        }
+  setupEventListeners() {
+    const shadow = this.shadowRoot;
 
-        // Initial render
+    // App launcher toggle
+    shadow.querySelector('.launcher-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.state.showLauncher = !this.state.showLauncher;
+      this.render();
+    });
+
+    // Close launcher on outside click
+    document.addEventListener('click', () => {
+      if (this.state.showLauncher) {
+        this.state.showLauncher = false;
         this.render();
+      }
+    });
+  }
 
-        // Fetch apps from gateway
-        await this.loadApps();
+  handleAppClick(app) {
+    const url = app.metadata?.url || `${this.config.hubUrl}/workspace/default/apps`;
+    window.location.href = url;
+  }
 
-        // Setup event listeners
-        this.setupEventListeners();
+  goToHub() {
+    window.location.href = `${this.config.hubUrl}/workspace/default/apps`;
+  }
+
+  goToSettings() {
+    if (this.config.settingsUrl) {
+      window.location.href = this.config.settingsUrl;
+    } else {
+      // Default: go to /settings on current origin
+      window.location.href = '/settings';
     }
+  }
 
-    async loadApps() {
-        try {
-            const response = await fetch(`${this.config.gatewayUrl}/v1/assets?class=app`);
-            if (!response.ok) throw new Error('Failed to fetch apps');
-
-            const data = await response.json();
-            this.state.apps = Array.isArray(data) ? data : (data.assets || []);
-            this.state.loading = false;
-            this.render();
-        } catch (error) {
-            console.warn('[ABS Header] Failed to load apps:', error);
-            this.state.apps = this.getFallbackApps();
-            this.state.loading = false;
-            this.render();
-        }
-    }
-
-    getFallbackApps() {
-        return [
-            { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer v2', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
-            { id: 'legal-assistant', display_name: 'Legal Assistant', metadata: { url: 'http://localhost:7862', category: 'Legal Apps' } },
-            { id: 'onyx-assistant', display_name: 'Onyx AI Assistant', metadata: { url: 'http://localhost:8000', category: 'AI Assistants' } },
-            { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } }
-        ];
-    }
-
-    getAppIcon(category) {
-        const icons = {
-            'Legal Apps': '⚖️',
-            'AI Assistants': '🤖',
-            'AI Platforms': '🔮',
-            'Application': '📱'
-        };
-        return icons[category] || '📱';
-    }
-
-    get filteredApps() {
-        if (!this.state.searchQuery) return this.state.apps;
-        const query = this.state.searchQuery.toLowerCase();
-        return this.state.apps.filter(app =>
-            (app.display_name || app.id).toLowerCase().includes(query) ||
-            (app.description || '').toLowerCase().includes(query)
-        );
-    }
-
-    setupEventListeners() {
-        const shadow = this.shadowRoot;
-
-        // App launcher toggle
-        shadow.querySelector('.launcher-btn')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.state.showLauncher = !this.state.showLauncher;
-            this.render();
-        });
-
-        // Close launcher on outside click
-        document.addEventListener('click', () => {
-            if (this.state.showLauncher) {
-                this.state.showLauncher = false;
-                this.render();
-            }
-        });
-    }
-
-    handleAppClick(app) {
-        const url = app.metadata?.url || `${this.config.hubUrl}/workspace/default/apps`;
-        window.location.href = url;
-    }
-
-    goToHub() {
-        window.location.href = `${this.config.hubUrl}/workspace/default/apps`;
-    }
-
-    render() {
-        const styles = `
+  render() {
+    const styles = `
       <style>
         :host {
           display: block;
@@ -257,7 +268,7 @@ class ABSUnifiedHeader extends HTMLElement {
           color: #FF6B00;
         }
         
-        .hub-btn {
+        .hub-btn, .icon-btn {
           background: rgba(255,255,255,0.15);
           border: 1px solid rgba(255,255,255,0.3);
           color: white;
@@ -269,8 +280,18 @@ class ABSUnifiedHeader extends HTMLElement {
           transition: all 0.2s;
         }
         
-        .hub-btn:hover {
+        .hub-btn:hover, .icon-btn:hover {
           background: rgba(255,255,255,0.25);
+        }
+        
+        .icon-btn {
+          padding: 0.5rem 0.6rem;
+          font-size: 1rem;
+        }
+        
+        .icon-btn.settings {
+          background: rgba(255,255,255,0.1);
+          border: none;
         }
         
         /* App Launcher Dropdown */
@@ -417,23 +438,23 @@ class ABSUnifiedHeader extends HTMLElement {
       </style>
     `;
 
-        const appsHtml = this.filteredApps.map(app => {
-            const name = app.display_name || app.id;
-            const category = app.metadata?.category || 'Application';
-            const icon = this.getAppIcon(category);
-            const isCurrent = app.id === this.config.appId;
-            const iconClass = category.includes('Legal') ? 'legal' :
-                category.includes('AI') ? 'ai' : 'platform';
+    const appsHtml = this.filteredApps.map(app => {
+      const name = app.display_name || app.id;
+      const category = app.metadata?.category || 'Application';
+      const icon = this.getAppIcon(category);
+      const isCurrent = app.id === this.config.appId;
+      const iconClass = category.includes('Legal') ? 'legal' :
+        category.includes('AI') ? 'ai' : 'platform';
 
-            return `
+      return `
         <div class="app-tile ${isCurrent ? 'current' : ''}" data-app-id="${app.id}">
           <div class="app-tile-icon ${iconClass}">${icon}</div>
           <div class="app-tile-name">${name}</div>
         </div>
       `;
-        }).join('');
+    }).join('');
 
-        this.shadowRoot.innerHTML = `
+    this.shadowRoot.innerHTML = `
       ${styles}
       
       <header class="header">
@@ -453,6 +474,7 @@ class ABSUnifiedHeader extends HTMLElement {
             <span>⚡</span>
             <span>Powered by ABS Workstation</span>
           </div>
+          <button class="icon-btn settings" onclick="this.getRootNode().host.goToSettings()" title="Settings">⚙️</button>
           <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to Hub</button>
         </div>
       </header>
@@ -478,47 +500,47 @@ class ABSUnifiedHeader extends HTMLElement {
       </div>
     `;
 
-        // Re-attach event listeners after render
-        this.attachEventListeners();
-    }
+    // Re-attach event listeners after render
+    this.attachEventListeners();
+  }
 
-    attachEventListeners() {
-        const shadow = this.shadowRoot;
+  attachEventListeners() {
+    const shadow = this.shadowRoot;
 
-        // Launcher button
-        shadow.querySelector('.launcher-btn')?.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.state.showLauncher = !this.state.showLauncher;
-            this.render();
-        });
+    // Launcher button
+    shadow.querySelector('.launcher-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.state.showLauncher = !this.state.showLauncher;
+      this.render();
+    });
 
-        // Close button
-        shadow.querySelector('#close-launcher')?.addEventListener('click', () => {
-            this.state.showLauncher = false;
-            this.render();
-        });
+    // Close button
+    shadow.querySelector('#close-launcher')?.addEventListener('click', () => {
+      this.state.showLauncher = false;
+      this.render();
+    });
 
-        // Overlay click
-        shadow.querySelector('#overlay')?.addEventListener('click', () => {
-            this.state.showLauncher = false;
-            this.render();
-        });
+    // Overlay click
+    shadow.querySelector('#overlay')?.addEventListener('click', () => {
+      this.state.showLauncher = false;
+      this.render();
+    });
 
-        // Search input
-        shadow.querySelector('#app-search')?.addEventListener('input', (e) => {
-            this.state.searchQuery = e.target.value;
-            this.render();
-        });
+    // Search input
+    shadow.querySelector('#app-search')?.addEventListener('input', (e) => {
+      this.state.searchQuery = e.target.value;
+      this.render();
+    });
 
-        // App tiles
-        shadow.querySelectorAll('.app-tile').forEach(tile => {
-            tile.addEventListener('click', () => {
-                const appId = tile.dataset.appId;
-                const app = this.state.apps.find(a => a.id === appId);
-                if (app) this.handleAppClick(app);
-            });
-        });
-    }
+    // App tiles
+    shadow.querySelectorAll('.app-tile').forEach(tile => {
+      tile.addEventListener('click', () => {
+        const appId = tile.dataset.appId;
+        const app = this.state.apps.find(a => a.id === appId);
+        if (app) this.handleAppClick(app);
+      });
+    });
+  }
 }
 
 // Register the custom element
@@ -526,7 +548,7 @@ customElements.define('abs-unified-header', ABSUnifiedHeader);
 
 // Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ABSUnifiedHeader;
+  module.exports = ABSUnifiedHeader;
 }
 
 console.log('✅ ABS Unified Header Web Component loaded');

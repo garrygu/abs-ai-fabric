@@ -12,8 +12,7 @@
 
     <!-- Base URL Configuration (must load first) -->
     <script src="/static/js/base-url-config.js"></script>
-    <!-- ABS Unified Framework -->
-    <script src="/static/framework-config.js"></script>
+    <!-- Old unified framework removed - now using Web Component -->
     <style>
         [x-cloak] {
             display: none !important;
@@ -24,7 +23,7 @@
 <body class="bg-gray-50 font-sans" x-data="contractReviewer" x-init="init()">
     <!-- ABS Unified Header (Web Component) -->
     <abs-unified-header app-id="contract-reviewer-v2" app-name="Contract Reviewer v2" app-icon="⚖️"
-        hub-url="http://localhost:5173" gateway-url="http://localhost:8081">
+        hub-url="http://localhost:5173" gateway-url="http://localhost:8081" settings-url="/settings">
     </abs-unified-header>
     <script type="module" src="http://localhost:5173/abs-header.js"></script>
 
