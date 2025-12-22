@@ -11,7 +11,10 @@ export const useAppStore = defineStore('apps', () => {
 
     // Getters
     const installedApps = computed(() =>
-        apps.value.filter(a => a.status === 'online' || a.status === 'offline')
+        apps.value.filter(a =>
+            (a.status === 'online' || a.status === 'offline') &&
+            a.id !== 'deposition-summarizer'  // Exclude from installed, keep in store
+        )
     )
 
     const onlineApps = computed(() =>
