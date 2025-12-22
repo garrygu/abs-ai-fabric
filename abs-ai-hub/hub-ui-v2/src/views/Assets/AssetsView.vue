@@ -75,6 +75,34 @@
       </button>
     </div>
     
+    <!-- Model Sub-Tabs (shown when Models filter is active) -->
+    <div v-if="assetStore.activeTypeFilter === 'model'" class="model-sub-tabs">
+      <button 
+        class="sub-tab" 
+        :class="{ active: modelSubTab === 'all' }"
+        @click="modelSubTab = 'all'"
+      >
+        All Models
+        <span class="count">{{ modelCounts.all }}</span>
+      </button>
+      <button 
+        class="sub-tab llm" 
+        :class="{ active: modelSubTab === 'llm' }"
+        @click="modelSubTab = 'llm'"
+      >
+        🧠 LLM Models
+        <span class="count">{{ modelCounts.llm }}</span>
+      </button>
+      <button 
+        class="sub-tab embedding" 
+        :class="{ active: modelSubTab === 'embedding' }"
+        @click="modelSubTab = 'embedding'"
+      >
+        📐 Embedding Models
+        <span class="count">{{ modelCounts.embedding }}</span>
+      </button>
+    </div>
+    
     <!-- Advanced Filters Panel -->
     <div v-if="showAdvancedFilters" class="advanced-filters">
       <div class="filter-row">
@@ -180,7 +208,7 @@
             class="asset-row"
           >
             <td class="asset-name" @click="goToAsset(asset.id)">
-              <span class="asset-icon">{{ getAssetIcon(asset.class) }}</span>
+              <span class="asset-icon">{{ getAssetIcon(asset.class, asset.interface) }}</span>
               {{ asset.display_name || asset.id }}
             </td>
             <td>{{ asset.class || '-' }}</td>
@@ -318,7 +346,7 @@
         @click="goToAsset(asset.id)"
       >
         <div class="card-header">
-          <span class="asset-icon-large">{{ getAssetIcon(asset.class) }}</span>
+          <span class="asset-icon-large">{{ getAssetIcon(asset.class, asset.interface) }}</span>
           <span class="status-badge" :class="getStatusClass(getObservedState(asset))">
             {{ capitalize(getObservedState(asset)) }}
           </span>
@@ -500,9 +528,32 @@ const activeFilterCount = computed(() => {
   return Object.values(filters.value).filter(v => v !== '').length
 })
 
+// Model Sub-Tab State
+const modelSubTab = ref<'all' | 'llm' | 'embedding'>('all')
+
+// Model Counts by Interface Type
+const modelCounts = computed(() => {
+  const models = assetStore.assets.filter((a: any) => a.class === 'model')
+  return {
+    all: models.length,
+    llm: models.filter((m: any) => m.interface === 'llm-runtime').length,
+    embedding: models.filter((m: any) => m.interface === 'embedding-runtime').length
+  }
+})
+
+
 // Apply advanced filters on top of store's filtered assets
 const advancedFilteredAssets = computed(() => {
   let result = assetStore.filteredAssets
+  
+  // Apply model sub-tab filter if Models tab is active
+  if (assetStore.activeTypeFilter === 'model' && modelSubTab.value !== 'all') {
+    if (modelSubTab.value === 'llm') {
+      result = result.filter((a: any) => a.interface === 'llm-runtime')
+    } else if (modelSubTab.value === 'embedding') {
+      result = result.filter((a: any) => a.interface === 'embedding-runtime')
+    }
+  }
   
   if (filters.value.interface) {
     result = result.filter((a: any) => a.interface === filters.value.interface)
@@ -619,15 +670,21 @@ function goToAsset(id: string) {
   router.push(`/workspace/${route.params.workspaceId}/assets/${id}`)
 }
 
-function getAssetIcon(assetClass?: string): string {
+function getAssetIcon(assetClass?: string, assetInterface?: string): string {
+  // For models, use interface-specific icons
+  if (assetClass === 'model') {
+    if (assetInterface === 'llm-runtime') return '🧠'
+    if (assetInterface === 'embedding-runtime') return '📐'
+    return '🧠' // Default model icon
+  }
+  
+  // Class-based icons for other asset types
   const icons: Record<string, string> = {
-    model: '🧠',
     service: '⚙️',
     tool: '🛠️',
     dataset: '📚',
     application: '📱',
-    app: '📱',
-    embedding: '🔗'
+    app: '📱'
   }
   return icons[assetClass?.toLowerCase() || ''] || '📦'
 }

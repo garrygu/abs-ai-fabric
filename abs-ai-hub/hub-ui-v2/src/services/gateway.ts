@@ -355,6 +355,34 @@ class GatewayService {
         }
         return response.json()
     }
+
+    // ============== MODEL TYPE ENDPOINTS ==============
+
+    async getLLMModels(): Promise<Asset[]> {
+        const response = await fetch(`${this.baseUrl}/v1/assets/models/llm`)
+        if (!response.ok) throw new Error('Failed to fetch LLM models')
+        const data = await response.json()
+
+        // Normalize assets
+        return data.map((asset: any) => ({
+            ...asset,
+            display_name: asset.display_name || asset.name || asset.id,
+            status: this.deriveStatus(asset)
+        }))
+    }
+
+    async getEmbeddingModels(): Promise<Asset[]> {
+        const response = await fetch(`${this.baseUrl}/v1/assets/models/embedding`)
+        if (!response.ok) throw new Error('Failed to fetch embedding models')
+        const data = await response.json()
+
+        // Normalize assets
+        return data.map((asset: any) => ({
+            ...asset,
+            display_name: asset.display_name || asset.name || asset.id,
+            status: this.deriveStatus(asset)
+        }))
+    }
 }
 
 // Singleton instance
