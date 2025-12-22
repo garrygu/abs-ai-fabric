@@ -25,11 +25,6 @@
   ],
   "apps": [
     {
-      "id": "contract-reviewer",
-      "interface": "application",
-      "path": "apps/contract-reviewer/asset.yaml"
-    },
-    {
       "id": "contract-reviewer-v2",
       "interface": "application",
       "path": "apps/contract-reviewer-v2/asset.yaml"
@@ -58,11 +53,6 @@
       "id": "open-webui",
       "interface": "application",
       "path": "apps/open-webui/asset.yaml"
-    },
-    {
-      "id": "rag-pdf-voice",
-      "interface": "application",
-      "path": "apps/rag-pdf-voice/asset.yaml"
     }
   ],
   "models": [
