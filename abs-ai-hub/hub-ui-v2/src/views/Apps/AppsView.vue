@@ -115,7 +115,10 @@ onMounted(() => {
 })
 
 function openApp(app: App) {
-  if (app.port) {
+  // Use the URL from metadata (e.g., http://localhost:8050)
+  if (app.url && app.url.startsWith('http')) {
+    window.open(app.url, '_blank')
+  } else if (app.port) {
     window.open(`http://localhost:${app.port}`, '_blank')
   } else {
     router.push(`/workspace/${route.params.workspaceId}/apps/${app.id}`)

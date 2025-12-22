@@ -94,6 +94,34 @@ class Asset:
         """Check if GPU is required."""
         return self.resources.get("gpu_required", False)
     
+    def _get_container_status(self, container_name: str) -> str:
+        """Get real Docker container status."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", container_name],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                status = result.stdout.strip()
+                # Map Docker status to our lifecycle states
+                if status == "running":
+                    return "running"
+                elif status == "exited" or status == "stopped":
+                    return "stopped"
+                elif status == "paused":
+                    return "suspended"
+                elif status == "restarting":
+                    return "warming"
+                else:
+                    return "unknown"
+            else:
+                return "unknown"
+        except Exception:
+            return "unknown"
+    
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize to dictionary for API response.
@@ -102,9 +130,16 @@ class Asset:
         based on v1.0 governance rules.
         """
         # Derive lifecycle.state based on v1.0 state machine
+        # Check real container status if this is a containerized asset
         lifecycle_with_state = self.lifecycle.copy()
-        if "state" not in lifecycle_with_state:
-            # Gateway populates state based on desired + current observation
+        
+        container_name = self.get_container_name()
+        if container_name:
+            # Check real Docker status
+            observed_state = self._get_container_status(container_name)
+            lifecycle_with_state["state"] = observed_state
+        elif "state" not in lifecycle_with_state:
+            # Non-containerized: derive from desired
             desired = lifecycle_with_state.get("desired", "on-demand")
             if desired == "running":
                 lifecycle_with_state["state"] = "running"
@@ -320,6 +355,164 @@ class AssetManager:
     def get_bindings(self) -> Dict[str, str]:
         """Get current interface bindings."""
         return self._bindings.copy()
+    
+    # ============================================================
+    # Asset Lifecycle Control (v1.0.1)
+    # ============================================================
+    
+    async def start_asset(self, asset_id: str) -> Dict[str, Any]:
+        """
+        Start an asset. For containerized assets, starts the Docker container.
+        
+        Returns:
+            dict with status, message, and new state
+        """
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {"success": False, "error": f"Asset not found: {asset_id}"}
+        
+        container_name = asset.get_container_name()
+        if not container_name:
+            return {"success": False, "error": f"Asset has no container: {asset_id}"}
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "start", container_name],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                print(f"Started container: {container_name}")
+                return {
+                    "success": True,
+                    "message": f"Started {asset.display_name}",
+                    "state": "running"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Docker start failed: {result.stderr}"
+                }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def stop_asset(self, asset_id: str) -> Dict[str, Any]:
+        """
+        Stop an asset. For containerized assets, stops the Docker container.
+        
+        Returns:
+            dict with status, message, and new state
+        """
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {"success": False, "error": f"Asset not found: {asset_id}"}
+        
+        container_name = asset.get_container_name()
+        if not container_name:
+            return {"success": False, "error": f"Asset has no container: {asset_id}"}
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "stop", container_name],
+                capture_output=True,
+                text=True,
+                timeout=60  # Longer timeout for graceful stop
+            )
+            
+            if result.returncode == 0:
+                print(f"Stopped container: {container_name}")
+                return {
+                    "success": True,
+                    "message": f"Stopped {asset.display_name}",
+                    "state": "stopped"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Docker stop failed: {result.stderr}"
+                }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def restart_asset(self, asset_id: str) -> Dict[str, Any]:
+        """
+        Restart an asset. For containerized assets, restarts the Docker container.
+        
+        Returns:
+            dict with status, message, and new state
+        """
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {"success": False, "error": f"Asset not found: {asset_id}"}
+        
+        container_name = asset.get_container_name()
+        if not container_name:
+            return {"success": False, "error": f"Asset has no container: {asset_id}"}
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "restart", container_name],
+                capture_output=True,
+                text=True,
+                timeout=90
+            )
+            
+            if result.returncode == 0:
+                print(f"Restarted container: {container_name}")
+                return {
+                    "success": True,
+                    "message": f"Restarted {asset.display_name}",
+                    "state": "running"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Docker restart failed: {result.stderr}"
+                }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def get_asset_status(self, asset_id: str) -> Dict[str, Any]:
+        """
+        Get real-time status of an asset by checking its container.
+        
+        Returns:
+            dict with container_status, running, health
+        """
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {"status": "unknown", "error": f"Asset not found: {asset_id}"}
+        
+        container_name = asset.get_container_name()
+        if not container_name:
+            # Non-containerized asset
+            return {"status": "n/a", "type": "non-container"}
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", container_name],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                status = result.stdout.strip()
+                return {
+                    "status": status,
+                    "running": status == "running",
+                    "container": container_name
+                }
+            else:
+                return {"status": "not_found", "running": False}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
     def is_initialized(self) -> bool:
         """Check if manager is initialized."""

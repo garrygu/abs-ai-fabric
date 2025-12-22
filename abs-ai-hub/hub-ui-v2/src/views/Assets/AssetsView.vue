@@ -406,6 +406,53 @@
         </div>
       </div>
     </div>
+    
+    <!-- Bindings Modal -->
+    <div v-if="showBindingsModal" class="modal-overlay" @click.self="showBindingsModal = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>🔗 {{ bindingsAsset?.display_name || bindingsAsset?.id }} Bindings</h2>
+          <button class="modal-close" @click="showBindingsModal = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <!-- Required Models -->
+          <div v-if="bindingsAsset?.policy?.required_models?.length > 0" class="binding-section">
+            <h3>🧠 Required Models</h3>
+            <div class="binding-list">
+              <span v-for="model in bindingsAsset.policy.required_models" :key="model" class="binding-badge model">
+                {{ model }}
+              </span>
+            </div>
+          </div>
+          
+          <!-- Allowed Embeddings -->
+          <div v-if="bindingsAsset?.policy?.allowed_embeddings?.length > 0" class="binding-section">
+            <h3>🔢 Allowed Embeddings</h3>
+            <div class="binding-list">
+              <span v-for="embed in bindingsAsset.policy.allowed_embeddings" :key="embed" class="binding-badge embed">
+                {{ embed }}
+              </span>
+            </div>
+          </div>
+          
+          <!-- Defaults -->
+          <div v-if="bindingsAsset?.policy?.defaults && Object.keys(bindingsAsset.policy.defaults).length > 0" class="binding-section">
+            <h3>⚙️ Default Configuration</h3>
+            <div class="defaults-grid">
+              <div v-for="(value, key) in bindingsAsset.policy.defaults" :key="String(key)" class="default-item">
+                <span class="default-key">{{ formatBindingsKey(String(key)) }}</span>
+                <span class="default-value">{{ value }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- No bindings -->
+          <div v-if="!hasBindings" class="no-bindings">
+            No bindings configured for this app.
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -677,22 +724,68 @@ function openApp(asset: any) {
 
 function startAsset(asset: any) {
   console.log('Starting asset:', asset.id)
-  // TODO: Call Gateway API to start asset
+  // Call Gateway API to start asset
+  import('@/services/gateway').then(async ({ gateway }) => {
+    const result = await gateway.startAsset(asset.id)
+    if (result.success) {
+      console.log('Started:', result.message)
+      // Refresh asset list to show updated status
+      await assetStore.fetchAssets()
+    } else {
+      console.error('Start failed:', result.error)
+      alert(`Failed to start: ${result.error}`)
+    }
+  })
 }
 
 function suspendAsset(asset: any) {
-  console.log('Suspending asset:', asset.id)
-  // TODO: Call Gateway API to suspend asset
+  console.log('Stopping asset:', asset.id)
+  // Call Gateway API to stop asset (suspend = stop for now)
+  import('@/services/gateway').then(async ({ gateway }) => {
+    const result = await gateway.stopAsset(asset.id)
+    if (result.success) {
+      console.log('Stopped:', result.message)
+      await assetStore.fetchAssets()
+    } else {
+      console.error('Stop failed:', result.error)
+      alert(`Failed to stop: ${result.error}`)
+    }
+  })
 }
 
 function restartAsset(asset: any) {
   console.log('Restarting asset:', asset.id)
-  // TODO: Call Gateway API to restart asset
+  // Call Gateway API to restart asset
+  import('@/services/gateway').then(async ({ gateway }) => {
+    const result = await gateway.restartAsset(asset.id)
+    if (result.success) {
+      console.log('Restarted:', result.message)
+      await assetStore.fetchAssets()
+    } else {
+      console.error('Restart failed:', result.error)
+      alert(`Failed to restart: ${result.error}`)
+    }
+  })
 }
 
+// Bindings Modal
+const showBindingsModal = ref(false)
+const bindingsAsset = ref<any>(null)
+
+const hasBindings = computed(() => {
+  if (!bindingsAsset.value?.policy) return false
+  return bindingsAsset.value.policy.required_models?.length > 0 ||
+         bindingsAsset.value.policy.allowed_embeddings?.length > 0 ||
+         (bindingsAsset.value.policy.defaults && Object.keys(bindingsAsset.value.policy.defaults).length > 0)
+})
+
 function showBindings(asset: any) {
-  // Navigate to asset detail with bindings tab
-  router.push(`/workspace/${route.params.workspaceId}/assets/${asset.id}?tab=bindings`)
+  bindingsAsset.value = asset
+  showBindingsModal.value = true
+}
+
+function formatBindingsKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 </script>
 
@@ -1489,5 +1582,119 @@ function showBindings(asset: any) {
 
 .btn:hover {
   opacity: 0.9;
+}
+
+/* Bindings Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.binding-section {
+  margin-bottom: 1.5rem;
+}
+
+.binding-section h3 {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.binding-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.binding-badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.binding-badge.model {
+  background: rgba(139, 92, 246, 0.15);
+  color: #8b5cf6;
+}
+
+.binding-badge.embed {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.defaults-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.default-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.default-key {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.default-value {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.no-bindings {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem;
+  font-style: italic;
 }
 </style>

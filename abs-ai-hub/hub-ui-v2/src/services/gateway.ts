@@ -290,6 +290,71 @@ class GatewayService {
         }
         return response.json()
     }
+
+    // ============== METRICS ==============
+
+    async getServiceMetrics(serviceName: string): Promise<{
+        cpu_percent: number
+        memory_percent: number
+        memory_usage?: string
+        gpu_vram_percent?: number | null
+        requests_per_min: number
+        timestamp: number
+    }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/services/${serviceName}/metrics`)
+        if (!response.ok) throw new Error('Failed to fetch service metrics')
+        return response.json()
+    }
+
+    async inspectService(serviceName: string): Promise<{ dependencies: string[], consumers: any[] }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/services/${serviceName}/inspect`)
+        if (!response.ok) throw new Error('Failed to inspect service')
+        return response.json()
+    }
+
+    // Model Management
+    async listModels(): Promise<{ models: any[] }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/list`)
+        if (!response.ok) throw new Error('Failed to list models')
+        return response.json()
+    }
+
+    async pullModel(modelName: string): Promise<{ status: string, message: string }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/pull`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: modelName })
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }))
+            throw new Error(error.detail || 'Failed to pull model')
+        }
+        return response.json()
+    }
+
+    async loadModel(modelName: string): Promise<{ status: string, message: string }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/${encodeURIComponent(modelName)}/load`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }))
+            throw new Error(error.detail || 'Failed to load model')
+        }
+        return response.json()
+    }
+
+    async deleteModel(modelName: string): Promise<{ status: string, message: string }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/${encodeURIComponent(modelName)}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }))
+            throw new Error(error.detail || 'Failed to delete model')
+        }
+        return response.json()
+    }
 }
 
 // Singleton instance

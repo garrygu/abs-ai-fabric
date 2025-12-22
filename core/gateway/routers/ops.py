@@ -3,6 +3,7 @@ from typing import List, Optional
 import time
 import psutil
 import asyncio
+import httpx
 from pydantic import BaseModel
 
 from services.autowake import (
@@ -17,7 +18,7 @@ from services.autowake import (
     IDLE_MONITOR_TASK
 )
 from services.docker_service import docker_service
-from config import AUTO_WAKE_SETTINGS, SERVICE_DEPENDENCIES, SERVICE_STARTUP_ORDER, CONTAINER_MAP, MODEL_REGISTRY
+from config import AUTO_WAKE_SETTINGS, SERVICE_DEPENDENCIES, SERVICE_STARTUP_ORDER, CONTAINER_MAP, MODEL_REGISTRY, OLLAMA_BASE
 
 router = APIRouter()
 
@@ -39,12 +40,22 @@ async def get_all_services_status():
     """Get status of all known services."""
     results = {}
     for svc_name in SERVICE_REGISTRY.keys():
-        status = await check_service_status(svc_name)
-        results[svc_name] = {
-            "status": "online" if status == "running" else "offline",
-            "version": "v1.0.0",
-            "last_used": SERVICE_REGISTRY[svc_name].get("last_used", 0)
-        }
+        # Gateway is always running (it's this service itself)
+        if svc_name == "gateway":
+            results[svc_name] = {
+                "status": "online",
+                "running": True,
+                "version": "v1.0.0",
+                "last_used": SERVICE_REGISTRY[svc_name].get("last_used", 0)
+            }
+        else:
+            status = await check_service_status(svc_name)
+            results[svc_name] = {
+                "status": "online" if status == "running" else "offline",
+                "running": status == "running",
+                "version": "v1.0.0",
+                "last_used": SERVICE_REGISTRY[svc_name].get("last_used", 0)
+            }
     return results
 
 @router.get("/v1/admin/models")
@@ -53,6 +64,110 @@ async def get_admin_models():
     # Use existing chat router logic but wrapper for admin needs
     from .chat import list_models
     return await list_models()
+
+@router.get("/v1/admin/models/list")
+async def list_ollama_models():
+    """List all models from Ollama with detailed information."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
+            if response.status_code == 200:
+                data = response.json()
+                models = data.get("models", [])
+                # Format models with additional details
+                formatted_models = []
+                for model in models:
+                    formatted_models.append({
+                        "name": model.get("name", ""),
+                        "size": model.get("size", 0),
+                        "modified_at": model.get("modified_at", ""),
+                        "details": {
+                            "parameter_size": model.get("details", {}).get("parameter_size", ""),
+                            "quantization_level": model.get("details", {}).get("quantization_level", ""),
+                            "format": model.get("details", {}).get("format", "")
+                        }
+                    })
+                return {"models": formatted_models}
+            else:
+                raise HTTPException(500, f"Ollama API returned {response.status_code}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Timeout connecting to Ollama")
+    except Exception as e:
+        raise HTTPException(500, f"Failed to list models: {str(e)}")
+
+@router.post("/v1/admin/models/pull")
+async def pull_model(request: dict):
+    """Pull a model from Ollama."""
+    model_name = request.get("name")
+    if not model_name:
+        raise HTTPException(400, "Model name is required")
+    
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:  # Long timeout for large models
+            response = await client.post(
+                f"{OLLAMA_BASE.rstrip('/')}/api/pull",
+                json={"name": model_name},
+                timeout=300.0
+            )
+            if response.status_code == 200:
+                return {"status": "success", "message": f"Model {model_name} pulled successfully"}
+            else:
+                error_text = response.text
+                raise HTTPException(response.status_code, f"Failed to pull model: {error_text}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Timeout pulling model (this may take several minutes for large models)")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to pull model: {str(e)}")
+
+@router.post("/v1/admin/models/{model_name}/load")
+async def load_model(model_name: str):
+    """Load a model into Ollama memory."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Use generate endpoint with keep_alive to load model
+            response = await client.post(
+                f"{OLLAMA_BASE.rstrip('/')}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": "test",
+                    "stream": False,
+                    "keep_alive": "30m"  # Keep model loaded for 30 minutes
+                }
+            )
+            if response.status_code == 200:
+                return {"status": "success", "message": f"Model {model_name} loaded successfully"}
+            else:
+                error_text = response.text
+                raise HTTPException(response.status_code, f"Failed to load model: {error_text}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Timeout loading model")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to load model: {str(e)}")
+
+@router.delete("/v1/admin/models/{model_name}")
+async def delete_model(model_name: str):
+    """Delete a model from Ollama."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.delete(
+                f"{OLLAMA_BASE.rstrip('/')}/api/delete",
+                json={"name": model_name}
+            )
+            if response.status_code == 200:
+                return {"status": "success", "message": f"Model {model_name} deleted successfully"}
+            else:
+                error_text = response.text
+                raise HTTPException(response.status_code, f"Failed to delete model: {error_text}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Timeout deleting model")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to delete model: {str(e)}")
 
 
 @router.get("/v1/admin/idle-status")
@@ -199,6 +314,59 @@ async def get_system_metrics():
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@router.get("/v1/admin/services/{service_name}/metrics")
+async def get_service_metrics(service_name: str):
+    """Get runtime metrics for a specific service."""
+    try:
+        import subprocess
+        import json
+        
+        # Get container name
+        container_name = CONTAINER_MAP.get(service_name, f"abs-{service_name}")
+        
+        # Try to get Docker stats
+        try:
+            result = subprocess.run(
+                ["docker", "stats", container_name, "--no-stream", "--format", "{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                parts = result.stdout.strip().split(',')
+                if len(parts) >= 3:
+                    cpu_str = parts[0].replace('%', '')
+                    mem_usage = parts[1]
+                    mem_percent = parts[2].replace('%', '')
+                    
+                    return {
+                        "cpu_percent": float(cpu_str) if cpu_str else 0,
+                        "memory_percent": float(mem_percent) if mem_percent else 0,
+                        "memory_usage": mem_usage,
+                        "gpu_vram_percent": None,  # Would need nvidia-smi or similar
+                        "requests_per_min": 0,  # Would need request tracking
+                        "timestamp": time.time()
+                    }
+        except Exception as e:
+            pass  # Docker not available or container not running
+        
+        # Fallback: return system-wide metrics if container stats unavailable
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+        
+        return {
+            "cpu_percent": cpu_percent,
+            "memory_percent": memory.percent,
+            "memory_usage": f"{memory.used / (1024**3):.2f}GB / {memory.total / (1024**3):.2f}GB",
+            "gpu_vram_percent": None,
+            "requests_per_min": 0,
+            "timestamp": time.time(),
+            "note": "System-wide metrics (container stats unavailable)"
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @router.post("/v1/admin/cache/clear")
 async def clear_cache(request: ClearCacheRequest = ClearCacheRequest()):
     """Clear document and embedding cache from Redis."""
@@ -270,13 +438,20 @@ async def health_check():
         # Check all services
         services_healthy = True
         for svc_name in SERVICE_REGISTRY.keys():
-            health_status = await check_service_health(svc_name)
-            results["services"][svc_name] = {
-                "status": health_status,
-                "running": health_status != "stopped"
-            }
-            if health_status in ["unhealthy", "degraded"]:
-                services_healthy = False
+            # Gateway is always healthy and running (it's this service itself)
+            if svc_name == "gateway":
+                results["services"][svc_name] = {
+                    "status": "healthy",
+                    "running": True
+                }
+            else:
+                health_status = await check_service_health(svc_name)
+                results["services"][svc_name] = {
+                    "status": health_status,
+                    "running": health_status != "stopped"
+                }
+                if health_status in ["unhealthy", "degraded"]:
+                    services_healthy = False
         
         # Get resource status
         cpu_percent = psutil.cpu_percent()
@@ -313,3 +488,84 @@ async def reload_assets():
         }
     except Exception as e:
         raise HTTPException(500, str(e))
+
+@router.get("/v1/admin/services/{service_name}/inspect")
+async def inspect_service(service_name: str):
+    """
+    Inspect service dependencies and consumers.
+    
+    Returns:
+    - dependencies: Services this service depends on (from SERVICE_DEPENDENCIES)
+    - consumers: Apps/assets that use this service
+    """
+    try:
+        # Get declared dependencies from config
+        dependencies = SERVICE_DEPENDENCIES.get(service_name, [])
+        
+        # Find consumers - apps/assets that use this service
+        consumers = []
+        try:
+            from services.asset_manager import get_asset_manager
+            asset_manager = await get_asset_manager()
+            all_assets = asset_manager.get_all_assets()
+            
+            # Map service name to possible asset identifiers
+            service_identifiers = [service_name]
+            # Add container name mapping if exists
+            container_name = CONTAINER_MAP.get(service_name)
+            if container_name:
+                service_identifiers.append(container_name.replace("abs-", ""))
+            
+            # Check each asset to see if it uses this service
+            for asset in all_assets.values():
+                asset_dict = asset.to_dict()
+                asset_class = asset_dict.get("class", "")
+                policy = asset_dict.get("policy", {})
+                required_models = policy.get("required_models", [])
+                served_models = policy.get("served_models", [])
+                interface = asset_dict.get("interface", "")
+                runtime = asset_dict.get("runtime", {})
+                container = runtime.get("container", {})
+                container_name_asset = container.get("name", "")
+                
+                # Check if this service is referenced
+                is_consumer = False
+                
+                # Check interface match
+                if interface and any(sid in interface for sid in service_identifiers):
+                    is_consumer = True
+                
+                # Check container name match
+                if container_name_asset and any(sid in container_name_asset for sid in service_identifiers):
+                    is_consumer = True
+                
+                # Check required_models (for apps)
+                if asset_class == "app" and required_models:
+                    for model in required_models:
+                        if any(sid in model for sid in service_identifiers):
+                            is_consumer = True
+                            break
+                
+                # Check served_models (for runtimes)
+                if asset_class == "service" and served_models:
+                    for model in served_models:
+                        if any(sid in model for sid in service_identifiers):
+                            is_consumer = True
+                            break
+                
+                if is_consumer:
+                    consumers.append({
+                        "id": asset_dict.get("asset_id", ""),
+                        "name": asset_dict.get("display_name") or asset_dict.get("name") or asset_dict.get("asset_id", ""),
+                        "class": asset_class
+                    })
+        except Exception as e:
+            # Log but don't fail - consumers are optional
+            print(f"Warning: Failed to load consumers for {service_name}: {e}")
+        
+        return {
+            "dependencies": dependencies,
+            "consumers": consumers
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to inspect service: {str(e)}")

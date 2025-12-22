@@ -106,6 +106,7 @@
           <span class="col-status">Status</span>
           <span class="col-health">Health</span>
           <span class="col-port">Port</span>
+          <span class="col-metrics">Metrics</span>
           <span class="col-actions">Actions</span>
         </div>
         <div 
@@ -133,9 +134,29 @@
             </span>
           </span>
           <span class="col-port">{{ service.port || '-' }}</span>
+          <span class="col-metrics">
+            <template v-if="service.running && service.name !== 'gateway'">
+              <button 
+                class="btn-metrics-toggle"
+                @click="toggleMetrics(service.name)"
+                :title="expandedMetrics[service.name] ? 'Hide metrics' : 'Show metrics'"
+              >
+                📊 {{ expandedMetrics[service.name] ? '▼' : '▶' }}
+              </button>
+            <div v-if="serviceMetrics[service.name] && !expandedMetrics[service.name]" class="metrics-inline">
+              <span class="metric-item" :class="getMetricClass(serviceMetrics[service.name].cpu_percent, 'cpu')">
+                CPU: {{ serviceMetrics[service.name].cpu_percent?.toFixed(1) || '0' }}%
+              </span>
+              <span class="metric-item" :class="getMetricClass(serviceMetrics[service.name].memory_percent, 'memory')">
+                Mem: {{ serviceMetrics[service.name].memory_percent?.toFixed(1) || '0' }}%
+              </span>
+            </div>
+            </template>
+            <span v-else class="metrics-placeholder">-</span>
+          </span>
           <span class="col-actions">
             <button 
-              v-if="!service.running"
+              v-if="!service.running && service.name !== 'gateway'"
               class="btn btn-sm btn-success"
               @click="startService(service)"
               :disabled="service.loading"
@@ -143,7 +164,7 @@
               ▶ Start
             </button>
             <button 
-              v-if="service.running"
+              v-if="service.running && service.name !== 'gateway'"
               class="btn btn-sm btn-warning"
               @click="stopService(service)"
               :disabled="service.loading"
@@ -151,6 +172,7 @@
               ⏹ Stop
             </button>
             <button 
+              v-if="service.name !== 'gateway'"
               class="btn btn-sm"
               @click="restartService(service)"
               :disabled="service.loading"
@@ -158,11 +180,20 @@
               🔄 Restart
             </button>
             <button 
+              v-if="service.name !== 'gateway'"
               class="btn btn-sm btn-secondary"
               @click="togglePolicyControls(service.name)"
               :title="expandedServices[service.name] ? 'Hide policy controls' : 'Show policy controls'"
             >
               {{ expandedServices[service.name] ? '▼' : '▶' }} Policy
+            </button>
+            <button 
+              v-if="service.name !== 'gateway'"
+              class="btn btn-sm btn-secondary"
+              @click="toggleInspectControls(service.name)"
+              :title="expandedInspect[service.name] ? 'Hide inspect' : 'Show inspect'"
+            >
+              {{ expandedInspect[service.name] ? '▼' : '▶' }} Inspect
             </button>
             
             <!-- Diagnostic & Ops Actions Menu -->
@@ -347,8 +378,167 @@
                 {{ loadingPolicies[service.name] ? 'Loading...' : '📋 Load Policy Data' }}
               </button>
             </div>
+            </div>
           </div>
-        </div>
+          
+          <!-- Runtime Metrics (Expandable) -->
+          <div v-if="expandedMetrics[service.name] && service.running" class="metrics-section">
+            <div class="policy-header">
+              <h4>📊 Runtime Metrics</h4>
+              <span class="policy-subtitle">Quick sanity check - not a replacement for Observability</span>
+              <button 
+                class="btn btn-sm"
+                @click="loadServiceMetrics(service)"
+                :disabled="loadingMetrics[service.name]"
+                style="margin-left: auto;"
+              >
+                {{ loadingMetrics[service.name] ? 'Loading...' : '🔄 Refresh' }}
+              </button>
+            </div>
+            
+            <div v-if="loadingMetrics[service.name]" class="policy-loading">
+              Loading metrics...
+            </div>
+            
+            <div v-else-if="serviceMetrics[service.name]" class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">CPU Usage</div>
+                <div class="metric-value" :class="getMetricClass(serviceMetrics[service.name].cpu_percent, 'cpu')">
+                  {{ serviceMetrics[service.name].cpu_percent?.toFixed(1) || '0' }}%
+                </div>
+                <div class="metric-bar">
+                  <div 
+                    class="metric-bar-fill" 
+                    :class="getMetricClass(serviceMetrics[service.name].cpu_percent, 'cpu')"
+                    :style="{ width: `${Math.min(serviceMetrics[service.name].cpu_percent || 0, 100)}%` }"
+                  ></div>
+                </div>
+              </div>
+              
+              <div class="metric-card">
+                <div class="metric-label">Memory Usage</div>
+                <div class="metric-value" :class="getMetricClass(serviceMetrics[service.name].memory_percent, 'memory')">
+                  {{ serviceMetrics[service.name].memory_percent?.toFixed(1) || '0' }}%
+                </div>
+                <div v-if="serviceMetrics[service.name].memory_usage" class="metric-detail">
+                  {{ serviceMetrics[service.name].memory_usage }}
+                </div>
+                <div class="metric-bar">
+                  <div 
+                    class="metric-bar-fill" 
+                    :class="getMetricClass(serviceMetrics[service.name].memory_percent, 'memory')"
+                    :style="{ width: `${Math.min(serviceMetrics[service.name].memory_percent || 0, 100)}%` }"
+                  ></div>
+                </div>
+              </div>
+              
+              <div v-if="serviceMetrics[service.name].gpu_vram_percent !== null && serviceMetrics[service.name].gpu_vram_percent !== undefined" class="metric-card">
+                <div class="metric-label">GPU VRAM</div>
+                <div class="metric-value" :class="getMetricClass(serviceMetrics[service.name].gpu_vram_percent, 'gpu')">
+                  {{ serviceMetrics[service.name].gpu_vram_percent?.toFixed(1) || '0' }}%
+                </div>
+                <div class="metric-bar">
+                  <div 
+                    class="metric-bar-fill" 
+                    :class="getMetricClass(serviceMetrics[service.name].gpu_vram_percent, 'gpu')"
+                    :style="{ width: `${Math.min(serviceMetrics[service.name].gpu_vram_percent || 0, 100)}%` }"
+                  ></div>
+                </div>
+              </div>
+              
+              <div class="metric-card">
+                <div class="metric-label">Requests / min</div>
+                <div class="metric-value">
+                  {{ serviceMetrics[service.name].requests_per_min || '0' }}
+                </div>
+                <div class="metric-detail">
+                  Request rate
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="metrics-error">
+              <p>Metrics unavailable</p>
+              <button class="btn btn-sm" @click="loadServiceMetrics(service)">
+                🔄 Retry
+              </button>
+            </div>
+          </div>
+          
+          <!-- Inspect / Debug (Dropdown Section) -->
+          <div v-if="expandedInspect[service.name]" class="inspect-controls">
+            <div class="policy-header">
+              <h4>🔍 Inspect / Debug</h4>
+              <span class="policy-subtitle">Dependency and usage analysis</span>
+            </div>
+            
+            <div v-if="loadingInspect[service.name]" class="policy-loading">
+              Loading inspection data...
+            </div>
+            
+            <div v-else-if="inspectData[service.name]" class="inspect-grid">
+              <!-- Dependencies -->
+              <div class="inspect-item">
+                <label class="inspect-label">
+                  <span class="inspect-icon">📦</span>
+                  <span>Dependencies</span>
+                </label>
+                <div class="inspect-note">
+                  Declared dependencies (runtime tracking coming later)
+                </div>
+                <div v-if="inspectData[service.name].dependencies && inspectData[service.name].dependencies.length > 0" class="inspect-list">
+                  <div 
+                    v-for="dep in inspectData[service.name].dependencies" 
+                    :key="dep"
+                    class="inspect-tag"
+                  >
+                    <span class="tag-icon">{{ getServiceIcon(dep) }}</span>
+                    <span>{{ getServiceDisplayName(dep) }}</span>
+                  </div>
+                </div>
+                <div v-else class="inspect-empty">
+                  No declared dependencies
+                </div>
+              </div>
+              
+              <!-- Consumers (Who is using this) -->
+              <div class="inspect-item">
+                <label class="inspect-label">
+                  <span class="inspect-icon">👥</span>
+                  <span>Consumers</span>
+                </label>
+                <div class="inspect-note">
+                  Apps → Assets (declared consumers)
+                </div>
+                <div v-if="inspectData[service.name].consumers && inspectData[service.name].consumers.length > 0" class="inspect-list">
+                  <div 
+                    v-for="consumer in inspectData[service.name].consumers" 
+                    :key="consumer.id"
+                    class="inspect-tag consumer-tag"
+                    @click="goToAsset(consumer.id)"
+                    :title="`View ${consumer.name} details`"
+                  >
+                    <span class="tag-icon">{{ getAssetClassIcon(consumer.class) }}</span>
+                    <span>{{ consumer.name || consumer.id }}</span>
+                    <span class="tag-badge">{{ consumer.class }}</span>
+                  </div>
+                </div>
+                <div v-else class="inspect-empty">
+                  No consumers found
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="inspect-load-button">
+              <button 
+                class="btn btn-sm"
+                @click="loadInspectData(service)"
+                :disabled="loadingInspect[service.name]"
+              >
+                {{ loadingInspect[service.name] ? 'Loading...' : 'Load Inspection Data' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -379,8 +569,20 @@
             </span>
           </div>
           <div class="model-actions">
-            <button class="btn btn-sm" @click="loadModel(model)">📥 Load</button>
-            <button class="btn btn-sm btn-danger" @click="deleteModel(model)">🗑️ Delete</button>
+            <button 
+              class="btn btn-sm" 
+              @click="loadModel(model)"
+              :disabled="loadingModels[model.name] || deletingModels[model.name]"
+            >
+              {{ loadingModels[model.name] ? 'Loading...' : '📥 Load' }}
+            </button>
+            <button 
+              class="btn btn-sm btn-danger" 
+              @click="deleteModel(model)"
+              :disabled="loadingModels[model.name] || deletingModels[model.name]"
+            >
+              {{ deletingModels[model.name] ? 'Deleting...' : '🗑️ Delete' }}
+            </button>
           </div>
         </div>
         
@@ -564,7 +766,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAssetStore } from '@/stores/assetStore'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
@@ -606,7 +808,13 @@ const SERVICE_CONFIG: Record<string, { icon: string, port?: number, displayName?
 
 const serviceLoading = reactive<Record<string, boolean>>({})
 const expandedServices = reactive<Record<string, boolean>>({})
+const expandedMetrics = reactive<Record<string, boolean>>({})
 const openMenus = reactive<Record<string, boolean>>({})
+const loadingMetrics = reactive<Record<string, boolean>>({})
+const serviceMetrics = reactive<Record<string, any>>({})
+const inspectData = reactive<Record<string, any>>({})
+const loadingInspect = reactive<Record<string, boolean>>({})
+const expandedInspect = reactive<Record<string, boolean>>({})
 
 // Idle status and policy data
 const idleStatus = ref<any>(null)
@@ -629,8 +837,13 @@ const services = computed(() => {
     let healthEmoji = '⚪'
     let healthDescription = 'Unknown state'
     
-    // Determine health status based on service status and running state
-    if (!s.running || s.status === 'stopped') {
+    // Gateway is always healthy and running (it's this service itself)
+    if (s.name === 'gateway') {
+      statusText = 'Healthy'
+      statusClass = 'status-success'
+      healthEmoji = '🟢'
+      healthDescription = '/health OK'
+    } else if (!s.running || s.status === 'stopped') {
       statusText = 'Stopped'
       statusClass = 'status-stopped'
       healthEmoji = '⚪'
@@ -696,7 +909,8 @@ const services = computed(() => {
       idleSleepEnabled: serviceInfo.idle_sleep_enabled ?? true,
       idleTimeout: serviceInfo.idle_timeout_minutes,
       idleDuration,
-      policyLoading: false
+      policyLoading: false,
+      metrics: serviceMetrics[s.name] || null
     }
   }).sort((a, b) => {
      // Config order
@@ -714,6 +928,8 @@ const models = ref<any[]>([])
 const showPullModal = ref(false)
 const pullModelName = ref('')
 const pulling = ref(false)
+const loadingModels = reactive<Record<string, boolean>>({})
+const deletingModels = reactive<Record<string, boolean>>({})
 
 // Clear Cache Modal
 const showClearCacheModal = ref(false)
@@ -939,8 +1155,21 @@ function togglePolicyControls(serviceName: string) {
     fetchIdleStatus() // Refresh idle status when expanding
     // Auto-load policy data when expanding
     const service = services.value.find(s => s.name === serviceName)
-    if (service && !assetPolicies.value[serviceName]) {
-      loadServicePolicy(service)
+    if (service) {
+      if (!assetPolicies.value[serviceName]) {
+        loadServicePolicy(service)
+      }
+    }
+  }
+}
+
+function toggleInspectControls(serviceName: string) {
+  expandedInspect[serviceName] = !expandedInspect[serviceName]
+  if (expandedInspect[serviceName]) {
+    // Auto-load inspect data when expanding
+    const service = services.value.find(s => s.name === serviceName)
+    if (service && !inspectData[serviceName]) {
+      loadInspectData(service)
     }
   }
 }
@@ -1144,52 +1373,174 @@ docker logs ${service.name} --tail 1000 > ${service.name}-logs.txt
   }
 }
 
+// Runtime Metrics
+function toggleMetrics(serviceName: string) {
+  expandedMetrics[serviceName] = !expandedMetrics[serviceName]
+  if (expandedMetrics[serviceName]) {
+    const service = services.value.find(s => s.name === serviceName)
+    if (service && service.running && !service.metrics) {
+      loadServiceMetrics(service)
+    }
+  }
+}
+
+async function loadServiceMetrics(service: any) {
+  if (!service.running) return
+  
+  loadingMetrics[service.name] = true
+  try {
+    const metrics = await gateway.getServiceMetrics(service.name)
+    // Store metrics in reactive object (don't mutate computed property)
+    serviceMetrics[service.name] = metrics
+  } catch (e) {
+    console.warn(`Failed to load metrics for ${service.name}:`, e)
+    serviceMetrics[service.name] = null
+  } finally {
+    loadingMetrics[service.name] = false
+  }
+}
+
+function getMetricClass(value: number | null | undefined, type: 'cpu' | 'memory' | 'gpu'): string {
+  if (!value) return 'metric-normal'
+  if (value >= 90) return 'metric-critical'
+  if (value >= 70) return 'metric-warning'
+  return 'metric-normal'
+}
+
+// Inspect / Debug - Load dependency and consumer data
+async function loadInspectData(service: any) {
+  loadingInspect[service.name] = true
+  try {
+    const result = await gateway.inspectService(service.name)
+    inspectData[service.name] = {
+      dependencies: result.dependencies || [],
+      consumers: result.consumers || []
+    }
+  } catch (e) {
+    console.warn(`Failed to load inspect data for ${service.name}:`, e)
+    inspectData[service.name] = {
+      dependencies: [],
+      consumers: []
+    }
+  } finally {
+    loadingInspect[service.name] = false
+  }
+}
+
+function getServiceIcon(serviceName: string): string {
+  return SERVICE_CONFIG[serviceName]?.icon || '❓'
+}
+
+function getServiceDisplayName(serviceName: string): string {
+  return SERVICE_CONFIG[serviceName]?.displayName || serviceName
+}
+
+function getAssetClassIcon(assetClass: string): string {
+  const icons: Record<string, string> = {
+    app: '📱',
+    application: '📱',
+    service: '⚙️',
+    model: '🧠',
+    tool: '🛠️',
+    dataset: '📚'
+  }
+  return icons[assetClass?.toLowerCase() || ''] || '📦'
+}
+
+function goToAsset(assetId: string) {
+  const workspaceId = route.params.workspaceId || 'default'
+  router.push(`/workspace/${workspaceId}/assets/${assetId}`)
+}
+
+// Auto-refresh metrics for expanded services
+let metricsRefreshInterval: any = null
+watch(expandedMetrics, (newVal) => {
+  const hasExpanded = Object.values(newVal).some(v => v === true)
+  if (hasExpanded && !metricsRefreshInterval) {
+    // Refresh every 30 seconds to reduce API load
+    metricsRefreshInterval = setInterval(() => {
+      Object.keys(newVal).forEach(serviceName => {
+        if (newVal[serviceName]) {
+          const service = services.value.find(s => s.name === serviceName)
+          // Only refresh if service is running and not already loading
+          if (service && service.running && !loadingMetrics[serviceName]) {
+            loadServiceMetrics(service)
+          }
+        }
+      })
+    }, 30000) // Refresh every 30 seconds (was 5 seconds - too frequent)
+  } else if (!hasExpanded && metricsRefreshInterval) {
+    clearInterval(metricsRefreshInterval)
+    metricsRefreshInterval = null
+  }
+}, { deep: true })
+
+// Cleanup interval on unmount
+onUnmounted(() => {
+  if (metricsRefreshInterval) {
+    clearInterval(metricsRefreshInterval)
+  }
+})
+
 // Models
 async function loadModels() {
   try {
-    const response = await fetch('http://localhost:11434/api/tags')
-    if (response.ok) {
-      const data = await response.json()
-      models.value = data.models || []
-    }
+    const data = await gateway.listModels()
+    models.value = data.models || []
   } catch (e) {
     console.error('Failed to load models:', e)
+    showToast(`❌ Failed to load models: ${e}`, 'error')
   }
 }
 
 async function pullModel() {
-  if (!pullModelName.value) return
+  if (!pullModelName.value.trim()) {
+    showToast('Please enter a model name', 'error')
+    return
+  }
+  
   pulling.value = true
   try {
-    // Would use streaming API for progress
-    await fetch('http://localhost:11434/api/pull', {
-      method: 'POST',
-      body: JSON.stringify({ name: pullModelName.value })
-    })
+    const result = await gateway.pullModel(pullModelName.value.trim())
+    showToast(`✅ ${result.message}`, 'success')
     showPullModal.value = false
     pullModelName.value = ''
     await loadModels()
-  } catch (e) {
-    alert('Failed to pull model: ' + e)
+  } catch (e: any) {
+    showToast(`❌ Failed to pull model: ${e.message || e}`, 'error')
   } finally {
     pulling.value = false
   }
 }
 
 async function loadModel(model: any) {
-  alert(`Loading ${model.name}...`)
+  loadingModels[model.name] = true
+  try {
+    const result = await gateway.loadModel(model.name)
+    showToast(`✅ ${result.message}`, 'success')
+    // Refresh models to update status
+    await loadModels()
+  } catch (e: any) {
+    showToast(`❌ Failed to load model: ${e.message || e}`, 'error')
+  } finally {
+    loadingModels[model.name] = false
+  }
 }
 
 async function deleteModel(model: any) {
-  if (!confirm(`Delete model ${model.name}?`)) return
+  if (!confirm(`Are you sure you want to delete model "${model.name}"?\n\nThis action cannot be undone.`)) {
+    return
+  }
+  
+  deletingModels[model.name] = true
   try {
-    await fetch('http://localhost:11434/api/delete', {
-      method: 'DELETE',
-      body: JSON.stringify({ name: model.name })
-    })
+    const result = await gateway.deleteModel(model.name)
+    showToast(`✅ ${result.message}`, 'success')
     await loadModels()
-  } catch (e) {
-    alert('Failed to delete model: ' + e)
+  } catch (e: any) {
+    showToast(`❌ Failed to delete model: ${e.message || e}`, 'error')
+  } finally {
+    deletingModels[model.name] = false
   }
 }
 
@@ -1361,7 +1712,7 @@ function formatLogTime(date: Date): string {
 
 .service-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 0.5fr 2fr;
+  grid-template-columns: 2fr 1fr 1.5fr 0.5fr 1.5fr 2fr;
   padding: 1rem;
   align-items: center;
 }
@@ -1489,12 +1840,17 @@ function formatLogTime(date: Date): string {
 
 .policy-header {
   margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .policy-header h4 {
   margin: 0 0 0.25rem 0;
   font-size: 1rem;
   color: var(--text-primary);
+  flex: 1;
 }
 
 .policy-subtitle {
@@ -1676,6 +2032,252 @@ function formatLogTime(date: Date): string {
 .menu-icon {
   font-size: 1.1rem;
   flex-shrink: 0;
+}
+
+/* Runtime Metrics */
+.col-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.btn-metrics-toggle {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.btn-metrics-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.metrics-inline {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.metrics-placeholder {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.metric-item {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  font-family: monospace;
+}
+
+.metric-item.metric-normal {
+  color: var(--success);
+}
+
+.metric-item.metric-warning {
+  color: var(--warning);
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.metric-item.metric-critical {
+  color: var(--danger);
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.metrics-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.metric-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-primary);
+}
+
+.metric-value.metric-normal {
+  color: var(--success);
+}
+
+.metric-value.metric-warning {
+  color: var(--warning);
+}
+
+.metric-value.metric-critical {
+  color: var(--danger);
+}
+
+.metric-detail {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.metric-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.metric-bar-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.metric-bar-fill.metric-normal {
+  background: var(--success);
+}
+
+.metric-bar-fill.metric-warning {
+  background: var(--warning);
+}
+
+.metric-bar-fill.metric-critical {
+  background: var(--danger);
+}
+
+.metrics-error {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Inspect / Debug Controls (Dropdown like Policy) */
+.inspect-controls {
+  grid-column: 1 / -1;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  padding: 1.5rem;
+  margin: 0;
+}
+
+.inspect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.inspect-load-button {
+  padding: 0.5rem 0;
+  text-align: center;
+}
+
+.inspect-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inspect-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.inspect-icon {
+  font-size: 1.1rem;
+}
+
+.inspect-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-top: -0.25rem;
+}
+
+.inspect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspect-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.inspect-tag.consumer-tag {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inspect-tag.consumer-tag:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+  transform: translateX(2px);
+}
+
+.tag-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tag-badge {
+  margin-left: auto;
+  padding: 0.2rem 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.inspect-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.85rem;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  border: 1px dashed var(--border-color);
 }
 
 /* Error Banner */

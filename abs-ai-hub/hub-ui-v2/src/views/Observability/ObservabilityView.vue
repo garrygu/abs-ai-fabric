@@ -9,6 +9,11 @@
         🔄 {{ loading ? 'Refreshing...' : 'Refresh All' }}
       </button>
     </header>
+    
+    <!-- Toast Notification -->
+    <div v-if="toastMessage" class="toast" :class="toastType">
+      {{ toastMessage }}
+    </div>
 
     <!-- System Health Card with Breakdown -->
     <section class="health-section">
@@ -364,6 +369,16 @@ const stateFilter = ref<string | null>(null)
 const classFilter = ref<string | null>(null)
 const openAdminMenu = ref<string | null>(null)
 
+// Toast notifications
+const toastMessage = ref<string | null>(null)
+const toastType = ref<'success' | 'error'>('success')
+
+function showToast(message: string, type: 'success' | 'error' = 'success') {
+  toastMessage.value = message
+  toastType.value = type
+  setTimeout(() => { toastMessage.value = null }, 4000)
+}
+
 // Asset counts by class
 const serviceCount = computed(() => assetStore.assets.filter((a: any) => a.class === 'service').length)
 const appCount = computed(() => assetStore.assets.filter((a: any) => a.class === 'app' || a.class === 'application').length)
@@ -430,6 +445,9 @@ async function refreshAll() {
       assetStore.fetchAssets(),
       systemHealth.fetchStatus()
     ])
+    showToast('✅ Data refreshed successfully')
+  } catch (e) {
+    showToast(`❌ Refresh failed: ${e}`, 'error')
   } finally {
     loading.value = false
   }
@@ -605,16 +623,17 @@ function getConsumers(asset: any): string[] {
   return consumers
 }
 
-// Action helpers
+// Action helpers - only services (containerized assets) can be woken/suspended
 function canWake(asset: any): boolean {
+  if (asset.class !== 'service') return false  // Only services have containers
   const state = getObservedState(asset)
-  return state === 'idle' || state === 'suspended'
+  return state === 'idle' || state === 'suspended' || state === 'stopped'
 }
 
 function canSuspend(asset: any): boolean {
+  if (asset.class !== 'service') return false  // Only services have containers
   const state = getObservedState(asset)
-  const desired = asset.lifecycle?.desired
-  return state === 'running' && desired === 'on-demand'
+  return state === 'running'
 }
 
 function isError(asset: any): boolean {
@@ -630,19 +649,55 @@ function openApp(asset: any) {
   if (url) window.open(url, '_blank')
 }
 
-function wakeAsset(asset: any) {
+async function wakeAsset(asset: any) {
   console.log('Waking asset:', asset.id)
-  // TODO: Call Gateway API
+  openAdminMenu.value = null
+  try {
+    const { gateway } = await import('@/services/gateway')
+    const result = await gateway.startAsset(asset.id)
+    if (result.success) {
+      showToast(`✅ ${asset.display_name || asset.id} started successfully`)
+      await assetStore.fetchAssets()
+    } else {
+      showToast(`❌ Failed to wake: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to wake: ${e}`, 'error')
+  }
 }
 
-function suspendAsset(asset: any) {
+async function suspendAsset(asset: any) {
   console.log('Suspending asset:', asset.id)
-  // TODO: Call Gateway API
+  openAdminMenu.value = null
+  try {
+    const { gateway } = await import('@/services/gateway')
+    const result = await gateway.stopAsset(asset.id)
+    if (result.success) {
+      showToast(`⏸️ ${asset.display_name || asset.id} suspended`)
+      await assetStore.fetchAssets()
+    } else {
+      showToast(`❌ Failed to suspend: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to suspend: ${e}`, 'error')
+  }
 }
 
-function restartAsset(asset: any) {
+async function restartAsset(asset: any) {
   console.log('Restarting asset:', asset.id)
-  // TODO: Call Gateway API
+  openAdminMenu.value = null
+  try {
+    const { gateway } = await import('@/services/gateway')
+    const result = await gateway.restartAsset(asset.id)
+    if (result.success) {
+      showToast(`🔄 ${asset.display_name || asset.id} restarted successfully`)
+      await assetStore.fetchAssets()
+    } else {
+      showToast(`❌ Failed to restart: ${result.error}`, 'error')
+    }
+  } catch (e) {
+    showToast(`❌ Failed to restart: ${e}`, 'error')
+  }
 }
 
 function inspectAsset(asset: any) {
@@ -653,9 +708,9 @@ function showDepsPanel(asset: any) {
   selectedAsset.value = asset
 }
 
-// Admin actions helpers
+// Admin actions helpers - only services have controllable lifecycle
 function hasAdminActions(asset: any): boolean {
-  return asset.class === 'service' || asset.class === 'model' || canWake(asset) || canSuspend(asset)
+  return asset.class === 'service'  // Only services have containers to control
 }
 
 function toggleAdminMenu(assetId: string) {
@@ -1393,7 +1448,6 @@ function getDepsHealthy(asset: any): boolean {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
-  width: 100%;
 }
 
 .btn-primary {
@@ -1408,5 +1462,38 @@ function getDepsHealthy(asset: any): boolean {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.panel-footer .btn {
+  width: 100%;
+}
+
+/* Toast Notifications */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast.success {
+  background: rgba(34, 197, 94, 0.95);
+  color: white;
+}
+
+.toast.error {
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 </style>

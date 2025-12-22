@@ -116,3 +116,109 @@ async def create_asset(asset: dict):
     cat.setdefault("assets", []).append(asset)
     save_catalog(cat)
     return {"status": "created", "asset": asset}
+
+# ============================================================
+# Asset Lifecycle Control (v1.0.1)
+# ============================================================
+
+@router.post("/v1/assets/{asset_id}/start")
+async def start_asset(asset_id: str):
+    """
+    Start an asset (container).
+    
+    For containerized assets, this starts the Docker container.
+    """
+    manager = await get_asset_manager()
+    
+    # Try AssetManager first
+    try:
+        result = await manager.start_asset(asset_id)
+        if result.get("success"):
+            return result
+    except Exception:
+        pass
+        
+    # Fallback to System Services
+    from services.autowake import SERVICE_REGISTRY, start_service
+    if asset_id in SERVICE_REGISTRY:
+        if await start_service(asset_id):
+            return {"success": True, "message": f"Service {asset_id} started"}
+        raise HTTPException(500, f"Failed to start service {asset_id}")
+
+    raise HTTPException(400, "Start failed: Asset not found")
+
+@router.post("/v1/assets/{asset_id}/stop")
+async def stop_asset(asset_id: str):
+    """
+    Stop an asset (container).
+    
+    For containerized assets, this stops the Docker container gracefully.
+    """
+    manager = await get_asset_manager()
+    
+    # Try AssetManager first
+    try:
+        result = await manager.stop_asset(asset_id)
+        if result.get("success"):
+            return result
+    except Exception:
+        pass
+
+    # Fallback to System Services
+    from services.autowake import SERVICE_REGISTRY, stop_service
+    if asset_id in SERVICE_REGISTRY:
+        if await stop_service(asset_id):
+            return {"success": True, "message": f"Service {asset_id} stopped"}
+        raise HTTPException(500, f"Failed to stop service {asset_id}")
+        
+    raise HTTPException(400, "Stop failed: Asset not found")
+
+@router.post("/v1/assets/{asset_id}/restart")
+async def restart_asset(asset_id: str):
+    """
+    Restart an asset (container).
+    
+    For containerized assets, this restarts the Docker container.
+    """
+    manager = await get_asset_manager()
+    
+    # Try AssetManager first
+    try:
+        result = await manager.restart_asset(asset_id)
+        if result.get("success"):
+            return result
+    except Exception:
+        pass
+
+    # Fallback to System Services
+    from services.autowake import SERVICE_REGISTRY, stop_service, start_service
+    if asset_id in SERVICE_REGISTRY:
+        # Simple stop/start for restart
+        await stop_service(asset_id)
+        if await start_service(asset_id):
+            return {"success": True, "message": f"Service {asset_id} restarted"}
+        raise HTTPException(500, f"Failed to restart service {asset_id}")
+        
+    raise HTTPException(400, "Restart failed: Asset not found")
+
+@router.get("/v1/assets/{asset_id}/status")
+async def get_asset_status(asset_id: str):
+    """
+    Get real-time status of an asset.
+    
+    Returns container status for containerized assets.
+    """
+    manager = await get_asset_manager()
+    status = await manager.get_asset_status(asset_id)
+    
+    if status != "unknown":
+        return {"status": status}
+        
+    # Fallback to System Services
+    from services.autowake import SERVICE_REGISTRY, check_service_status
+    if asset_id in SERVICE_REGISTRY:
+        svc_status = await check_service_status(asset_id)
+        return {"status": svc_status}
+        
+    return {"status": "unknown"}
+

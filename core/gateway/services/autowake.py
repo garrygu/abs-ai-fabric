@@ -30,6 +30,9 @@ IDLE_MONITOR_TASK = None
 async def check_service_status(service_name: str) -> str:
     """Check if a service is running"""
     try:
+        if service_name == "gateway":
+            return "running"
+
         container_name = CONTAINER_MAP.get(service_name)
         if not container_name:
             return "unknown"
@@ -59,6 +62,49 @@ async def check_service_status(service_name: str) -> str:
                 return "stopped"
     except Exception:
         return "unknown"
+
+async def check_service_health(service_name: str) -> str:
+    """
+    Check detailed health status of a service.
+    Returns: 'healthy', 'degraded', 'unhealthy', 'stopped', 'unknown'
+    """
+    # 1. Check Container Status
+    status = await check_service_status(service_name)
+    if status != "running":
+        return "stopped"
+
+    # 2. Check Dependencies (Degraded check)
+    dependencies = SERVICE_DEPENDENCIES.get(service_name, [])
+    for dep in dependencies:
+        dep_status = await check_service_status(dep)
+        if dep_status != "running":
+            return "degraded"
+
+    # 3. Application Readiness Check
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as http:
+            if service_name == "ollama":
+                r = await http.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
+                return "healthy" if r.is_success else "unhealthy"
+            
+            elif service_name == "qdrant":
+                r = await http.get("http://qdrant:6333/collections")
+                return "healthy" if r.is_success else "unhealthy"
+            
+            elif service_name == "gateway":
+                # Self check - if we are running this code, we are likely healthy, 
+                # but could check internal state if needed.
+                return "healthy"
+                
+            # For Redis/Postgres, we assume healthy if running for now 
+            # as strict checks require auth/libs which might be heavy here.
+            # Could implement specific TCP socket checks later.
+            return "healthy"
+            
+    except Exception:
+        return "unhealthy"
+        
+    return "healthy"
 
 async def start_service(service_name: str) -> bool:
     """Start a service container"""
