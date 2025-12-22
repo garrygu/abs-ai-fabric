@@ -51,6 +51,16 @@
           <span class="action-label">Health Check</span>
           <span class="action-desc">Run system diagnostics</span>
         </button>
+        <button class="action-card" @click="showCreateSnapshotModal = true">
+          <span class="action-icon">💾</span>
+          <span class="action-label">Create Snapshot</span>
+          <span class="action-desc">Save current system state</span>
+        </button>
+        <button class="action-card" @click="showRestoreModal = true">
+          <span class="action-icon">📥</span>
+          <span class="action-label">Restore Snapshot</span>
+          <span class="action-desc">Restore from previous snapshot</span>
+        </button>
       </div>
     </section>
 

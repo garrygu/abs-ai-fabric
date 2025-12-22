@@ -143,7 +143,7 @@
           <!-- Card Header - Identity + Labeled Status -->
           <div class="card-header">
             <div class="asset-identity">
-              <span class="asset-icon">{{ getAssetIcon(asset.class) }}</span>
+              <span class="asset-icon">{{ getAssetIcon(asset.class, asset.interface) }}</span>
               <div class="asset-info">
                 <h3>{{ asset.display_name || asset.id }}</h3>
                 <span class="asset-type">{{ asset.class }} • {{ asset.interface }}</span>
@@ -168,6 +168,18 @@
               <span class="state-label">Observed</span>
               <span class="state-value observed" :class="getObservedClass(asset)">
                 {{ formatObserved(asset) }}
+              </span>
+            </div>
+            <!-- Idle Reason - makes idle actionable -->
+            <div v-if="getIdleReason(asset)" class="idle-reason">
+              <span class="reason-label">Reason:</span>
+              <span class="reason-text">{{ getIdleReason(asset) }}</span>
+            </div>
+            <!-- Health Indicator - separate from lifecycle state -->
+            <div class="state-row health-row">
+              <span class="state-label">Health</span>
+              <span class="health-indicator" :class="getHealthIndicator(asset).class">
+                {{ getHealthIndicator(asset).icon }} {{ getHealthIndicator(asset).label }}
               </span>
             </div>
             <!-- Health Check Indicators -->
@@ -252,7 +264,7 @@
       <div class="detail-panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span class="panel-icon">{{ getAssetIcon(selectedAsset.class) }}</span>
+            <span class="panel-icon">{{ getAssetIcon(selectedAsset.class, selectedAsset.interface) }}</span>
             <div>
               <h2>{{ selectedAsset.display_name || selectedAsset.id }}</h2>
               <span class="panel-subtitle">{{ selectedAsset.class }} • {{ selectedAsset.interface }}</span>
@@ -483,10 +495,17 @@ function getObservedState(asset: any): string {
   return asset.lifecycle?.state || asset.status || 'unknown'
 }
 
-function getAssetIcon(assetClass?: string): string {
+function getAssetIcon(assetClass?: string, assetInterface?: string): string {
+  // For models, use interface-specific icons
+  if (assetClass === 'model') {
+    if (assetInterface === 'llm-runtime') return '🧠'
+    if (assetInterface === 'embedding-runtime') return '📐'
+    return '🧠' // Default model icon
+  }
+  
   const icons: Record<string, string> = {
-    model: '🧠', service: '⚙️', tool: '🛠️', dataset: '📚',
-    application: '📱', app: '📱', embedding: '🔗'
+    service: '⚙️', tool: '🛠️', dataset: '📚',
+    application: '📱', app: '📱'
   }
   return icons[assetClass?.toLowerCase() || ''] || '📦'
 }
@@ -494,6 +513,73 @@ function getAssetIcon(assetClass?: string): string {
 function getAssetIconById(assetId: string): string {
   const asset = assetStore.assets.find((a: any) => a.id === assetId || a.asset_id === assetId)
   return getAssetIcon(asset?.class)
+}
+
+// Health Indicator - separate from lifecycle state
+function getHealthIndicator(asset: any): { icon: string; label: string; class: string } {
+  const state = getObservedState(asset)
+  const desired = asset.lifecycle?.desired
+  
+  // For running assets, check actual health
+  if (state === 'running') {
+    // In future, check actual health endpoint
+    return { icon: '✅', label: 'OK', class: 'health-ok' }
+  }
+  
+  // For error state, health is clearly bad
+  if (state === 'error') {
+    return { icon: '❌', label: 'Error', class: 'health-error' }
+  }
+  
+  // For standby/idle, determine if it's healthy standby or degraded
+  if (state === 'idle' || state === 'suspended') {
+    // If desired is on-demand and idle, this is healthy standby
+    if (desired === 'on-demand') {
+      return { icon: '✅', label: 'OK', class: 'health-ok' }
+    }
+    // If desired is running but it's idle, this is degraded
+    if (desired === 'running') {
+      return { icon: '⚠️', label: 'Degraded', class: 'health-degraded' }
+    }
+    // Suspended when desired suspended is OK
+    if (state === 'suspended' && desired === 'suspended') {
+      return { icon: '✅', label: 'OK', class: 'health-ok' }
+    }
+  }
+  
+  // Warming is in-progress, considered OK
+  if (state === 'warming') {
+    return { icon: '✅', label: 'OK', class: 'health-ok' }
+  }
+  
+  // Default to OK for unknown states
+  return { icon: '✅', label: 'OK', class: 'health-ok' }
+}
+
+// Get reason for idle state - makes idle actionable
+function getIdleReason(asset: any): string | null {
+  const state = getObservedState(asset)
+  if (state !== 'idle') return null
+  
+  const autoSleep = asset.lifecycle?.auto_sleep_min
+  const desired = asset.lifecycle?.desired
+  
+  // Check for auto-sleep configuration
+  if (autoSleep && desired === 'on-demand') {
+    return `Auto-sleep after ${autoSleep}min inactivity`
+  }
+  
+  // Check if it's on-demand and never started
+  if (desired === 'on-demand') {
+    return 'No requests in last 10m'
+  }
+  
+  // Check for dependency issues
+  if (hasDependencies(asset) && !getDepsHealthy(asset)) {
+    return 'Dependency unavailable'
+  }
+  
+  return 'Idle (ready for requests)'
 }
 
 function getHealthBadgeClass(asset: any): string {

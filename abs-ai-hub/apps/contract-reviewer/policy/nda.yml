@@ -1,9 +1,0 @@
-name: "Standard NDA Policy"
-required_clauses:
-  - Confidentiality (mutual)
-  - Exceptions to Confidential Info (public, independently developed, already known)
-  - Term >= 2 years
-  - Return/Destruction of materials
-  - Equitable relief (injunctive)
-  - No residuals / memory carve-out
-preferred_governing_law: "Delaware or New York"
