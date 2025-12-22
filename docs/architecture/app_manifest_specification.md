@@ -139,6 +139,21 @@ policy:
 - **Usage**: Used for dependency checking and automatic provisioning
 - **Example**: `["llama3.2:3b", "llama3:8b", "llama4:scout"]`
 
+> [!IMPORTANT]
+> **Model Naming Semantics**: The `required_models` field uses **servable model identifiers** (runtime names like `llama3.2:3b`), not **asset IDs** (like `llama3.2-3b`). This creates coupling to runtime naming conventions rather than the asset registry.
+> 
+> **Rationale**: Applications need to specify the exact model name they will request at runtime (e.g., via Ollama API). This matches operational reality.
+> 
+> **V2 Future Direction**: May introduce asset-based references to decouple from runtime naming:
+> ```yaml
+> required_models:
+>   - asset: llama3.2-3b     # Asset registry ID
+>     runtime_name: llama3.2:3b  # Optional runtime override
+>   - asset: llama3-8b
+> ```
+> 
+> **For Now**: Continue using servable identifiers. The current approach is correct for v1.
+
 #### `policy.allowed_embeddings` (optional)
 - **Type**: `array<string>`
 - **Description**: List of allowed embedding models
@@ -476,11 +491,48 @@ The UI uses these fields for rendering:
 - `lifecycle.desired`: Status badges
 
 ### Status Determination
-Application status is derived from:
-- **Online**: Application responding at `metadata.url`
-- **Offline**: Application registered but not responding
-- **Degraded**: Application responding with errors
-- **Unknown**: Unable to determine status
+
+Application status is derived from runtime state and dependency availability:
+
+- **Online**: Application responding at `metadata.url` with healthy status
+- **Offline**: Application registered but not responding (service not running)
+- **Blocked**: Dependencies missing or unavailable (e.g., required models not pulled)
+- **Degraded**: Application responding but with errors or performance issues
+- **Unknown**: Unable to determine status (e.g., network unreachable)
+
+#### Status Priority
+
+When multiple conditions apply, use this priority order:
+1. **Blocked** (highest priority): Missing dependencies prevent startup
+2. **Offline**: Service not running despite dependencies being available
+3. **Degraded**: Service running but unhealthy
+4. **Online**: Service running and healthy
+5. **Unknown**: Cannot determine (lowest priority)
+
+#### Blocked vs Offline Distinction
+
+This distinction is critical for operational clarity:
+
+**Blocked Example**:
+- Docker container is running
+- Application code is healthy
+- Required model `llama3.2:3b` is not pulled
+- **Status**: Blocked (not Offline)
+- **User Action**: Pull missing models via Admin Models tab
+
+**Offline Example**:
+- All dependencies available
+- Docker container is stopped
+- **Status**: Offline (not Blocked)
+- **User Action**: Start the service
+
+**UI Presentation**:
+```vue
+<div v-if="app.status === 'blocked'" class="status-blocked">
+  ⚠️ BLOCKED: Missing dependencies
+  <button @click="showMissingDependencies(app)">View Details</button>
+</div>
+```
 
 ### Filtering
 Apps can be filtered/excluded programmatically:
