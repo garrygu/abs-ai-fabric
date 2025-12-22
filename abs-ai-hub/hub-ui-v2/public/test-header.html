@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABS Unified Header - Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+        }
+
+        .content {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #1e3a5f;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: #f9fafb;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .feature-card h3 {
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            font-size: 0.875rem;
+            margin: 0;
+        }
+
+        code {
+            background: #f3f4f6;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        pre {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- The ABS Unified Header Web Component -->
+    <abs-unified-header app-id="test-app" app-name="Test Application" app-icon="🧪" hub-url="http://localhost:5173"
+        gateway-url="http://localhost:8081">
+    </abs-unified-header>
+
+    <div class="content">
+        <h1>🧪 ABS Unified Header - Test Page</h1>
+        <p>
+            This page demonstrates the <strong>ABS Unified Header Web Component</strong>.
+            The header above is rendered by a custom Web Component with Shadow DOM for
+            complete style encapsulation.
+        </p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>⋮⋮⋮ App Launcher</h3>
+                <p>Click the waffle icon to see all available ABS applications and switch between them.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🔍 App Search</h3>
+                <p>Search for applications by name or description in the app launcher dropdown.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🏠 Return to Hub</h3>
+                <p>One-click navigation back to the main AI Fabric Hub.</p>
+            </div>
+            <div class="feature-card">
+                <h3>⚡ CES Banner</h3>
+                <p>Powered by ABS Workstation badge with link to hardware specs.</p>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 2rem;">Usage</h2>
+        <p>To add this header to any application:</p>
+
+        <pre><code>&lt;!-- Add to your HTML --&gt;
+&lt;script type="module" src="http://localhost:5173/abs-header.js"&gt;&lt;/script&gt;
+
+&lt;abs-unified-header 
+    app-id="your-app-id"
+    app-name="Your App Name"
+    app-icon="📱"
+    hub-url="http://localhost:5173"
+    gateway-url="http://localhost:8081"&gt;
+&lt;/abs-unified-header&gt;</code></pre>
+
+        <h2 style="margin-top: 2rem;">Configuration</h2>
+        <p>The component accepts the following attributes:</p>
+        <ul>
+            <li><code>app-id</code> - Unique identifier for the current app</li>
+            <li><code>app-name</code> - Display name shown in the header</li>
+            <li><code>app-icon</code> - Emoji or text icon for the app</li>
+            <li><code>hub-url</code> - URL of the AI Fabric Hub (for "Return to Hub")</li>
+            <li><code>gateway-url</code> - URL of the gateway API (for fetching apps list)</li>
+        </ul>
+    </div>
+
+    <!-- Load the Web Component -->
+    <script type="module" src="/abs-header.js"></script>
+</body>
+
+</html>
