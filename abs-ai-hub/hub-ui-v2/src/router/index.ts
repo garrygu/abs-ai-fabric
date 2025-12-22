@@ -55,7 +55,7 @@ const router = createRouter({
 
 // Update document title on navigation
 router.beforeEach((to) => {
-    document.title = `${to.meta.title || 'Hub'} | ABS AI Hub`
+    document.title = `${to.meta.title || 'Hub'} | AI Fabric`
 })
 
 export default router

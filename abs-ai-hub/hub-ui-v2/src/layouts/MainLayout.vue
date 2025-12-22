@@ -3,8 +3,8 @@
     <!-- Top Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <span class="brand-icon">⚡</span>
-        <span class="brand-text">ABS AI Hub</span>
+        <img src="/logos/abs-logo-orange.png" alt="ABS Logo" class="brand-logo" />
+        <span class="brand-text">AI Fabric</span>
       </div>
       
       <div class="nav-tabs">
@@ -62,7 +62,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>ABS Legal AI Suite v2.0.0 | Secure On-Prem Deployment</p>
+      <p>ABS Workstation AI Fabric v1.0.0 | Secure On-Prem Deployment</p>
     </footer>
   </div>
 </template>
@@ -110,6 +110,11 @@ const workspaceId = computed(() =>
 
 .brand-icon {
   font-size: 1.5rem;
+}
+
+.brand-logo {
+  height: 32px;
+  width: auto;
 }
 
 .nav-tabs {
