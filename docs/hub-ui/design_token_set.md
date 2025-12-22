@@ -1,318 +1,373 @@
-# 🎨 ABS AI Fabric — Design Token Set v1.0
+# ABS AI OS — Design Token Set v1.1
 
-**Theme philosophy:** *Industrial Intelligence*
-**Default mode:** Dark-first (enterprise & CES ready)
-
----
-
-## 0️⃣ Token Structure (How to Read This)
-
-* **Core tokens** → raw values (brand DNA)
-* **Semantic tokens** → meaning-based (recommended usage)
-* **Component tokens** → buttons, cards, panels
-* **Motion tokens** → “alive but calm”
-* **CES overrides** → demo-optimized accents
-
-Engineering should **consume semantic & component tokens only**.
+**Status:** Approved (Brand-Locked)
+**Applies to:** ABS AI Fabric / Hub UI / CES Demo Mode
+**Theme philosophy:** **Industrial Performance Intelligence**
+**Default mode:** Dark-first
+**Brand alignment:** ABS Official
 
 ---
 
-## 1️⃣ Core Brand Tokens (ABS DNA)
+## 0. Purpose & Principles
 
-```json
-{
-  "color": {
-    "brand": {
-      "primary": "#2563EB",
-      "secondary": "#14B8A6"
-    },
-    "neutral": {
-      "black": "#0B0F14",
-      "black_soft": "#0F141B",
-      "gray_900": "#111827",
-      "gray_700": "#374151",
-      "gray_500": "#6B7280",
-      "gray_300": "#D1D5DB",
-      "white": "#F9FAFB"
-    }
-  }
-}
-```
+This token set defines the **single source of truth** for ABS AI OS visual language.
 
-**Design intent**
+### Core principles
 
-* Blue = authority + compute
-* Teal = intelligence + future
-* Near-black = reliability, seriousness, “engine room”
+1. **Black-forward, high contrast**
+2. **Energy is intentional, not decorative**
+3. **Hardware authority > SaaS friendliness**
+4. **Motion communicates “alive”, never playful**
+5. **Tokens are semantic, not literal**
+
+> ABS AI OS should feel like a **battle-tested control plane**, not a dashboard.
 
 ---
 
-## 2️⃣ Semantic Color Tokens (MOST IMPORTANT)
+## 1. Token Taxonomy
 
-> These are what engineers should use.
+Tokens are layered to prevent UI drift:
 
-```json
-{
-  "color": {
-    "background": {
-      "app": "#0B0F14",
-      "panel": "#0F141B",
-      "card": "#111827",
-      "overlay": "rgba(0,0,0,0.6)"
-    },
-    "text": {
-      "primary": "#F9FAFB",
-      "secondary": "#9CA3AF",
-      "muted": "#6B7280",
-      "inverse": "#0B0F14"
-    },
-    "border": {
-      "default": "rgba(255,255,255,0.08)",
-      "strong": "rgba(255,255,255,0.16)",
-      "focus": "#2563EB"
-    },
-    "action": {
-      "primary": "#2563EB",
-      "primary_hover": "#1D4ED8",
-      "secondary": "#1F2937",
-      "danger": "#EF4444"
-    },
-    "status": {
-      "success": "#22C55E",
-      "warning": "#F59E0B",
-      "error": "#EF4444",
-      "info": "#3B82F6",
-      "running": "#14B8A6"
-    }
-  }
-}
-```
+1. **Core Brand Tokens** – ABS DNA (never referenced directly in UI)
+2. **Semantic Tokens** – meaning-based (used by engineers)
+3. **Component Tokens** – cards, buttons, badges
+4. **State & Motion Tokens**
+5. **CES Demo Overrides**
 
-**ABS Principle**
-
-> Color communicates **state**, not decoration.
+⚠️ **Engineering rule:**
+Use **semantic or component tokens only**, never raw hex values.
 
 ---
 
-## 3️⃣ Typography Tokens (Trust & Clarity)
+## 2. Core Brand Tokens (ABS DNA)
 
-```json
-{
-  "font": {
-    "family": {
-      "base": "Inter, system-ui, -apple-system, BlinkMacSystemFont",
-      "mono": "JetBrains Mono, Menlo, monospace"
-    },
-    "size": {
-      "xs": "12px",
-      "sm": "13px",
-      "md": "14px",
-      "lg": "16px",
-      "xl": "18px",
-      "xxl": "24px",
-      "metric": "28px"
-    },
-    "weight": {
-      "regular": 400,
-      "medium": 500,
-      "semibold": 600
-    },
-    "lineHeight": {
-      "tight": 1.2,
-      "normal": 1.5,
-      "loose": 1.75
-    }
-  }
-}
-```
+> Extracted from official ABS brand palette 
 
-**Guidance**
-
-* Metrics (GPU %, VRAM) → `font.size.metric` + mono
-* No sci-fi fonts, no thin weights
-
----
-
-## 4️⃣ Spacing & Layout Tokens (Calm Power)
-
-```json
-{
-  "spacing": {
-    "xs": "4px",
-    "sm": "8px",
-    "md": "12px",
-    "lg": "16px",
-    "xl": "24px",
-    "xxl": "32px",
-    "page_padding": "24px"
-  },
-  "layout": {
-    "max_width": "1440px",
-    "grid_gap": "16px"
-  }
-}
-```
-
-> **Whitespace = confidence**
-> Crowded UI kills enterprise trust.
-
----
-
-## 5️⃣ Radius, Border & Elevation (OS-Like)
-
-```json
-{
-  "radius": {
-    "sm": "6px",
-    "md": "8px",
-    "lg": "12px",
-    "xl": "16px"
-  },
-  "shadow": {
-    "none": "none",
-    "card": "0 0 0 1px rgba(255,255,255,0.06)",
-    "hover": "0 0 0 1px rgba(37,99,235,0.4)",
-    "modal": "0 20px 40px rgba(0,0,0,0.6)"
-  }
-}
-```
-
-**Key insight**
-
-* Borders > shadows
-* Precision > drama
-
----
-
-## 6️⃣ Motion & Interaction Tokens (Alive, Not Flashy)
-
-```json
-{
-  "motion": {
-    "duration": {
-      "fast": "120ms",
-      "normal": "240ms",
-      "slow": "360ms"
-    },
-    "easing": {
-      "standard": "cubic-bezier(0.4, 0, 0.2, 1)",
-      "emphasis": "cubic-bezier(0.2, 0, 0, 1)"
-    }
-  }
-}
-```
-
-**Usage**
-
-* Metrics update → `normal`
-* Hover → `fast`
-* Page transition → `slow`
-
----
-
-## 7️⃣ Component Tokens (Mapped to Your UI)
-
-### App Cards
-
-```json
-{
-  "card": {
-    "background": "#111827",
-    "border": "rgba(255,255,255,0.08)",
-    "radius": "12px",
-    "padding": "16px",
-    "hover_border": "#2563EB"
-  }
-}
-```
-
-### Buttons
-
-```json
-{
-  "button": {
-    "primary": {
-      "bg": "#2563EB",
-      "bg_hover": "#1D4ED8",
-      "text": "#F9FAFB",
-      "radius": "8px"
-    },
-    "secondary": {
-      "bg": "#1F2937",
-      "text": "#D1D5DB"
-    }
-  }
-}
-```
-
-### Badges (ABS Official, Ready, Local)
-
-```json
-{
-  "badge": {
-    "default": "#1F2937",
-    "success": "#22C55E",
-    "info": "#3B82F6",
-    "running": "#14B8A6"
-  }
-}
+```yaml
+brand:
+  black: "#111411"        # Neutral Black (Primary)
+  navy: "#031D49"         # Deep Navy
+  orange: "#FD6120"       # Bright Orange (Energy / Authority)
+  indigo: "#503FFF"       # Electric Indigo (High-Tech)
 ```
 
 ---
 
-## 8️⃣ Live Metrics Tokens (Workstation Console)
+## 3. Semantic Color Tokens (Primary Consumption Layer)
 
-```json
-{
-  "metric": {
-    "value_color": "#F9FAFB",
-    "label_color": "#9CA3AF",
-    "active_pulse": "#14B8A6",
-    "warning": "#F59E0B",
-    "critical": "#EF4444"
-  }
-}
+### 3.1 Backgrounds (Black-Forward)
+
+```yaml
+color:
+  background:
+    app: "#111411"
+    panel: "#0E110F"
+    card: "#141817"
+    elevated: "#181D1B"
+    overlay: "rgba(0,0,0,0.65)"
 ```
 
-Add **subtle pulse animation** when GPU > 50%.
+**Intent**
+
+* App feels grounded and premium
+* Elevated surfaces signal control layers
 
 ---
 
-## 9️⃣ CES Demo Mode Overrides (Optional but Recommended)
+### 3.2 Text
 
-```json
-{
-  "ces": {
-    "color": {
-      "accent_boost": "#3B82F6",
-      "metric_glow": "rgba(59,130,246,0.4)"
-    },
-    "font": {
-      "metric": "32px"
-    }
-  }
-}
+```yaml
+color:
+  text:
+    primary: "#F9FAFB"
+    secondary: "#9CA3AF"
+    muted: "#6B7280"
+    inverse: "#111411"
 ```
 
-Only **slightly brighter**, never flashy.
+---
+
+### 3.3 Borders & Dividers
+
+```yaml
+color:
+  border:
+    default: "rgba(255,255,255,0.08)"
+    strong: "rgba(255,255,255,0.16)"
+    divider: "rgba(255,255,255,0.06)"
+    focus: "#503FFF"
+```
 
 ---
 
-## 🔟 ABS UX Principles (Pin This for Engineers)
+### 3.4 Actions & Emphasis
 
-1. **Clarity beats cleverness**
-2. **Live systems should feel alive, not noisy**
-3. **Dark, calm, precise > bright and loud**
-4. **Hardware power is shown through stability**
-5. **OS first, marketing second**
+```yaml
+color:
+  action:
+    primary: "#503FFF"          # Electric Indigo
+    primary_hover: "#6B5CFF"
+    secondary: "#1C1F1E"
+    performance: "#FD6120"      # ABS Orange (sparingly)
+    danger: "#EF4444"
+```
+
+📌 **Rule**
+
+* Indigo = control / navigation
+* Orange = performance spike / official authority
 
 ---
 
-## ✅ What This Enables Immediately
+### 3.5 Status & Runtime States
 
-* CES Demo Theme toggle
-* Consistent ABS branding
-* Faster UI iteration
-* Partner / OEM theming later
-* A true **AI OS identity**
+```yaml
+color:
+  status:
+    success: "#22C55E"
+    warning: "#F59E0B"
+    error: "#EF4444"
+    info: "#503FFF"
+    running: "#FD6120"
+    idle: "#9CA3AF"
+```
 
+---
+
+## 4. Typography Tokens (ABS-Correct Usage)
+
+> Based on ABS typography rules 
+
+```yaml
+font:
+  family:
+    headline: "Barlow Condensed, sans-serif"
+    body: "Rajdhani, Inter, system-ui, sans-serif"
+    mono: "JetBrains Mono, Menlo, monospace"
+```
+
+### Font Sizes
+
+```yaml
+font:
+  size:
+    xs: 12px
+    sm: 13px
+    md: 14px
+    lg: 16px
+    xl: 18px
+    "2xl": 20px
+    xxl: 24px
+    metric: 28px
+```
+
+### Weights & Letter Spacing
+
+```yaml
+font:
+  weight:
+    regular: 400
+    medium: 500
+    semibold: 600
+
+  letterSpacing:
+    badge: "0.04em"
+    label: "0.02em"
+    uppercase: "0.06em"
+```
+
+**Usage rules**
+
+* **Barlow Condensed** → app titles, section headers, metrics labels
+* **Rajdhani** → body copy, descriptions
+* **Mono** → metrics, IDs, logs
+
+---
+
+## 5. Spacing & Layout
+
+```yaml
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 12px
+  lg: 16px
+  xl: 24px
+  xxl: 32px
+  page_padding: 24px
+
+layout:
+  max_width: 1440px
+  grid_gap: 16px
+```
+
+> Whitespace = confidence.
+
+---
+
+## 6. Radius, Borders & Elevation
+
+```yaml
+radius:
+  sm: 6px
+  md: 8px
+  lg: 12px
+  xl: 16px
+
+shadow:
+  none: none
+  card: "0 0 0 1px rgba(255,255,255,0.06)"
+  hover: "0 0 0 1px rgba(80,63,255,0.5)"
+  modal: "0 24px 48px rgba(0,0,0,0.7)"
+```
+
+ABS uses **precision borders**, not fluffy shadows.
+
+---
+
+## 7. Motion Tokens (Alive, Disciplined)
+
+```yaml
+motion:
+  duration:
+    fast: 120ms
+    normal: 240ms
+    slow: 360ms
+
+  easing:
+    standard: "cubic-bezier(0.4, 0, 0.2, 1)"
+    emphasis: "cubic-bezier(0.2, 0, 0, 1)"
+```
+
+🚫 No bounce
+🚫 No elastic
+🚫 No RGB cycling
+
+---
+
+## 8. Component Tokens
+
+### 8.1 App Cards
+
+```yaml
+component:
+  card:
+    background: "#141817"
+    border: "rgba(255,255,255,0.08)"
+    radius: 12px
+    padding: 16px
+    hover_border: "#503FFF"
+```
+
+---
+
+### 8.2 Buttons
+
+```yaml
+component:
+  button:
+    primary:
+      bg: "#503FFF"
+      bg_hover: "#6B5CFF"
+      text: "#F9FAFB"
+      radius: 8px
+
+    secondary:
+      bg: "#1C1F1E"
+      text: "#D1D5DB"
+```
+
+---
+
+### 8.3 Trust Badges (Critical for Apps Page)
+
+```yaml
+badge:
+  trust:
+    abs_official: "#FD6120"   # ABS Authority
+    partner: "#503FFF"        # Technical Alliance
+    community: "#EAB308"
+    unverified: "#9CA3AF"
+```
+
+📌 Orange here is **intentional and brand-correct**.
+
+---
+
+## 9. Accessibility & States
+
+```yaml
+state:
+  disabled:
+    bg: "#1C1F1E"
+    text: "#6B7280"
+    border: "rgba(255,255,255,0.04)"
+
+focus:
+  ring_color: "#503FFF"
+  ring_width: 2px
+  ring_offset: 2px
+```
+
+WCAG contrast compliance required for all text tokens.
+
+---
+
+## 10. Z-Index Scale (OS-Grade)
+
+```yaml
+zIndex:
+  base: 0
+  dropdown: 100
+  sticky: 200
+  overlay: 400
+  modal: 600
+  toast: 800
+  tooltip: 1000
+```
+
+---
+
+## 11. CES Demo Mode Overrides (Optional Layer)
+
+```yaml
+ces:
+  accent:
+    highlight: "#FD6120"
+    glow: "rgba(253,97,32,0.45)"
+
+  font:
+    metric: 32px
+```
+
+Used only when **CES Demo Mode = ON**.
+
+---
+
+## 12. Non-Negotiable UX Rules (ABS)
+
+1. Black is dominant
+2. Orange is earned, not decorative
+3. Motion is subtle
+4. Hardware metrics must feel “live”
+5. OS first, marketing second
+
+---
+
+## 13. Versioning & Evolution
+
+* **v1.1** — Brand-locked
+* Deprecated tokens must live for ≥1 minor version
+* CES overrides must never affect default mode
+
+---
+
+## 14. Summary
+
+This token set ensures ABS AI OS:
+
+* Looks unmistakably **ABS**
+* Feels **powerful and reliable**
+* Scales from **CES demo → enterprise deployment**
+* Avoids SaaS sameness
+* Reinforces ABS as a **pioneer of the AI workstation era**
