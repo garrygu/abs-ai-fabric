@@ -6,6 +6,7 @@ version: v1
 
 core_bindings:
   llm-runtime: ollama
+  embedding-runtime: ollama
   vector-store: qdrant
   cache-queue: redis
 

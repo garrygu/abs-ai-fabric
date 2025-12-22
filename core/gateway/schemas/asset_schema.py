@@ -42,6 +42,7 @@ class RuntimeType(str, Enum):
     CONTAINER = "container"
     NATIVE = "native"
     EXTERNAL = "external"
+    SERVED = "served"  # For models served by another runtime (e.g., embeddings served by Ollama)
 
 
 class LifecycleDesired(str, Enum):

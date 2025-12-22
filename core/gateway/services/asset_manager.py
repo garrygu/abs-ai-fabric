@@ -356,6 +356,14 @@ class AssetManager:
         """Get current interface bindings."""
         return self._bindings.copy()
     
+    def get_llm_models(self) -> List[Asset]:
+        """Get all LLM models (llm-runtime interface)."""
+        return self.get_assets_by_interface("llm-runtime")
+    
+    def get_embedding_models(self) -> List[Asset]:
+        """Get all embedding models (embedding-runtime interface)."""
+        return self.get_assets_by_interface("embedding-runtime")
+    
     # ============================================================
     # Asset Lifecycle Control (v1.0.1)
     # ============================================================

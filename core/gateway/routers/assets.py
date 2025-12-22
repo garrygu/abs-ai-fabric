@@ -48,7 +48,7 @@ async def assets_summary():
     
     # Count by interface
     by_interface = {}
-    for asset in assets.values():
+    for asset in assets:  # Fixed: assets is already a list
         interface = asset.interface
         if interface not in by_interface:
             by_interface[interface] = []
@@ -58,6 +58,33 @@ async def assets_summary():
         "total": len(assets),
         "by_interface": {k: {"count": len(v), "ids": v} for k, v in by_interface.items()}
     }
+
+# ============================================================
+# Model-specific endpoints (LLM vs Embedding separation)
+# Must come BEFORE /v1/assets/{asset_id} to avoid route conflicts
+# ============================================================
+
+@router.get("/v1/assets/models/llm")
+async def list_llm_models():
+    """Get all LLM models (llm-runtime interface)."""
+    manager = await get_asset_manager()
+    models = manager.get_llm_models()
+    return [model.to_dict() for model in models]
+
+@router.get("/v1/assets/models/embedding")
+async def list_embedding_models():
+    """Get all embedding models (embedding-runtime interface)."""
+    manager = await get_asset_manager()
+    models = manager.get_embedding_models()
+    return [model.to_dict() for model in models]
+
+@router.get("/v1/assets/interface/{interface}")
+async def get_assets_by_interface(interface: str):
+    """Get all assets implementing a specific interface."""
+    manager = await get_asset_manager()
+    assets = manager.get_assets_by_interface(interface)
+    
+    return [asset.to_dict() for asset in assets]
 
 @router.get("/v1/assets/{asset_id}")
 async def get_asset(asset_id: str):
@@ -69,38 +96,6 @@ async def get_asset(asset_id: str):
         raise HTTPException(404, f"Asset not found: {asset_id}")
     
     return asset.to_dict()
-
-@router.get("/v1/assets/interface/{interface}")
-async def get_assets_by_interface(interface: str):
-    """Get all assets implementing a specific interface."""
-    manager = await get_asset_manager()
-    assets = manager.get_assets_by_interface(interface)
-    
-    return [asset.to_dict() for asset in assets]
-
-@router.get("/v1/bindings")
-async def get_bindings():
-    """Get current interface bindings configuration."""
-    manager = await get_asset_manager()
-    bindings = manager.get_bindings()
-    
-    # Add resolved asset info
-    result = {}
-    for interface, config in bindings.items():
-        bound_id = config.get("implementation") if isinstance(config, dict) else config
-        bound_asset = manager.get_asset(bound_id) if bound_id else None
-        
-        result[interface] = {
-            "bound_to": bound_id,
-            "asset": bound_asset.to_dict() if bound_asset else None
-        }
-    
-    return result
-
-@router.get("/v1/registry")
-async def get_registry_index():
-    """Get the assets registry index (assets.json)."""
-    return get_registry()
 
 # ============================================================
 # Asset CRUD operations

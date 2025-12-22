@@ -68,32 +68,32 @@
   "models": [
     {
       "id": "llama3:8b",
-      "interface": "model",
+      "interface": "llm-runtime",
       "path": "models/llama3_8b/asset.yaml"
     },
     {
       "id": "llama4:scout",
-      "interface": "model",
+      "interface": "llm-runtime",
       "path": "models/llama4_scout/asset.yaml"
     },
     {
       "id": "bge-small-en-v1.5",
-      "interface": "embedding",
+      "interface": "embedding-runtime",
       "path": "models/embeddings/bge-small/asset.yaml"
     },
     {
       "id": "all-minilm-l6-v2",
-      "interface": "embedding",
+      "interface": "embedding-runtime",
       "path": "models/embeddings/all-minilm/asset.yaml"
     },
     {
       "id": "legal-bert",
-      "interface": "embedding",
+      "interface": "embedding-runtime",
       "path": "models/embeddings/legal-bert/asset.yaml"
     },
     {
       "id": "nomic-embed-text",
-      "interface": "embedding",
+      "interface": "embedding-runtime",
       "path": "models/embeddings/nomic-embed/asset.yaml"
     }
   ],

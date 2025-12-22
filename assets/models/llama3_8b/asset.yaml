@@ -2,7 +2,7 @@ asset_id: llama3:8b
 display_name: LLaMA 3 8B
 version: "1.0.0"
 
-interface: model
+interface: llm-runtime
 interface_version: v1
 class: model
 
