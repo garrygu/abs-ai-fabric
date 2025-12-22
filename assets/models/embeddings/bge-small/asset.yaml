@@ -1,0 +1,38 @@
+asset_id: bge-small-en-v1.5
+display_name: BGE Small EN v1.5
+version: "1.5.0"
+
+interface: embedding-runtime
+interface_version: v1
+class: model
+
+description: BAAI General Embedding (small) - efficient 384-dimensional text embeddings for semantic search and RAG
+
+runtime:
+  type: served
+  served_by: ollama
+
+metadata:
+  format: GGUF
+  parameter_size: 33M
+  dimensions: 384
+  max_tokens: 512
+  family: bge
+  provider: BAAI
+
+resources:
+  cpu_required: true
+  gpu_required: false
+  min_ram_gb: 1
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: platform
+  visibility: shared
+  requestable: true
+
+policy:
+  served_models:
+    - "bge-m3:latest"

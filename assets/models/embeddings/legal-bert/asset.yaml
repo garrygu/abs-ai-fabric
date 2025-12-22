@@ -1,0 +1,40 @@
+asset_id: legal-bert
+display_name: Legal-BERT
+version: "1.0.0"
+
+interface: embedding-runtime
+interface_version: v1
+class: model
+
+description: Domain-specific BERT model fine-tuned on legal corpora - optimized for legal document embeddings and contract analysis
+
+runtime:
+  type: served
+  served_by: ollama
+
+metadata:
+  format: GGUF
+  parameter_size: 110M
+  dimensions: 768
+  max_tokens: 512
+  family: bert
+  provider: Legal NLP Research
+  domain: legal
+
+resources:
+  cpu_required: true
+  gpu_required: false
+  min_ram_gb: 2
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: platform
+  visibility: shared
+  requestable: true
+
+# Note: legal-bert not available in Ollama library
+# policy:
+#   served_models:
+#     - "legal-bert"

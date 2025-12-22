@@ -1,0 +1,38 @@
+asset_id: nomic-embed-text
+display_name: Nomic Embed Text
+version: "1.5.0"
+
+interface: embedding-runtime
+interface_version: v1
+class: model
+
+description: Nomic AI's state-of-the-art 768-dimensional text embeddings with 8K context - excellent for long documents and RAG
+
+runtime:
+  type: served
+  served_by: ollama
+
+metadata:
+  format: GGUF
+  parameter_size: 137M
+  dimensions: 768
+  max_tokens: 8192
+  family: nomic
+  provider: Nomic AI
+
+resources:
+  cpu_required: true
+  gpu_required: false
+  min_ram_gb: 1
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: platform
+  visibility: shared
+  requestable: true
+
+policy:
+  served_models:
+    - "nomic-embed-text:latest"

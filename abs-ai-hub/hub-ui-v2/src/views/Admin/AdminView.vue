@@ -547,42 +547,98 @@
     <section v-if="activeTab === 'models'" class="admin-section">
       <div class="section-header">
         <h2>🧠 Model Management</h2>
-        <button class="btn btn-sm btn-primary" @click="showPullModal = true">
-          ⬇️ Pull Model
-        </button>
       </div>
 
       <div class="models-grid">
-        <div v-for="model in models" :key="model.name" class="model-card">
+        <div 
+          v-for="model in models" 
+          :key="model.name" 
+          class="model-card"
+          :class="getModelAccentClass(model.interfaceType)"
+        >
           <div class="model-header">
-            <span class="model-name">{{ model.name }}</span>
-            <span class="model-size">{{ formatSize(model.size) }}</span>
+            <div class="model-name-container">
+              <span class="model-icon">{{ getModelIcon(model.interfaceType) }}</span>
+              <span class="model-name">{{ model.name }}</span>
+            </div>
+            <span v-if="model.installed" class="model-size">{{ formatSize(model.size) }}</span>
           </div>
+          
+          <!-- Description (for available models) -->
+          <div v-if="!model.installed && model.description" class="model-description">
+            <p>{{ model.description }}</p>
+          </div>
+          
           <div class="model-meta">
-            <span class="meta-item">
-              <span class="meta-label">Modified</span>
-              <span class="meta-value">{{ formatDate(model.modified_at) }}</span>
+            <!-- Status Badge -->
+            <span 
+              class="model-status-badge" 
+              :class="model.installed ? 'status-installed' : 'status-available'"
+            >
+              {{ model.installed ? '✅ INSTALLED' : '📦 AVAILABLE' }}
             </span>
-            <span class="meta-item" v-if="model.details?.parameter_size">
-              <span class="meta-label">Params</span>
-              <span class="meta-value">{{ model.details.parameter_size }}</span>
+            
+            <!-- Type Badge -->
+            <span class="model-type-badge" :class="getModelAccentClass(model.interfaceType)">
+              {{ getModelTypeBadge(model.interfaceType) }}
+            </span>
+            
+            <!-- Metadata for installed models -->
+            <template v-if="model.installed">
+              <span class="meta-item">
+                <span class="meta-label">Modified</span>
+                <span class="meta-value">{{ formatDate(model.modified_at) }}</span>
+              </span>
+              <span class="meta-item" v-if="model.details?.parameter_size">
+                <span class="meta-label">Params</span>
+                <span class="meta-value">{{ model.details.parameter_size }}</span>
+              </span>
+            </template>
+          </div>
+          
+          <!-- Technical specs for available models -->
+          <div v-if="!model.installed && model.assetId" class="model-specs">
+            <span class="spec-item" v-if="model.metadata?.dimensions">
+              📏 {{ model.metadata.dimensions }}D
+            </span>
+            <span class="spec-item" v-if="model.metadata?.max_tokens">
+              📄 {{ model.metadata.max_tokens }} tokens
+            </span>
+            <span class="spec-item" v-if="model.metadata?.parameter_size">
+              ⚙️ {{ model.metadata.parameter_size }}
             </span>
           </div>
+          
+          <!-- Conditional Actions -->
           <div class="model-actions">
-            <button 
-              class="btn btn-sm" 
-              @click="loadModel(model)"
-              :disabled="loadingModels[model.name] || deletingModels[model.name]"
-            >
-              {{ loadingModels[model.name] ? 'Loading...' : '📥 Load' }}
-            </button>
-            <button 
-              class="btn btn-sm btn-danger" 
-              @click="deleteModel(model)"
-              :disabled="loadingModels[model.name] || deletingModels[model.name]"
-            >
-              {{ deletingModels[model.name] ? 'Deleting...' : '🗑️ Delete' }}
-            </button>
+            <!-- For installed: Load & Delete -->
+            <template v-if="model.installed">
+              <button 
+                class="btn btn-sm" 
+                @click="loadModel(model)"
+                :disabled="loadingModels[model.name] || deletingModels[model.name]"
+              >
+                {{ loadingModels[model.name] ? 'Loading...' : '📥 Load' }}
+              </button>
+              <button 
+                class="btn btn-sm btn-danger" 
+                @click="deleteModel(model)"
+                :disabled="loadingModels[model.name] || deletingModels[model.name]"
+              >
+                {{ deletingModels[model.name] ? 'Deleting...' : '🗑️ Delete' }}
+              </button>
+            </template>
+            
+            <!-- For available: Pull -->
+            <template v-else>
+              <button 
+                class="btn btn-sm btn-primary btn-block" 
+                @click="pullModelDirect(model.name)"
+                :disabled="pullingModels[model.name]"
+              >
+                {{ pullingModels[model.name] ? 'Pulling...' : '⬇️ Pull Model' }}
+              </button>
+            </template>
           </div>
         </div>
         
@@ -930,6 +986,7 @@ const pullModelName = ref('')
 const pulling = ref(false)
 const loadingModels = reactive<Record<string, boolean>>({})
 const deletingModels = reactive<Record<string, boolean>>({})
+const pullingModels = reactive<Record<string, boolean>>({})
 
 // Clear Cache Modal
 const showClearCacheModal = ref(false)
@@ -1485,8 +1542,55 @@ onUnmounted(() => {
 // Models
 async function loadModels() {
   try {
+    // Get Ollama models (what's installed)
     const data = await gateway.listModels()
-    models.value = data.models || []
+    const ollamaModels = data.models || []
+    
+    // Get asset registry (what's available)
+    await assetStore.fetchAssets() // Ensure assets are loaded
+    const allAssets = assetStore.filteredAssets
+    
+    // Filter to only model assets
+    const modelAssets = allAssets.filter((a: any) => a.class === 'model')
+    
+    // Build merged list
+    const mergedModels: any[] = []
+    
+    // Track which models we've already added (to avoid duplicates)
+    const addedModels = new Set<string>()
+    
+    // 1. Add installed models (from Ollama) with enrichment  
+    for (const ollamaModel of ollamaModels) {
+      const enriched = enrichModelWithInterfaceType(ollamaModel, modelAssets)
+      enriched.installed = true
+      enriched.size = ollamaModel.size
+      enriched.modified_at = ollamaModel.modified_at
+      enriched.details = ollamaModel.details
+      mergedModels.push(enriched)
+      addedModels.add(ollamaModel.name.toLowerCase())
+    }
+    
+    // 2. Add available models from registry
+    for (const asset of modelAssets) {
+      const servedModels = asset.policy?.served_models || []
+      for (const modelName of servedModels) {
+        if (!addedModels.has(modelName.toLowerCase())) {
+          mergedModels.push({
+            name: modelName,
+            interfaceType: asset.interface,
+            assetName: asset.name,
+            assetId: asset.id,
+            installed: false,
+            displayName: asset.display_name,
+            description: asset.description,
+            metadata: asset.metadata  // Include technical specs
+          })
+          addedModels.add(modelName.toLowerCase())
+        }
+      }
+    }
+    
+    models.value = mergedModels
   } catch (e) {
     console.error('Failed to load models:', e)
     showToast(`❌ Failed to load models: ${e}`, 'error')
@@ -1510,6 +1614,21 @@ async function pullModel() {
     showToast(`❌ Failed to pull model: ${e.message || e}`, 'error')
   } finally {
     pulling.value = false
+  }
+}
+
+async function pullModelDirect(modelName: string) {
+  pullingModels[modelName] = true
+  try {
+    const result = await gateway.pullModel(modelName)
+    showToast(`✅ ${result.message}`, 'success')
+    // Wait a moment for Ollama to register the model before refreshing
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    await loadModels() // Refresh to show as installed
+  } catch (e: any) {
+    showToast(`❌ Failed to pull model: ${e.message || e}`, 'error')
+  } finally {
+    pullingModels[modelName] = false
   }
 }
 
@@ -1547,6 +1666,70 @@ async function deleteModel(model: any) {
 function refreshLogs() {
   // Would fetch from gateway
 }
+
+// Model Helpers
+function enrichModelWithInterfaceType(model: any, assets: any[]) {
+  // Try to find matching asset in registry based on model name
+  const modelBaseName = model.name.split(':')[0].toLowerCase()
+  
+  // Check if this model is in the served_models list of any asset
+  const matchingAsset = assets.find(asset => {
+    if (asset.policy?.served_models) {
+      return asset.policy.served_models.some((servedModel: string) => {
+        const servedBaseName = servedModel.split(':')[0].toLowerCase()
+        return servedBaseName === modelBaseName
+      })
+    }
+    return false
+  })
+  
+  // Determine interface type
+  let interfaceType = 'unknown'
+  if (matchingAsset) {
+    interfaceType = matchingAsset.interface || 'unknown'
+  } else {
+    // Fallback: Guess based on model name patterns
+    if (modelBaseName.includes('embed')) {
+      interfaceType = 'embedding-runtime'
+    } else {
+      interfaceType = 'llm-runtime' // Default assumption
+    }
+  }
+  
+  return {
+    ...model,
+    interfaceType,
+    assetName: matchingAsset?.name
+  }
+}
+
+function getModelIcon(interfaceType: string): string {
+  if (interfaceType === 'embedding-runtime') {
+    return '📐'
+  } else if (interfaceType === 'llm-runtime') {
+    return '🧠'
+  }
+  return '🤖'
+}
+
+function getModelTypeBadge(interfaceType: string): string {
+  if (interfaceType === 'embedding-runtime') {
+    return 'Embedding'
+  } else if (interfaceType === 'llm-runtime') {
+    return 'LLM'
+  }
+  return 'Model'
+}
+
+function getModelAccentClass(interfaceType: string): string {
+  if (interfaceType === 'embedding-runtime') {
+    return 'model-embedding'
+  } else if (interfaceType === 'llm-runtime') {
+    return 'model-llm'
+  }
+  return ''
+}
+
 
 // Formatters
 function formatSize(bytes: number): string {
@@ -2805,4 +2988,202 @@ input:checked + .slider:before {
   color: var(--text-secondary);
   margin: 0;
 }
+
+/* Models Section */
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.model-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.2s;
+}
+
+.model-card:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Model type accent colors */
+.model-card.model-llm {
+  border-left: 3px solid rgb(59, 130, 246); /* Blue */
+}
+
+.model-card.model-embedding {
+  border-left: 3px solid rgb(34, 197, 94); /* Green */
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+}
+
+.model-name-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.model-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.model-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.model-size {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.model-type-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.model-type-badge.model-llm {
+  background: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.model-type-badge.model-embedding {
+  background: rgba(34, 197, 94, 0.1);
+  color: rgb(34, 197, 94);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.model-status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.model-status-badge.status-installed {
+  background: rgba(34, 197, 94, 0.1);
+  color: rgb(34, 197, 94);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.model-status-badge.status-available {
+  background: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.model-description {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border-left: 3px solid var(--primary-color);
+}
+
+.model-description p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.model-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.spec-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.meta-item {
+  display: flex;
+  gap: 0.375rem;
+  font-size: 0.8rem;
+  align-items: center;
+}
+
+.meta-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.meta-value {
+  color: var(--text-primary);
+}
+
+.model-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.model-actions .btn {
+  flex: 1;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  border: 1px dashed var(--border-color);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 </style>

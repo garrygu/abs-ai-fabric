@@ -1,0 +1,38 @@
+asset_id: all-minilm-l6-v2
+display_name: All-MiniLM-L6-v2
+version: "2.0.0"
+
+interface: embedding-runtime
+interface_version: v1
+class: model
+
+description: Sentence-Transformers MiniLM - fast 384-dimensional sentence embeddings, great balance of speed and quality
+
+runtime:
+  type: served
+  served_by: ollama
+
+metadata:
+  format: GGUF
+  parameter_size: 22M
+  dimensions: 384
+  max_tokens: 256
+  family: sentence-transformers
+  provider: Hugging Face
+
+resources:
+  cpu_required: true
+  gpu_required: false
+  min_ram_gb: 0.5
+
+lifecycle:
+  desired: on-demand
+
+ownership:
+  provider: platform
+  visibility: shared
+  requestable: true
+
+policy:
+  served_models:
+    - "all-minilm"
