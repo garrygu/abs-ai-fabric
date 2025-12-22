@@ -36,3 +36,11 @@ ownership:
 
 metadata:
   url: http://localhost:8082
+  port: 8082
+  category: Legal Apps
+  tags:
+    - contract-analysis
+    - legal-tech
+    - document-review
+    - ai-assistant
+  status: active

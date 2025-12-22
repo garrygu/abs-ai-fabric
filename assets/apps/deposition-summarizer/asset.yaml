@@ -29,3 +29,11 @@ ownership:
 
 metadata:
   url: http://localhost:7860
+  port: 7860
+  category: Legal Apps
+  tags:
+    - deposition
+    - summarization
+    - transcript-analysis
+    - legal-tech
+  status: active

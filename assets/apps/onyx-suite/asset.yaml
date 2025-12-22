@@ -27,3 +27,11 @@ ownership:
 
 metadata:
   url: http://localhost:3001
+  port: 3001
+  category: AI Platforms
+  tags:
+    - onyx
+    - enterprise
+    - full-suite
+    - llm-platform
+  status: active

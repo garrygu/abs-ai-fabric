@@ -34,3 +34,11 @@ ownership:
 
 metadata:
   url: http://localhost:8050
+  port: 8050
+  category: Legal Apps
+  tags:
+    - legal-assistant
+    - chat
+    - rag
+    - contract-analysis
+  status: active

@@ -28,3 +28,11 @@ ownership:
 
 metadata:
   url: http://localhost:8000
+  port: 8000
+  category: AI Assistants
+  tags:
+    - chat
+    - rag
+    - agent-management
+    - ai-assistant
+  status: active
