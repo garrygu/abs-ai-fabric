@@ -220,59 +220,123 @@ ownership:
 
 ### 6. Metadata Section
 
-Additional application-specific metadata.
+> [!WARNING]
+> **Mixed Concerns in V1**: The `metadata` section currently contains three distinct types of information:
+> - **Entrypoints** (`url`, `port`): Runtime access information
+> - **UI Hints** (`category`, `tags`, `icon`): Presentation layer metadata
+> - **True Metadata** (`documentation_url`, `support_email`): Descriptive information
+> 
+> This is acceptable for v1 but will be restructured in v2 for better semantic clarity.
+
+Additional application-specific metadata, UI hints, and runtime entrypoints.
 
 ```yaml
 metadata:
+  # Entrypoint (really runtime, not metadata)
   url: http://localhost:8082
   port: 8082
+  
+  # UI hints (really presentation, not metadata)
   icon: contract.svg
   category: Legal Apps
   tags:
     - contract-analysis
     - nlp
     - legal
+  
+  # True metadata
   documentation_url: https://docs.example.com/contract-reviewer
   support_email: support@example.com
+  status: active
 ```
 
 #### `metadata.url` (required)
 - **Type**: `string`
 - **Format**: Valid HTTP/HTTPS URL
-- **Description**: Application access URL
+- **Description**: Application access URL (entrypoint)
 - **Example**: `http://localhost:8082`
+- **Semantic Note**: This is an **entrypoint**, not metadata. Will move to `entrypoint.url` in v2.
 
 #### `metadata.port` (optional)
 - **Type**: `integer`
 - **Range**: `1024-65535`
 - **Description**: Primary application port
 - **Extracted From**: URL if not specified
+- **Semantic Note**: This is an **entrypoint detail**, not metadata. Will move to `entrypoint.port` in v2.
 
 #### `metadata.icon` (optional)
 - **Type**: `string`
 - **Description**: Relative path to application icon
 - **Format**: SVG, PNG, or JPG
 - **Location**: `assets/apps/{app_id}/{icon}`
+- **Semantic Note**: This is a **UI hint**, not metadata. Will move to `ui.icon` in v2.
 
 #### `metadata.category` (optional)
 - **Type**: `string`
 - **Description**: Application category for grouping
 - **Examples**: `"Legal Apps"`, `"Document Processing"`, `"Chat Assistants"`
+- **Semantic Note**: This is a **UI classification**, not metadata. Will move to `ui.category` in v2.
 
 #### `metadata.tags` (optional)
 - **Type**: `array<string>`
 - **Description**: Searchable tags for discovery
 - **Example**: `["contract-analysis", "nlp", "legal"]`
+- **Semantic Note**: This is a **UI hint**, not metadata. Will move to `ui.tags` in v2.
+
+#### `metadata.status` (optional)
+- **Type**: `string`
+- **Allowed Values**: `active`, `disabled`, `deprecated`
+- **Description**: Lifecycle management status
+- **Default**: `active`
+- **Semantic Note**: This is **lifecycle state**, not metadata. May move to `lifecycle.status` in v2.
 
 #### `metadata.documentation_url` (optional)
 - **Type**: `string`
 - **Format**: Valid HTTP/HTTPS URL
 - **Description**: Link to application documentation
+- **Semantic Note**: This is **true metadata** and will remain in `metadata` in v2.
 
 #### `metadata.support_email` (optional)
 - **Type**: `string`
 - **Format**: Valid email address
 - **Description**: Support contact email
+- **Semantic Note**: This is **true metadata** and will remain in `metadata` in v2.
+
+#### V2 Restructuring Plan
+
+In v2, the `metadata` section will be split into semantically distinct sections:
+
+```yaml
+# Future v2 structure
+entrypoint:
+  url: http://localhost:8082
+  port: 8082
+  protocol: http
+  health_check: /health
+
+ui:
+  icon: contract.svg
+  category: Legal Apps
+  tags:
+    - contract-analysis
+    - legal-tech
+  theme:
+    primary_color: "#FF6B00"
+    
+metadata:
+  # True free-form descriptive metadata only
+  documentation_url: https://docs.example.com
+  support_email: support@example.com
+  license: MIT
+  vendor: ABS Legal Tech
+  custom_field: any_value
+```
+
+**Benefits of Restructuring**:
+- **Semantic Clarity**: Each section has a clear, single purpose
+- **Validation**: Can enforce strict schemas for `entrypoint` and `ui`, while keeping `metadata` flexible
+- **Extensibility**: Easier to add new entrypoint types (WebSocket, gRPC) or UI hints without polluting metadata
+- **Tooling**: Tools can target specific sections (e.g., UI builders read `ui`, health checkers read `entrypoint`)
 
 ---
 
