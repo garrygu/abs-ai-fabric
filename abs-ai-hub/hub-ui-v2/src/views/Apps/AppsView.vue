@@ -38,9 +38,11 @@
     </div>
 
     <!-- Installed Apps Tab -->
-    <div v-else-if="appStore.activeTab === 'installed'" class="apps-content">
+    <div v-else-if="appStore.activeTab === 'installed'" class="apps-content" data-tab="installed">
       <div v-if="appStore.installedApps.length === 0" class="empty-state">
-        <p>No apps installed yet.</p>
+        <div class="empty-icon">📱</div>
+        <h3>No applications installed yet</h3>
+        <p>Browse the App Store to get started with AI-powered legal applications</p>
         <button @click="appStore.setActiveTab('store')" class="btn btn-primary">
           Browse App Store
         </button>
@@ -57,10 +59,10 @@
     </div>
 
     <!-- App Store Tab -->
-    <div v-else-if="appStore.activeTab === 'store'" class="apps-content">
+    <div v-else-if="appStore.activeTab === 'store'" class="apps-content" data-tab="store">
       <div class="store-header">
-        <h2>🛒 App Store</h2>
-        <p>Browse and install new AI applications</p>
+        <h2>🛒 Curated Apps for ABS AI Fabric</h2>
+        <p class="store-subtitle">Verified apps tested against ABS core interfaces</p>
       </div>
       <div class="apps-grid">
         <AppCard 
@@ -210,6 +212,41 @@ function installApp(app: App) {
 .store-header p {
   color: var(--text-secondary);
   margin: 0;
+}
+
+.store-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Phase 2C: Visual Distinction */
+.apps-content[data-tab="installed"] {
+  background: #ffffff;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.apps-content[data-tab="store"] {
+  background: linear-gradient(to bottom, #fafafa, #f5f5f5);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+/* Enhanced Empty State */
+.empty-state .empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary);
 }
 
 .btn {
