@@ -19,6 +19,7 @@ export default defineConfig({
         }
     },
     define: {
-        __CES_MODE__: JSON.stringify(process.env.CES_MODE === 'true')
+        // Default to true for CES app - can be overridden with CES_MODE=false
+        __CES_MODE__: JSON.stringify(process.env.CES_MODE !== 'false')
     }
 })

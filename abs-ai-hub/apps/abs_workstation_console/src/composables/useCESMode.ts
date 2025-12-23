@@ -4,8 +4,8 @@ import { ref, computed } from 'vue'
 declare const __CES_MODE__: boolean
 
 export function useCESMode() {
-    // Default to false if not defined
-    const isCESMode = ref(typeof __CES_MODE__ !== 'undefined' ? __CES_MODE__ : false)
+    // Default to true (CES app) - can be overridden by build-time flag
+    const isCESMode = ref(typeof __CES_MODE__ !== 'undefined' ? __CES_MODE__ : true)
 
     // CES-specific text overlays
     const cesOverlayText = computed(() =>

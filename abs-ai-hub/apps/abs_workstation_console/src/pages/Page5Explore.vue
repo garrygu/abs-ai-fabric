@@ -1,8 +1,279 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import HeroContextLayer from '@/components/explore/HeroContextLayer.vue'
+import { useCESMode } from '@/composables/useCESMode'
+import { useAttractModeStore } from '@/stores/attractModeStore'
+
+const { isCESMode } = useCESMode()
+const attractStore = useAttractModeStore()
 
 const activeTab = ref<'models' | 'solutions'>('models')
+
+// Development mode check (for showing test button)
+const isDev = import.meta.env.DEV
+
+// Auto Highlight Tour state
+// CES-only enhancement: runs in Regular Mode when someone is nearby but not interacting
+// Stops when Attract Mode activates (full-screen) or user interacts
+const highlightedCardId = ref<string | null>(null)
+const tourCaption = ref<string>('')
+const isTourActive = ref(false)
+const captionPosition = ref({ top: '0px', left: '0px', transform: 'translate(-50%, -100%)' })
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+let tourInterval: ReturnType<typeof setInterval> | null = null
+const lastActivityTime = ref(Date.now())
+const IDLE_THRESHOLD_MS = 7000 // 7 seconds (6-8 seconds for passive attention)
+const TOUR_CYCLE_MS = 7000 // 7 seconds per card (6-8 seconds range, as per spec)
+
+// Model captions for tour (content narration, not spectacle)
+const modelCaptions: Record<string, string> = {
+  'zaurion-aqua': 'Optimized for 70B+ local LLMs',
+  'zaurion-duo-aqua': 'Multi-GPU scalable for training',
+  'zaurion-ruby': 'Enterprise air-gapped deployments',
+  'zaurion-duo-ruby': 'Dual-GPU secure AI processing',
+  'zaurion-pro': 'Enterprise AI at scale'
+}
+
+// Solution captions for tour
+const solutionCaptions: Record<string, string> = {
+  'ai-deep-learning': 'Train and deploy large models',
+  'engineering-cad': 'Professional CAD and simulation',
+  'content-creation': 'VFX and media production',
+  'scientific-research': 'HPC and big data analytics'
+}
+
+// All cards (models + solutions) for tour
+const allTourCards = computed(() => {
+  if (activeTab.value === 'models') {
+    return workstationModels.map(m => ({ id: m.id, type: 'model' as const }))
+  } else {
+    return solutions.map(s => ({ id: s.id, type: 'solution' as const }))
+  }
+})
+
+// Get caption for current card
+function getCardCaption(cardId: string, type: 'model' | 'solution'): string {
+  if (type === 'model') {
+    return modelCaptions[cardId] || 'Professional workstation'
+  } else {
+    return solutionCaptions[cardId] || 'Optimized solution'
+  }
+}
+
+// Record activity (user interaction)
+function recordActivity() {
+  lastActivityTime.value = Date.now()
+  if (isTourActive.value) {
+    stopTour()
+  }
+  // Reset idle timer
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+  }
+  idleTimer = setTimeout(checkIdle, IDLE_THRESHOLD_MS)
+}
+
+// Check if should start tour
+// Only runs in CES mode, when NOT in Attract Mode (Regular Mode only)
+function checkIdle() {
+  // Don't start if Attract Mode is active (we're in full-screen mode)
+  if (attractStore.isActive) {
+    stopTour()
+    return
+  }
+  
+  // Only run in CES mode
+  if (!isCESMode.value) {
+    console.log('[Auto Highlight Tour] CES mode is disabled')
+    return
+  }
+  
+  const idleTime = Date.now() - lastActivityTime.value
+  const shouldStart = idleTime >= IDLE_THRESHOLD_MS && 
+                      !isTourActive.value &&
+                      !attractStore.isActive && // Ensure Attract Mode is not active
+                      allTourCards.value.length > 0
+  
+  console.log('[Auto Highlight Tour] Check idle:', {
+    idleTime: Math.round(idleTime / 1000) + 's',
+    threshold: Math.round(IDLE_THRESHOLD_MS / 1000) + 's',
+    isCESMode: isCESMode.value,
+    isAttractMode: attractStore.isActive,
+    isTourActive: isTourActive.value,
+    cardsCount: allTourCards.value.length,
+    shouldStart
+  })
+  
+  if (shouldStart) {
+    console.log('[Auto Highlight Tour] Starting tour...')
+    startTour()
+  }
+}
+
+// Start the auto highlight tour
+function startTour() {
+  if (isTourActive.value || allTourCards.value.length === 0) {
+    console.log('[Auto Highlight Tour] Cannot start:', { isTourActive: isTourActive.value, cardsCount: allTourCards.value.length })
+    return
+  }
+  
+  console.log('[Auto Highlight Tour] Tour started!')
+  isTourActive.value = true
+  highlightedCardId.value = null
+  tourCaption.value = ''
+  
+  let currentIndex = 0
+  
+  function highlightNext() {
+    // Safety check: stop if Attract Mode activated (we're going full-screen)
+    if (!isTourActive.value || attractStore.isActive) {
+      stopTour()
+      return
+    }
+    
+    // Clear previous highlight first
+    highlightedCardId.value = null
+    tourCaption.value = ''
+    
+    // Small delay to ensure previous highlight is cleared
+    setTimeout(() => {
+      if (!isTourActive.value || attractStore.isActive) {
+        stopTour()
+        return
+      }
+      
+      const card = allTourCards.value[currentIndex]
+      highlightedCardId.value = card.id
+      tourCaption.value = getCardCaption(card.id, card.type)
+      
+      console.log('[Auto Highlight Tour] Highlighting card:', card.id, 'Caption:', tourCaption.value)
+      
+      // Scroll card into view smoothly and calculate caption position
+      const cardElement = document.querySelector(`[data-model-id="${card.id}"], .solution-card--${card.id}`)
+      if (cardElement) {
+        cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        
+        // Calculate caption position relative to the card
+        setTimeout(() => {
+          const rect = cardElement.getBoundingClientRect()
+          const viewportHeight = window.innerHeight
+          const captionHeight = 60 // Approximate caption height with padding
+          const spacing = 20 // Spacing from card
+          
+          // Check if there's enough space above the card
+          const spaceAbove = rect.top
+          const spaceBelow = viewportHeight - rect.bottom
+          
+          // Position caption above if there's space, otherwise below
+          let top: number
+          let transform: string
+          
+          if (spaceAbove >= captionHeight + spacing) {
+            // Position above the card
+            top = rect.top - spacing
+            transform = 'translate(-50%, -100%)'
+          } else if (spaceBelow >= captionHeight + spacing) {
+            // Position below the card
+            top = rect.bottom + spacing
+            transform = 'translate(-50%, 0)'
+          } else {
+            // Not enough space above or below, position at top of viewport
+            top = Math.max(20, rect.top - spacing)
+            transform = 'translate(-50%, -100%)'
+          }
+          
+          captionPosition.value = {
+            top: `${top}px`,
+            left: `${rect.left + rect.width / 2}px`,
+            transform: transform
+          }
+        }, 300) // Wait for scroll animation to complete
+      } else {
+        console.warn('[Auto Highlight Tour] Card element not found:', card.id)
+      }
+      
+      currentIndex = (currentIndex + 1) % allTourCards.value.length
+    }, 100) // Brief delay to clear previous highlight
+  }
+  
+  // Start immediately
+  highlightNext()
+  
+  // Then cycle
+  tourInterval = setInterval(highlightNext, TOUR_CYCLE_MS)
+}
+
+// Stop the tour
+function stopTour() {
+  isTourActive.value = false
+  highlightedCardId.value = null
+  tourCaption.value = ''
+  captionPosition.value = { top: '0px', left: '0px', transform: 'translate(-50%, -100%)' }
+  if (tourInterval) {
+    clearInterval(tourInterval)
+    tourInterval = null
+  }
+}
+
+// Watch for tab changes - restart tour if needed
+watch(activeTab, () => {
+  if (isTourActive.value) {
+    stopTour()
+    setTimeout(() => {
+      if (Date.now() - lastActivityTime.value >= IDLE_THRESHOLD_MS) {
+        startTour()
+      }
+    }, 500)
+  }
+})
+
+// Watch for Attract Mode changes
+// When Attract Mode activates (full-screen), stop the tour immediately
+// When Attract Mode deactivates, the tour can restart if still idle
+watch(() => attractStore.isActive, (isActive) => {
+  if (isActive) {
+    // Attract Mode activated - stop tour (we're going full-screen)
+    stopTour()
+  } else {
+    // Attract Mode deactivated - check if we should restart tour (if still idle)
+    if (isCESMode.value && Date.now() - lastActivityTime.value >= IDLE_THRESHOLD_MS) {
+      setTimeout(checkIdle, 500)
+    }
+  }
+})
+
+onMounted(() => {
+  console.log('[Auto Highlight Tour] Mounted. CES Mode:', isCESMode.value, 'Attract Mode:', attractStore.isActive)
+  
+  // Set up activity listeners
+  const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel', 'click']
+  events.forEach(event => {
+    window.addEventListener(event, recordActivity, { passive: true })
+  })
+  
+  // Start idle detection
+  console.log('[Auto Highlight Tour] Starting idle detection, will check after', IDLE_THRESHOLD_MS / 1000, 'seconds')
+  idleTimer = setTimeout(checkIdle, IDLE_THRESHOLD_MS)
+  
+  // Expose test function to window for debugging
+  ;(window as any).testAutoHighlightTour = () => {
+    console.log('[Auto Highlight Tour] Manual test trigger')
+    startTour()
+  }
+})
+
+onUnmounted(() => {
+  // Clean up
+  stopTour()
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+  }
+  
+  const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel', 'click']
+  events.forEach(event => {
+    window.removeEventListener(event, recordActivity)
+  })
+})
 
 const workstationModels = [
   {
@@ -175,6 +446,13 @@ function openContact() {
 function getModelById(id: string) {
   return workstationModels.find(m => m.id === id)
 }
+
+// Test function for debugging
+function testTour() {
+  console.log('[Auto Highlight Tour] Manual test triggered')
+  lastActivityTime.value = Date.now() - IDLE_THRESHOLD_MS - 1000 // Simulate idle
+  startTour()
+}
 </script>
 
 <template>
@@ -185,7 +463,16 @@ function getModelById(id: string) {
     <div class="page-content">
     <div class="page-header">
       <h1 class="page-title">EXPLORE ABS</h1>
-      <p class="page-subtitle">Explore the ABS Workstation lineup</p>
+    <p class="page-subtitle">Explore the ABS Workstation lineup</p>
+      <!-- Debug: Test Auto Highlight Tour (only in development) -->
+      <button 
+        v-if="isCESMode && isDev" 
+        @click="testTour" 
+        style="margin-top: 16px; padding: 8px 16px; background: var(--abs-orange); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.75rem; opacity: 0.7;"
+        title="Development only - Test the Auto Highlight Tour feature"
+      >
+        🧪 Test Auto Highlight Tour
+      </button>
     </div>
 
     <!-- Tabs -->
@@ -214,7 +501,10 @@ function getModelById(id: string) {
           :key="model.id"
           :data-model-id="model.id"
           class="model-card"
-          :class="{ 'model-card--featured': model.featured }"
+          :class="{ 
+            'model-card--featured': model.featured,
+            'model-card--highlighted': isTourActive && highlightedCardId === model.id
+          }"
         >
           <div v-if="model.featured" class="featured-badge">ENTERPRISE</div>
           <div class="model-header">
@@ -240,7 +530,7 @@ function getModelById(id: string) {
           
           <div class="model-specs">
             <div class="spec-row spec-row--gpu">
-              <span class="spec-label">GPU</span>
+            <span class="spec-label">GPU</span>
               <div class="spec-value-group">
                 <span class="spec-value">{{ model.gpu }}</span>
                 <span class="spec-detail">{{ model.gpuDetails }}</span>
@@ -294,7 +584,118 @@ function getModelById(id: string) {
           v-for="solution in solutions" 
           :key="solution.id"
           class="solution-card"
+          :class="[
+            `solution-card--${solution.id}`,
+            {
+              'solution-card--highlighted': isTourActive && highlightedCardId === solution.id
+            }
+          ]"
         >
+          <!-- Background Illustration -->
+          <div class="solution-illustration" :class="`solution-illustration--${solution.id}`">
+            <!-- AI Nodes for AI & Deep Learning -->
+            <svg v-if="solution.id === 'ai-deep-learning'" class="illustration-svg" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+              <!-- Neural network nodes -->
+              <circle cx="80" cy="60" r="8" fill="currentColor"/>
+              <circle cx="160" cy="40" r="8" fill="currentColor"/>
+              <circle cx="240" cy="60" r="8" fill="currentColor"/>
+              <circle cx="320" cy="50" r="8" fill="currentColor"/>
+              <circle cx="100" cy="140" r="8" fill="currentColor"/>
+              <circle cx="200" cy="130" r="8" fill="currentColor"/>
+              <circle cx="300" cy="140" r="8" fill="currentColor"/>
+              <circle cx="150" cy="220" r="8" fill="currentColor"/>
+              <circle cx="250" cy="220" r="8" fill="currentColor"/>
+              <!-- Connections -->
+              <line x1="80" y1="60" x2="160" y2="40" stroke="currentColor" stroke-width="1"/>
+              <line x1="160" y1="40" x2="240" y2="60" stroke="currentColor" stroke-width="1"/>
+              <line x1="240" y1="60" x2="320" y2="50" stroke="currentColor" stroke-width="1"/>
+              <line x1="80" y1="60" x2="100" y2="140" stroke="currentColor" stroke-width="1"/>
+              <line x1="160" y1="40" x2="200" y2="130" stroke="currentColor" stroke-width="1"/>
+              <line x1="240" y1="60" x2="300" y2="140" stroke="currentColor" stroke-width="1"/>
+              <line x1="100" y1="140" x2="150" y2="220" stroke="currentColor" stroke-width="1"/>
+              <line x1="200" y1="130" x2="150" y2="220" stroke="currentColor" stroke-width="1"/>
+              <line x1="200" y1="130" x2="250" y2="220" stroke="currentColor" stroke-width="1"/>
+              <line x1="300" y1="140" x2="250" y2="220" stroke="currentColor" stroke-width="1"/>
+            </svg>
+            
+            <!-- CAD Wireframes for Engineering -->
+            <svg v-if="solution.id === 'engineering-cad'" class="illustration-svg" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+              <!-- 3D wireframe cube -->
+              <path d="M 100 80 L 180 50 L 180 130 L 100 160 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+              <path d="M 180 50 L 260 80 L 260 160 L 180 130 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+              <path d="M 100 160 L 180 130 L 260 160 L 180 190 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+              <line x1="100" y1="80" x2="100" y2="160" stroke="currentColor" stroke-width="1"/>
+              <line x1="180" y1="50" x2="180" y2="130" stroke="currentColor" stroke-width="1"/>
+              <line x1="260" y1="80" x2="260" y2="160" stroke="currentColor" stroke-width="1"/>
+              <!-- Grid lines -->
+              <line x1="50" y1="200" x2="350" y2="200" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <line x1="50" y1="230" x2="350" y2="230" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <line x1="50" y1="260" x2="350" y2="260" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <line x1="100" y1="180" x2="100" y2="280" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <line x1="200" y1="180" x2="200" y2="280" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+              <line x1="300" y1="180" x2="300" y2="280" stroke="currentColor" stroke-width="0.5" stroke-dasharray="2,2"/>
+            </svg>
+            
+            <!-- Camera / Timeline for Content -->
+            <svg v-if="solution.id === 'content-creation'" class="illustration-svg" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+              <!-- Camera body -->
+              <rect x="120" y="80" width="80" height="60" rx="4" fill="none" stroke="currentColor" stroke-width="1"/>
+              <rect x="200" y="90" width="40" height="40" rx="2" fill="none" stroke="currentColor" stroke-width="1"/>
+              <circle cx="140" cy="110" r="12" fill="none" stroke="currentColor" stroke-width="1"/>
+              <circle cx="140" cy="110" r="6" fill="currentColor"/>
+              <!-- Timeline -->
+              <rect x="60" y="180" width="280" height="4" fill="currentColor"/>
+              <rect x="80" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="120" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="160" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="200" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="240" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="280" y="175" width="3" height="14" fill="currentColor"/>
+              <rect x="320" y="175" width="3" height="14" fill="currentColor"/>
+              <!-- Playhead -->
+              <polygon points="200,170 200,190 210,180" fill="currentColor"/>
+              <!-- Waveform -->
+              <path d="M 80 240 Q 100 220, 120 240 T 160 240 T 200 240 T 240 240 T 280 240 T 320 240" fill="none" stroke="currentColor" stroke-width="1"/>
+              <path d="M 80 260 Q 100 250, 120 260 T 160 260 T 200 260 T 240 260 T 280 260 T 320 260" fill="none" stroke="currentColor" stroke-width="1"/>
+            </svg>
+            
+            <!-- Data Grids for Research -->
+            <svg v-if="solution.id === 'scientific-research'" class="illustration-svg" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+              <!-- Data grid -->
+              <rect x="60" y="60" width="280" height="180" fill="none" stroke="currentColor" stroke-width="1"/>
+              <!-- Grid lines -->
+              <line x1="60" y1="100" x2="340" y2="100" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="60" y1="140" x2="340" y2="140" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="60" y1="180" x2="340" y2="180" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="60" y1="220" x2="340" y2="220" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="120" y1="60" x2="120" y2="240" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="180" y1="60" x2="180" y2="240" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="240" y1="60" x2="240" y2="240" stroke="currentColor" stroke-width="0.5"/>
+              <line x1="300" y1="60" x2="300" y2="240" stroke="currentColor" stroke-width="0.5"/>
+              <!-- Data points -->
+              <circle cx="90" cy="80" r="3" fill="currentColor"/>
+              <circle cx="150" cy="80" r="3" fill="currentColor"/>
+              <circle cx="210" cy="80" r="3" fill="currentColor"/>
+              <circle cx="270" cy="80" r="3" fill="currentColor"/>
+              <circle cx="90" cy="120" r="3" fill="currentColor"/>
+              <circle cx="150" cy="120" r="3" fill="currentColor"/>
+              <circle cx="210" cy="120" r="3" fill="currentColor"/>
+              <circle cx="270" cy="120" r="3" fill="currentColor"/>
+              <circle cx="90" cy="160" r="3" fill="currentColor"/>
+              <circle cx="150" cy="160" r="3" fill="currentColor"/>
+              <circle cx="210" cy="160" r="3" fill="currentColor"/>
+              <circle cx="270" cy="160" r="3" fill="currentColor"/>
+              <!-- Chart bars -->
+              <rect x="80" y="200" width="20" height="30" fill="currentColor"/>
+              <rect x="110" y="200" width="20" height="25" fill="currentColor"/>
+              <rect x="140" y="200" width="20" height="35" fill="currentColor"/>
+              <rect x="170" y="200" width="20" height="20" fill="currentColor"/>
+              <rect x="200" y="200" width="20" height="40" fill="currentColor"/>
+              <rect x="230" y="200" width="20" height="28" fill="currentColor"/>
+              <rect x="260" y="200" width="20" height="32" fill="currentColor"/>
+            </svg>
+          </div>
+          
           <h3 class="solution-title">{{ solution.title }}</h3>
           <p class="solution-description">{{ solution.description }}</p>
           
@@ -337,6 +738,21 @@ function getModelById(id: string) {
       </button>
     </div>
     </div>
+    
+    <!-- Auto Highlight Tour Caption Overlay -->
+    <Transition name="fade-caption">
+      <div 
+        v-if="isTourActive && tourCaption" 
+        class="tour-caption-overlay"
+        :style="{ 
+          top: captionPosition.top, 
+          left: captionPosition.left,
+          transform: captionPosition.transform
+        }"
+      >
+        <span class="tour-caption-text">{{ tourCaption }}</span>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -439,13 +855,38 @@ function getModelById(id: string) {
   flex-direction: column;
   z-index: 1;
   backdrop-filter: blur(1px);
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to allow featured badge to show */
 }
 
 .model-card:hover {
   border-color: var(--border-color);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+/* Auto Highlight Tour - Subtle highlight effect */
+/* Only apply when tour is active AND this specific card is highlighted */
+.model-card.model-card--highlighted {
+  border-color: var(--abs-orange) !important;
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.3), var(--shadow-md) !important;
+  transform: translateY(-2px) scale(1.02); /* Slight scale when highlighted */
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: highlight-pulse 7s ease-in-out infinite; /* Slow pulsing border glow (7s cycle) */
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 107, 0, 0.3), var(--shadow-md);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 107, 0, 0.5), var(--shadow-md);
+  }
+}
+
+/* Ensure other cards don't have the highlight */
+.model-card:not(.model-card--highlighted) {
+  border-color: var(--border-subtle);
+  box-shadow: none;
 }
 
 .model-card:hover .gpu-icon {
@@ -503,6 +944,8 @@ function getModelById(id: string) {
   color: white;
   font-family: var(--font-label);
   font-size: 0.65rem;
+  z-index: 10; /* Ensure badge appears above other elements */
+  white-space: nowrap; /* Prevent text wrapping */
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -619,6 +1062,43 @@ function getModelById(id: string) {
 .model-card:hover .capability-badge {
   transform: translateY(-1px);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Capability badges fade-in sequence during tour */
+.model-card.model-card--highlighted .capability-badge {
+  animation: capability-fade-in 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.model-card.model-card--highlighted .capability-badge:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.model-card.model-card--highlighted .capability-badge:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.model-card.model-card--highlighted .capability-badge:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.model-card.model-card--highlighted .capability-badge:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.model-card.model-card--highlighted .capability-badge:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+@keyframes capability-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .model-specs {
@@ -773,11 +1253,56 @@ function getModelById(id: string) {
   z-index: 1;
   backdrop-filter: blur(1px);
   position: relative;
+  overflow: hidden;
 }
 
 .solution-card:hover {
   border-color: var(--border-color);
   box-shadow: var(--shadow-md);
+}
+
+/* Auto Highlight Tour - Subtle highlight effect for solutions */
+/* Only apply when tour is active AND this specific card is highlighted */
+.solution-card.solution-card--highlighted {
+  border-color: var(--abs-orange) !important;
+  box-shadow: 0 0 20px rgba(255, 107, 0, 0.3), var(--shadow-md) !important;
+  transform: translateY(-2px) scale(1.02); /* Slight scale when highlighted */
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: highlight-pulse 7s ease-in-out infinite; /* Slow pulsing border glow (7s cycle) */
+}
+
+/* Ensure other solution cards don't have the highlight */
+.solution-card:not(.solution-card--highlighted) {
+  border-color: var(--border-subtle);
+  box-shadow: none;
+}
+
+/* Background Illustrations - Mission Control Feel */
+.solution-illustration {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04; /* Very low opacity (4%) */
+  overflow: hidden;
+}
+
+.illustration-svg {
+  width: 100%;
+  height: 100%;
+  color: var(--text-primary); /* Monochrome - uses text color */
+  opacity: 1;
+}
+
+/* Ensure content is above illustration */
+.solution-title,
+.solution-description,
+.solution-section {
+  position: relative;
+  z-index: 1;
 }
 
 .solution-title {
@@ -985,5 +1510,55 @@ function getModelById(id: string) {
   animation: none;
   transform: translateY(100%);
   opacity: 0;
+}
+
+/* Auto Highlight Tour Caption Overlay */
+.tour-caption-overlay {
+  position: fixed;
+  /* transform is set dynamically via inline style */
+  z-index: 100;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.tour-caption-text {
+  display: inline-block;
+  padding: 16px 32px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid var(--abs-orange);
+  border-radius: 12px;
+  color: var(--abs-orange);
+  font-family: var(--font-label);
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 30px rgba(255, 107, 0, 0.4), 0 4px 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+/* Fade transition for caption */
+.fade-caption-enter-active {
+  transition: opacity 0.8s ease-in-out, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-caption-leave-active {
+  transition: opacity 0.5s ease-in-out, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-caption-enter-from {
+  opacity: 0;
+  /* transform is set dynamically, but we add translateY for animation */
+}
+
+.fade-caption-leave-to {
+  opacity: 0;
+  /* transform is set dynamically */
+}
+
+.fade-caption-enter-to,
+.fade-caption-leave-from {
+  opacity: 1;
+  /* transform is set dynamically via inline style */
 }
 </style>

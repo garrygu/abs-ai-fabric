@@ -6,6 +6,8 @@ let animationFrame: number | null = null
 let particles: Particle[] = []
 let circuitNodes: CircuitNode[] = []
 let time = 0
+let mouseX = 0
+let mouseY = 0
 
 interface Particle {
   x: number
@@ -110,10 +112,17 @@ function draw(ctx: CanvasRenderingContext2D, width: number, height: number) {
     ctx.fill()
   }
   
-  // Draw flowing data particles
+  // Draw flowing data particles with slight parallax drift tied to mouse
+  const parallaxFactor = 0.3 // Subtle parallax effect
+  const centerX = width / 2
+  const centerY = height / 2
+  const mouseOffsetX = (mouseX - centerX) * parallaxFactor
+  const mouseOffsetY = (mouseY - centerY) * parallaxFactor
+  
   for (const particle of particles) {
-    particle.x += particle.vx
-    particle.y += particle.vy
+    // Add subtle parallax drift based on mouse position
+    particle.x += particle.vx + mouseOffsetX * 0.0001
+    particle.y += particle.vy + mouseOffsetY * 0.0001
     particle.life += 0.002
     
     // Wrap around edges
@@ -196,6 +205,11 @@ function handleResize() {
   initCircuitNodes(width, height)
 }
 
+function handleMouseMove(e: MouseEvent) {
+  mouseX = e.clientX
+  mouseY = e.clientY
+}
+
 onMounted(() => {
   // Wait for next tick to ensure canvas is mounted
   setTimeout(() => {
@@ -208,6 +222,10 @@ onMounted(() => {
     const width = canvas.offsetWidth || window.innerWidth
     const height = canvas.offsetHeight || window.innerHeight
     
+    // Initialize mouse position to center
+    mouseX = width / 2
+    mouseY = height / 2
+    
     if (width === 0 || height === 0) {
       console.warn('[HeroContextLayer] Canvas dimensions are zero', { width, height })
     }
@@ -218,6 +236,7 @@ onMounted(() => {
     animate()
     
     window.addEventListener('resize', handleResize)
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
   }, 100)
 })
 
@@ -226,6 +245,7 @@ onUnmounted(() => {
     cancelAnimationFrame(animationFrame)
   }
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('mousemove', handleMouseMove)
 })
 </script>
 
