@@ -15,6 +15,7 @@ const workstationModels = [
     ram: 'Up to 128GB DDR5',
     storage: '2TB NVMe SSD + 4TB SSD',
     bestFor: 'AI workloads, engineering simulation (CFD, FEA), high-end 3D rendering, scientific research',
+    capabilities: ['LLM Ready', 'Local AI'],
     neweggUrl: 'https://www.newegg.com/abs-zaurion-aqua-zaw5-2455x-rp6000-tower/p/N82E16859991004',
     featured: false
   },
@@ -28,6 +29,7 @@ const workstationModels = [
     ram: '64GB–128GB DDR5',
     storage: '1TB–2TB NVMe + 2–4TB SSD',
     bestFor: 'Extreme scale AI training, multi-GPU rendering (film/VFX), engineering simulation',
+    capabilities: ['LLM Ready', 'Multi-GPU', 'Local AI'],
     neweggUrl: 'https://www.newegg.com/abs-zaurion-duo-aqua-zaw5-2455x-rp6000mq-tower/p/N82E16859991008',
     featured: false
   },
@@ -41,6 +43,7 @@ const workstationModels = [
     ram: 'Up to 128GB DDR5',
     storage: '2TB NVMe + 4TB SSD',
     bestFor: 'HPC applications, scientific computing, engineering, AI research with high parallelism',
+    capabilities: ['LLM Ready', 'Local AI', 'Air-Gap Capable'],
     neweggUrl: 'https://www.newegg.com/p/59-991-006',
     featured: false
   },
@@ -54,6 +57,7 @@ const workstationModels = [
     ram: 'Up to 128GB DDR5',
     storage: '2TB NVMe + 4TB SSD',
     bestFor: 'Dual-GPU deep learning, real-time production, rendering, high-throughput simulations',
+    capabilities: ['LLM Ready', 'Multi-GPU', 'Local AI', 'Air-Gap Capable'],
     neweggUrl: 'https://www.newegg.com/p/59-991-010',
     featured: false
   },
@@ -68,6 +72,7 @@ const workstationModels = [
     storage: '2TB NVMe + 2TB AI Acceleration (aiDAPTIVCache) + 4x 2TB SATA SSD',
     bestFor: 'Enterprise AI/ML, LLM training, generative AI, big data analytics, studio pipeline',
     specialFeature: 'PHISON aiDAPTIV+ AI optimization software',
+    capabilities: ['LLM Ready', 'Multi-GPU', 'Local AI', 'Air-Gap Capable', 'Enterprise AI'],
     neweggUrl: 'https://www.newegg.com/p/83-367-003',
     featured: true
   }
@@ -217,6 +222,18 @@ function getModelById(id: string) {
             <div class="gpu-icon">⚡</div>
           </div>
           <h3 class="model-name">{{ model.name }}</h3>
+          
+          <!-- Live Capability Badges -->
+          <div class="capability-badges">
+            <span 
+              v-for="capability in model.capabilities" 
+              :key="capability"
+              class="capability-badge"
+              :class="`capability-badge--${capability.toLowerCase().replace(/\s+/g, '-')}`"
+            >
+              {{ capability }}
+            </span>
+          </div>
           
           <!-- Orange accent bar -->
           <div class="model-accent-bar"></div>
@@ -541,7 +558,67 @@ function getModelById(id: string) {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 24px;
+  margin: 0 0 16px;
+}
+
+.capability-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.capability-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 12px;
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--electric-indigo);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+.capability-badge--llm-ready {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.25);
+  color: var(--abs-orange);
+}
+
+.capability-badge--multi-gpu {
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.25);
+  color: #8b5cf6;
+}
+
+.capability-badge--local-ai {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: var(--status-success);
+}
+
+.capability-badge--air-gap-capable {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #3b82f6;
+}
+
+.capability-badge--enterprise-ai {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.35);
+  color: var(--abs-orange);
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.2);
+}
+
+.model-card:hover .capability-badge {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .model-specs {
