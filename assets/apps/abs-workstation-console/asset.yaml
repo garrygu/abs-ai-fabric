@@ -1,0 +1,45 @@
+asset_id: abs-workstation-console
+display_name: ABS Workstation Console
+version: "1.0.0"
+
+interface: ui
+interface_version: v1
+class: app
+
+description: Real-time system metrics, hardware overview, and AI workload status for this ABS workstation. System observability console with Attract Mode.
+
+policy:
+  required_models: []
+  allowed_embeddings: []
+  defaults:
+    provider: auto
+
+lifecycle:
+  desired: always-on
+  auto_sleep_min: 0
+
+ownership:
+  provider: abs
+  visibility: shared
+  requestable: false
+
+metadata:
+  url: http://localhost:5200
+  port: 5200
+  category: System Apps
+  icon: "🖥️"
+  tags:
+    - system
+    - metrics
+    - observability
+    - hardware
+    - gpu
+    - workload
+    - demo
+    - ces
+  tier: abs
+  status: active
+  pack: system
+  badges:
+    - abs_official
+    - system

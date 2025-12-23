@@ -65,6 +65,8 @@ docker compose up -d
 - NVIDIA GPU driver with CUDA support (recommended)
 - PowerShell (Admin) for script execution
 
+> **📘 Setup Instructions**: For detailed Windows setup, including Docker Desktop WSL2 configuration and GPU passthrough, see the **[Windows Setup Guide](docs/guides/Windows_Setup_Guide.md)**.
+
 ## Applications
 
 ### Contract Reviewer

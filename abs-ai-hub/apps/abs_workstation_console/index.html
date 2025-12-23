@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/abs-logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ABS Workstation Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <!-- ABS Unified Header -->
+    <script type="module" src="http://localhost:5173/abs-header.js"></script>
+</head>
+
+<body>
+    <!-- ABS Unified Header for app navigation -->
+    <abs-unified-header app-id="abs-workstation-console" app-name="ABS Workstation Console" app-icon="🖥️"
+        hub-url="http://localhost:5173" gateway-url="http://localhost:8081">
+    </abs-unified-header>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

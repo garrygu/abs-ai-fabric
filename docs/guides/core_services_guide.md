@@ -59,6 +59,8 @@ C:\
 - **NVIDIA GPU driver** with CUDA support (for Ollama/vLLM/Whisper)
 - **PowerShell (Admin)** to run scripts
 
+> **📘 Setup Instructions**: For detailed Windows setup, including Docker Desktop WSL2 configuration and GPU passthrough, see the **[Windows Setup Guide](Windows_Setup_Guide.md)**.
+
 ---
 
 ## 4. Deploying the Core

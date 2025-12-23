@@ -279,18 +279,16 @@ async def update_settings(settings: dict):
 
 @router.get("/v1/admin/system/metrics")
 async def get_system_metrics():
-    # ... copied metrics logic from app.py ...
-    # For brevity, implementing a simplified version or I should paste the whole thing.
-    # Given the original was detailed with GPU logic, I should include it.
+    """Get real-time system metrics including GPU via nvidia-smi fallback."""
     try:
+        import subprocess
+        
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        network = psutil.net_io_counters()
         
         gpu_info = []
-        gpu_debug = {"error": None}
         
+        # First try GPUtil
         try:
             import GPUtil
             gpus = GPUtil.getGPUs()
@@ -302,8 +300,42 @@ async def get_system_metrics():
                     "memory_utilization": gpu.memoryUtil * 100,
                     "temperature": gpu.temperature
                 })
-        except:
-             gpu_debug["error"] = "GPUtil not available"
+        except Exception:
+            pass
+        
+        # Fallback: Use nvidia-smi if GPUtil didn't find any GPUs
+        if not gpu_info:
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu", 
+                     "--format=csv,noheader,nounits"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode == 0 and result.stdout.strip():
+                    for line in result.stdout.strip().split('\n'):
+                        parts = [p.strip() for p in line.split(',')]
+                        if len(parts) >= 6:
+                            idx = int(parts[0])
+                            name = parts[1]
+                            util = float(parts[2]) if parts[2] else 0
+                            mem_used = float(parts[3]) if parts[3] else 0
+                            mem_total = float(parts[4]) if parts[4] else 1
+                            temp = float(parts[5]) if parts[5] else 0
+                            
+                            gpu_info.append({
+                                "id": idx,
+                                "name": name,
+                                "utilization": util,
+                                "memory_utilization": (mem_used / mem_total) * 100 if mem_total > 0 else 0,
+                                "memory_used_mb": mem_used,
+                                "memory_total_mb": mem_total,
+                                "temperature": temp
+                            })
+            except Exception as e:
+                pass  # nvidia-smi not available
 
         return {
             "cpu": {"usage_percent": cpu_percent},

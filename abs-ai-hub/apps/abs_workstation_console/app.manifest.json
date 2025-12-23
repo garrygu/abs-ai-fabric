@@ -1,0 +1,117 @@
+{
+  "name": "ABS Workstation Console",
+  "id": "abs-workstation-console",
+  "version": "1.0.0",
+  "description": "Real-time system metrics, hardware overview, and AI workload status for this ABS workstation.",
+  "category": "System Apps",
+  "author": "ABS Platform",
+  "license": "Proprietary",
+  
+  "class": "app",
+  "pack": "system",
+  "provider": "abs",
+  
+  "badges": ["abs_official", "system"],
+  "status": "live",
+  
+  "keywords": [
+    "system",
+    "metrics",
+    "observability",
+    "hardware",
+    "gpu",
+    "workload",
+    "demo",
+    "ces"
+  ],
+  
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  
+  "capabilities": [
+    "system_metrics",
+    "workload_observability",
+    "model_inventory",
+    "hardware_overview"
+  ],
+  
+  "permissions": [
+    "system.metrics.read",
+    "workloads.read",
+    "models.read_summary"
+  ],
+  
+  "configuration": {
+    "port": 5200,
+    "health_check": {
+      "endpoint": "/",
+      "interval": 30
+    },
+    "gateway_integration": {
+      "enabled": true,
+      "app_id": "abs-workstation-console",
+      "services": []
+    },
+    "features": {
+      "live_metrics": true,
+      "workload_display": true,
+      "model_inventory": true,
+      "attract_mode": true,
+      "ces_mode": false
+    },
+    "ui": {
+      "type": "modern",
+      "layout": "single-page",
+      "theme": "dark",
+      "responsive": true
+    }
+  },
+  
+  "api": {
+    "version": "v1",
+    "base_path": "/api",
+    "endpoints": [
+      {
+        "path": "/system/metrics",
+        "method": "GET",
+        "description": "Get live system metrics (polled from gateway)"
+      },
+      {
+        "path": "/workloads/active",
+        "method": "GET",
+        "description": "Get currently active AI workloads"
+      },
+      {
+        "path": "/models/installed",
+        "method": "GET",
+        "description": "Get installed model summary"
+      }
+    ]
+  },
+  
+  "security": {
+    "cors": {
+      "enabled": true,
+      "origins": ["*"]
+    },
+    "authentication": {
+      "required": false,
+      "type": "none"
+    }
+  },
+  
+  "attract_mode": {
+    "enabled": true,
+    "idle_after_seconds": 120,
+    "gpu_utilization_cap_pct": 60,
+    "visuals": {
+      "image_generation": false,
+      "system_visualization": true,
+      "llm_stream": false
+    }
+  }
+}

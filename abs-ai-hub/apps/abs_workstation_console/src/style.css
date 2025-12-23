@@ -1,0 +1,420 @@
+/* ABS Workstation Console - Design System
+ * Based on spec: ABS Black, Electric Indigo, ABS Orange (GPU)
+ * Typography: Barlow Condensed, Rajdhani, JetBrains Mono
+ */
+
+/* ============== CSS CUSTOM PROPERTIES ============== */
+
+:root {
+  /* Background Colors */
+  --abs-black: #0a0a0f;
+  --abs-dark: #0f0f18;
+  --abs-card: #12121f;
+  --abs-card-hover: #18182a;
+  --abs-elevated: #1a1a2e;
+  
+  /* Accent Colors */
+  --electric-indigo: #6366f1;
+  --electric-indigo-hover: #818cf8;
+  --electric-indigo-glow: rgba(99, 102, 241, 0.4);
+  --abs-orange: #f97316;
+  --abs-orange-glow: rgba(249, 115, 22, 0.4);
+  
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --text-muted: #64648a;
+  
+  /* Status Colors */
+  --status-success: #22c55e;
+  --status-warning: #f59e0b;
+  --status-error: #ef4444;
+  --status-idle: #6b7280;
+  
+  /* Borders */
+  --border-color: #2a2a4a;
+  --border-subtle: #1e1e36;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-glow-indigo: 0 0 20px var(--electric-indigo-glow);
+  --shadow-glow-orange: 0 0 20px var(--abs-orange-glow);
+  
+  /* Typography */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-label: 'Rajdhani', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Timing */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 240ms;
+  --duration-slow: 300ms;
+  --duration-visual: 600ms;
+  
+  /* Layout */
+  --header-height: 60px;
+  --section-gap: 32px;
+  --container-max: 1400px;
+}
+
+/* CES Mode Overrides */
+.ces-mode {
+  --font-scale: 1.15;
+}
+
+/* ============== RESET & BASE ============== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-label);
+  background: var(--abs-black);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============== TYPOGRAPHY ============== */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.metric-label {
+  font-family: var(--font-label);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+/* ============== SCROLLBAR ============== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--abs-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--electric-indigo);
+}
+
+/* ============== CARD COMPONENTS ============== */
+
+.card {
+  background: var(--abs-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.card:hover {
+  background: var(--abs-card-hover);
+  border-color: var(--electric-indigo);
+}
+
+.card--gpu {
+  border-color: var(--abs-orange);
+  box-shadow: var(--shadow-glow-orange);
+}
+
+.card--gpu:hover {
+  border-color: var(--abs-orange);
+}
+
+/* ============== STATUS INDICATORS ============== */
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot--running {
+  background: var(--status-success);
+  box-shadow: 0 0 8px var(--status-success);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot--idle {
+  background: var(--status-idle);
+}
+
+.status-dot--warning {
+  background: var(--status-warning);
+}
+
+.status-dot--error {
+  background: var(--status-error);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ============== BADGES ============== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--electric-indigo);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.badge--local {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--status-success);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.badge--enterprise {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--abs-orange);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+/* ============== SECTION LAYOUT ============== */
+
+.console-section {
+  padding: var(--section-gap) 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.section-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* ============== METRIC TILES ============== */
+
+.metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 24px;
+}
+
+.metric-tile__value {
+  font-size: 3rem;
+  line-height: 1;
+  transition: all var(--duration-normal) var(--ease-smooth);
+}
+
+.metric-tile__unit {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.metric-tile__label {
+  font-size: 0.875rem;
+}
+
+.metric-tile--hero .metric-tile__value {
+  font-size: 4.5rem;
+}
+
+/* CES Mode: Larger metrics */
+.ces-mode .metric-tile__value {
+  font-size: 3.5rem;
+}
+
+.ces-mode .metric-tile--hero .metric-tile__value {
+  font-size: 5.5rem;
+}
+
+/* ============== TRANSITIONS ============== */
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--duration-slow) var(--ease-smooth);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.fade-fast-enter-active,
+.fade-fast-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.fade-fast-enter-from,
+.fade-fast-leave-to {
+  opacity: 0;
+}
+
+/* ============== ATTRACT MODE OVERLAY ============== */
+
+.attract-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--abs-black);
+  display: flex;
+  flex-direction: column;
+}
+
+.attract-overlay__metrics {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  z-index: 10;
+}
+
+.attract-overlay__visual {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.attract-overlay__branding {
+  position: absolute;
+  bottom: 30px;
+  right: 40px;
+  text-align: right;
+  opacity: 0.7;
+}
+
+/* ============== BRANDING TEXT ============== */
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--status-success);
+}
+
+.live-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-success);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.brand-tagline {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+}
+
+/* ============== CES OVERLAY TEXT ============== */
+
+.ces-overlay-text {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--abs-orange);
+  text-shadow: 0 0 30px var(--abs-orange-glow);
+}
+
+/* ============== UTILITY CLASSES ============== */
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-accent {
+  color: var(--electric-indigo);
+}
+
+.text-orange {
+  color: var(--abs-orange);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
