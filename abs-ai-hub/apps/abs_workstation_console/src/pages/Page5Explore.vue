@@ -212,26 +212,32 @@ function getModelById(id: string) {
           :class="{ 'model-card--featured': model.featured }"
         >
           <div v-if="model.featured" class="featured-badge">ENTERPRISE</div>
-          <div class="model-tier">{{ model.tier }}</div>
+          <div class="model-header">
+            <div class="model-tier">{{ model.tier }}</div>
+            <div class="gpu-icon">⚡</div>
+          </div>
           <h3 class="model-name">{{ model.name }}</h3>
           
+          <!-- Orange accent bar -->
+          <div class="model-accent-bar"></div>
+          
           <div class="model-specs">
-            <div class="spec-row">
+            <div class="spec-row spec-row--gpu">
               <span class="spec-label">GPU</span>
               <div class="spec-value-group">
                 <span class="spec-value">{{ model.gpu }}</span>
                 <span class="spec-detail">{{ model.gpuDetails }}</span>
               </div>
             </div>
-            <div class="spec-row">
+            <div class="spec-row spec-row--cpu">
               <span class="spec-label">CPU</span>
               <span class="spec-value">{{ model.cpu }}</span>
             </div>
-            <div class="spec-row">
+            <div class="spec-row spec-row--ram">
               <span class="spec-label">RAM</span>
               <span class="spec-value">{{ model.ram }}</span>
             </div>
-            <div class="spec-row">
+            <div class="spec-row spec-row--storage">
               <span class="spec-label">Storage</span>
               <span class="spec-value">{{ model.storage }}</span>
             </div>
@@ -416,12 +422,54 @@ function getModelById(id: string) {
   flex-direction: column;
   z-index: 1;
   backdrop-filter: blur(1px);
+  overflow: hidden;
 }
 
 .model-card:hover {
   border-color: var(--border-color);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.model-card:hover .gpu-icon {
+  animation: gpu-pulse 1.5s ease-in-out infinite;
+}
+
+.model-card:hover .model-accent-bar {
+  animation: accent-slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* On hover/focus, hide all specs first, then reveal them one by one */
+.model-card:hover .spec-row,
+.model-card:focus-within .spec-row {
+  opacity: 0;
+  transform: translateX(-10px) scale(2);
+  animation: spec-slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.model-card:hover .spec-row--gpu,
+.model-card:focus-within .spec-row--gpu {
+  animation-delay: 0.2s;
+}
+
+.model-card:hover .spec-row--cpu,
+.model-card:focus-within .spec-row--cpu {
+  animation-delay: 0.6s;
+}
+
+.model-card:hover .spec-row--ram,
+.model-card:focus-within .spec-row--ram {
+  animation-delay: 1.0s;
+}
+
+.model-card:hover .spec-row--storage,
+.model-card:focus-within .spec-row--storage {
+  animation-delay: 1.4s;
+}
+
+.model-card:hover .spec-row--special,
+.model-card:focus-within .spec-row--special {
+  animation-delay: 1.8s;
 }
 
 .model-card--featured {
@@ -444,6 +492,13 @@ function getModelById(id: string) {
   border-radius: 12px;
 }
 
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .model-tier {
   font-family: var(--font-label);
   font-size: 0.7rem;
@@ -451,7 +506,30 @@ function getModelById(id: string) {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin-bottom: 8px;
+}
+
+.gpu-icon {
+  font-size: 1.5rem;
+  opacity: 0.6;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+  filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.3));
+}
+
+.model-card:hover .gpu-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.6));
+}
+
+.model-accent-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--abs-orange), transparent);
+  transform: translateY(100%);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
 }
 
 .model-card--featured .model-tier {
@@ -480,6 +558,12 @@ function getModelById(id: string) {
   gap: 4px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-subtle);
+  /* Default: fully visible */
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  transition: none; /* No transition - animation handles it */
+  transform-origin: left center;
+  will-change: transform, opacity; /* Optimize for animation */
 }
 
 .spec-row:last-child {
@@ -771,5 +855,58 @@ function getModelById(id: string) {
   .models-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* GPU-Powered Micro-Animations */
+@keyframes gpu-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.6));
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.8));
+  }
+}
+
+@keyframes accent-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spec-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px) scale(2);
+  }
+  40% {
+    opacity: 0.9;
+    transform: translateX(-4px) scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Reset to visible state when not hovering */
+.model-card:not(:hover):not(:focus-within) .spec-row {
+  animation: none;
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  will-change: auto;
+}
+
+/* Reset accent bar when not hovering */
+.model-card:not(:hover) .model-accent-bar {
+  animation: none;
+  transform: translateY(100%);
+  opacity: 0;
 }
 </style>
