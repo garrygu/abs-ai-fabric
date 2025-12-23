@@ -11,6 +11,7 @@ Now with Schema v1.0 validation and lifecycle state population.
 import os
 import json
 import yaml
+import time
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
@@ -27,6 +28,11 @@ ASSETS_ROOT = os.getenv("ASSETS_ROOT", "/app/assets")
 BINDINGS_PATH = os.getenv("BINDINGS_PATH", "/app/bindings.yaml")
 REGISTRY_PATH = os.getenv("ASSETS_REGISTRY_PATH", "/app/assets/registry/assets.json")
 
+
+# Container status cache (shared across all Asset instances)
+# Format: {container_name: (status, timestamp)}
+_container_status_cache: Dict[str, tuple] = {}
+_CACHE_TTL = 5  # Cache for 5 seconds
 
 class Asset:
     """
@@ -95,31 +101,56 @@ class Asset:
         return self.resources.get("gpu_required", False)
     
     def _get_container_status(self, container_name: str) -> str:
-        """Get real Docker container status."""
+        """Get real Docker container status with caching."""
+        global _container_status_cache
+        
+        # Check cache first
+        now = time.time()
+        if container_name in _container_status_cache:
+            cached_status, cached_time = _container_status_cache[container_name]
+            if now - cached_time < _CACHE_TTL:
+                return cached_status
+        
+        # Cache miss or expired - check Docker
         try:
             import subprocess
+            # Reduced timeout from 5s to 1s for faster response
             result = subprocess.run(
                 ["docker", "inspect", "--format", "{{.State.Status}}", container_name],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=1  # Reduced from 5 to 1 second
             )
             if result.returncode == 0:
                 status = result.stdout.strip()
                 # Map Docker status to our lifecycle states
                 if status == "running":
-                    return "running"
+                    mapped_status = "running"
                 elif status == "exited" or status == "stopped":
-                    return "stopped"
+                    mapped_status = "stopped"
                 elif status == "paused":
-                    return "suspended"
+                    mapped_status = "suspended"
                 elif status == "restarting":
-                    return "warming"
+                    mapped_status = "warming"
                 else:
-                    return "unknown"
+                    mapped_status = "unknown"
+                
+                # Cache the result
+                _container_status_cache[container_name] = (mapped_status, now)
+                return mapped_status
             else:
+                # Container not found - cache as unknown
+                _container_status_cache[container_name] = ("unknown", now)
                 return "unknown"
+        except subprocess.TimeoutExpired:
+            # Timeout - return cached value if available, otherwise unknown
+            if container_name in _container_status_cache:
+                return _container_status_cache[container_name][0]
+            return "unknown"
         except Exception:
+            # Any other error - return unknown
+            if container_name in _container_status_cache:
+                return _container_status_cache[container_name][0]
             return "unknown"
     
     def to_dict(self) -> Dict[str, Any]:
