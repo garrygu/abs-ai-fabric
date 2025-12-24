@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { PAGES, type PageConfig } from '@/composables/usePageNavigation'
 import { useAllInOneDemoStore } from '@/stores/allInOneDemoStore'
+import { useAttractModeStore } from '@/stores/attractModeStore'
 
 const allInOneDemoStore = useAllInOneDemoStore()
+const attractStore = useAttractModeStore()
 
 defineProps<{
   currentIndex: number
@@ -16,11 +18,17 @@ const emit = defineEmits<{
   next: []
   goTo: [index: number]
   toggleGuidedTour: []
+  triggerAttractMode: []
 }>()
 
 function toggleGuidedTour(event: Event) {
   event.stopPropagation()
   emit('toggleGuidedTour')
+}
+
+function triggerAttractMode(event: Event) {
+  event.stopPropagation()
+  emit('triggerAttractMode')
 }
 </script>
 
@@ -75,6 +83,17 @@ function toggleGuidedTour(event: Event) {
       >
         <span class="indicator-label">Guided Tour</span>
         <span v-if="allInOneDemoStore.isActive" class="guided-tour-status">Activated</span>
+      </button>
+      
+      <!-- Attract Mode Toggle -->
+      <button
+        class="indicator indicator--attract-mode"
+        :class="{ 'indicator--active': attractStore.isActive }"
+        :title="attractStore.isActive ? 'Deactivate Attract Mode' : 'Activate Attract Mode'"
+        @click="triggerAttractMode"
+      >
+        <span class="indicator-label">Attract Mode</span>
+        <span v-if="attractStore.isActive" class="attract-mode-status">Active</span>
       </button>
     </div>
   </nav>
@@ -222,5 +241,35 @@ function toggleGuidedTour(event: Event) {
 .indicator--guided-tour.indicator--active::before {
   content: '●';
   color: var(--abs-orange);
+}
+
+.indicator--attract-mode {
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.indicator--attract-mode .indicator-label {
+  margin-right: 8px;
+}
+
+.attract-mode-status {
+  font-size: 0.65rem;
+  color: var(--electric-indigo);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.indicator--attract-mode.indicator--active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--electric-indigo);
+}
+
+.indicator--attract-mode.indicator--active::before {
+  content: '●';
+  color: var(--electric-indigo);
 }
 </style>

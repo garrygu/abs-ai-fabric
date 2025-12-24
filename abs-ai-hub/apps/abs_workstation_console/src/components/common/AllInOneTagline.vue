@@ -6,7 +6,7 @@ const { isCESMode } = useCESMode()
 
 <template>
   <div v-if="isCESMode" class="all-in-one-tagline">
-    One PC. Multiple AI minds. Zero cloud dependency.
+    ONE WORKSTATION. MULTIPLE AI MINDS. ZERO CLOUD DEPENDENCY.
   </div>
 </template>
 

@@ -549,8 +549,8 @@ class ABSUnifiedHeader extends HTMLElement {
               <a class="ces-popover-link" href="https://absworkstation.com?utm_source=ai_fabric&utm_campaign=ces_demo" target="_blank" rel="noopener">View Hardware →</a>
             </div>
           </div>
-          <button class="icon-btn settings" onclick="this.getRootNode().host.goToSettings()" title="Settings">⚙️</button>
-          <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to Hub</button>
+          ${this.config.settingsUrl ? `<button class="icon-btn settings" onclick="this.getRootNode().host.goToSettings()" title="Settings">⚙️</button>` : ''}
+          <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to AI Fabric</button>
         </div>
       </header>
       

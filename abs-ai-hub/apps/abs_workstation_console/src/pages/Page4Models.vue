@@ -257,6 +257,26 @@ function getModelTypeLabel(type: string): string {
   return labels[type] || type
 }
 
+// Get status tip text for tooltips
+function getStatusTip(model: any): string {
+  const loadingStatus = getModelLoadingStatus(model.model_id)
+  
+  if (loadingStatus === 'warming') {
+    return 'Model is being loaded into VRAM. This may take a few seconds.'
+  }
+  if (loadingStatus === 'running' || (demoControl.isProcessing && isModelActive(model.model_id))) {
+    return 'Model is loaded in VRAM and actively processing requests.'
+  }
+  if (loadingStatus === 'cooling') {
+    return 'Model is cooling down after use. It will return to idle shortly.'
+  }
+  if (model.serving_status === 'ready') {
+    return 'Model is loaded into VRAM and ready to serve requests immediately. No loading delay.'
+  }
+  // Idle
+  return 'Model is installed on disk but not loaded into VRAM. It can be activated on demand.'
+}
+
 // Auto Highlight Tour functions
 function getCardCaption(modelId: string): string {
   return modelCaptions[modelId] || 
@@ -518,23 +538,26 @@ watch(() => attractStore.isActive, (isActive) => {
         <div class="model-header">
           <span class="model-icon">{{ getModelIcon(model.type) }}</span>
           <div class="model-header-right">
-            <span 
-              class="model-status" 
-              :class="[
-                model.serving_status,
-                { 
-                  'model-status--warming': getModelLoadingStatus(model.model_id) === 'warming',
-                  'model-status--running': getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id)),
-                  'model-status--cooling': getModelLoadingStatus(model.model_id) === 'cooling'
-                }
-              ]"
-            >
-              <span v-if="getModelLoadingStatus(model.model_id) === 'warming'">⚡ Warming</span>
-              <span v-else-if="getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id))">● Running</span>
-              <span v-else-if="getModelLoadingStatus(model.model_id) === 'cooling'">❄ Cooling</span>
-              <span v-else-if="model.serving_status === 'ready'">● Ready</span>
-              <span v-else>○ Idle</span>
-            </span>
+            <div class="model-status-wrapper">
+              <span 
+                class="model-status" 
+                :class="[
+                  model.serving_status,
+                  { 
+                    'model-status--warming': getModelLoadingStatus(model.model_id) === 'warming',
+                    'model-status--running': getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id)),
+                    'model-status--cooling': getModelLoadingStatus(model.model_id) === 'cooling'
+                  }
+                ]"
+              >
+                <span v-if="getModelLoadingStatus(model.model_id) === 'warming'">⚡ Warming</span>
+                <span v-else-if="getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id))">● Running</span>
+                <span v-else-if="getModelLoadingStatus(model.model_id) === 'cooling'">❄ Cooling</span>
+                <span v-else-if="model.serving_status === 'ready'">● Ready</span>
+                <span v-else>○ Idle</span>
+              </span>
+              <div class="status-tooltip">{{ getStatusTip(model) }}</div>
+            </div>
           </div>
         </div>
         
@@ -778,6 +801,12 @@ watch(() => attractStore.isActive, (isActive) => {
   font-size: 1.5rem;
 }
 
+.model-status-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
 .model-status {
   font-family: var(--font-label);
   font-size: 0.7rem;
@@ -806,6 +835,51 @@ watch(() => attractStore.isActive, (isActive) => {
 .model-status--cooling {
   color: var(--text-muted);
   opacity: 0.7;
+}
+
+.status-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: rgba(15, 15, 24, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateX(-50%) translateY(-4px);
+  z-index: 100;
+  max-width: 400px;
+  min-width: 300px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.status-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(15, 15, 24, 0.95);
+}
+
+.model-status-wrapper:hover .status-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
 }
 
 .model-loading-bar {

@@ -137,6 +137,17 @@ async def load_model(model_name: str):
                 }
             )
             if response.status_code == 200:
+                # Clear the Ollama running models cache to force refresh
+                # This ensures the asset lifecycle state updates immediately
+                try:
+                    from services.asset_manager import _ollama_running_models_cache
+                    # Clear all cached model states so they're re-checked on next asset query
+                    _ollama_running_models_cache.clear()
+                    print(f"[Ops] Cleared Ollama model cache after loading {model_name}")
+                except (ImportError, AttributeError) as e:
+                    # Cache might not be initialized yet, that's okay
+                    print(f"[Ops] Could not clear Ollama cache (non-fatal): {e}")
+                
                 return {"status": "success", "message": f"Model {model_name} loaded successfully"}
             else:
                 error_text = response.text

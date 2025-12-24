@@ -1,8 +1,115 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDemoControlStore, type ActiveModel } from '@/stores/demoControlStore'
 
 const demoControl = useDemoControlStore()
+
+// Dragging state
+const panelRef = ref<HTMLElement | null>(null)
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0 })
+const panelPosition = ref({ x: 0, y: 0 })
+
+// Load saved position from localStorage
+function loadPosition() {
+  const saved = localStorage.getItem('demoControlPanelPosition')
+  if (saved) {
+    try {
+      const { x, y } = JSON.parse(saved)
+      panelPosition.value = { x, y }
+      return
+    } catch (e) {
+      console.warn('Failed to parse saved panel position', e)
+    }
+  }
+  // Default position: bottom-right
+  panelPosition.value = { x: 0, y: 0 }
+}
+
+// Save position to localStorage
+function savePosition() {
+  localStorage.setItem('demoControlPanelPosition', JSON.stringify(panelPosition.value))
+}
+
+// Constrain position to viewport
+function constrainPosition() {
+  if (!panelRef.value) return
+  
+  const rect = panelRef.value.getBoundingClientRect()
+  const maxX = window.innerWidth - rect.width
+  const maxY = window.innerHeight - rect.height
+  
+  panelPosition.value.x = Math.max(0, Math.min(panelPosition.value.x, maxX))
+  panelPosition.value.y = Math.max(0, Math.min(panelPosition.value.y, maxY))
+}
+
+// Drag handlers
+function handleMouseDown(e: MouseEvent) {
+  // Only allow dragging from the header
+  const target = e.target as HTMLElement
+  if (!target.closest('.panel-header')) return
+  
+  isDragging.value = true
+  dragStart.value = {
+    x: e.clientX - panelPosition.value.x,
+    y: e.clientY - panelPosition.value.y
+  }
+  e.preventDefault()
+}
+
+function handleMouseMove(e: MouseEvent) {
+  if (!isDragging.value) return
+  
+  panelPosition.value = {
+    x: e.clientX - dragStart.value.x,
+    y: e.clientY - dragStart.value.y
+  }
+  
+  constrainPosition()
+}
+
+function handleMouseUp() {
+  if (isDragging.value) {
+    isDragging.value = false
+    savePosition()
+  }
+}
+
+// Handle window resize
+function handleResize() {
+  constrainPosition()
+}
+
+onMounted(() => {
+  loadPosition()
+  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('resize', handleResize)
+  
+  // Calculate initial position from bottom-right if not saved
+  if (panelPosition.value.x === 0 && panelPosition.value.y === 0) {
+    nextTick(() => {
+      if (panelRef.value) {
+        const rect = panelRef.value.getBoundingClientRect()
+        panelPosition.value = {
+          x: window.innerWidth - rect.width - 24,
+          y: window.innerHeight - rect.height - 24
+        }
+        savePosition()
+      }
+    })
+  } else {
+    nextTick(() => {
+      constrainPosition()
+    })
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('resize', handleResize)
+})
 
 function activateModel(model: ActiveModel) {
   demoControl.activateModel(model)
@@ -40,9 +147,20 @@ function showPromptKiosk() {
 </script>
 
 <template>
-  <div class="demo-control-panel">
+  <div 
+    ref="panelRef"
+    class="demo-control-panel"
+    :class="{ 'is-dragging': isDragging }"
+    :style="{
+      left: `${panelPosition.x}px`,
+      top: `${panelPosition.y}px`,
+      right: 'auto',
+      bottom: 'auto'
+    }"
+    @mousedown="handleMouseDown"
+  >
     <div class="panel-header">
-      <div class="panel-title">DEMO CONTROL</div>
+      <div class="panel-title">LIVE INTERACTION</div>
       <div class="status-indicator" :style="{ color: getStatusColor() }">
         <span class="status-dot" :style="{ backgroundColor: getStatusColor() }"></span>
         {{ statusLabel }}
@@ -92,7 +210,10 @@ function showPromptKiosk() {
     
     <!-- Loading Progress -->
     <div v-if="demoControl.isWarming" class="loading-section">
-      <div class="loading-stage">{{ demoControl.loadingStage }}</div>
+      <div class="loading-stage">
+        <span>{{ demoControl.loadingStage }}</span>
+        <span v-if="demoControl.loadingElapsedFormatted" class="loading-time">{{ demoControl.loadingElapsedFormatted }}</span>
+      </div>
       <div class="loading-bar">
         <div class="loading-bar-fill" :style="{ width: `${demoControl.loadingProgress}%` }"></div>
       </div>
@@ -155,6 +276,12 @@ function showPromptKiosk() {
   box-shadow: var(--shadow-lg);
   z-index: 150;
   backdrop-filter: blur(10px);
+  user-select: none;
+}
+
+.demo-control-panel.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .panel-header {
@@ -164,6 +291,11 @@ function showPromptKiosk() {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
+  cursor: grab;
+}
+
+.panel-header:active {
+  cursor: grabbing;
 }
 
 .panel-title {
@@ -259,11 +391,20 @@ function showPromptKiosk() {
 }
 
 .loading-stage {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-family: var(--font-label);
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin-bottom: 8px;
-  text-align: center;
+}
+
+.loading-time {
+  font-family: var(--font-mono);
+  color: var(--abs-orange);
+  font-weight: 600;
+  font-size: 0.8rem;
 }
 
 .loading-bar {

@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { sendChatCompletion, requestModel } from '@/services/api'
+import { useModelsStore } from './modelsStore'
 
 export type ModelStatus = 'idle' | 'warming' | 'running' | 'cooling'
 export type ActiveModel = 'deepseek-r1-70b' | 'llama3-70b' | 'dual' | null
 
 export const useDemoControlStore = defineStore('demoControl', () => {
+  const modelsStore = useModelsStore()
   const activeModel = ref<ActiveModel>(null)
   const modelStatus = ref<ModelStatus>('idle')
   const pendingRequest = ref<ActiveModel | null>(null) // Store which model is waiting
@@ -16,6 +18,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   const loadingStage = ref<string>('')
   const loadingStartTime = ref<number | null>(null)
   const loadingDuration = ref<number | null>(null) // Duration in seconds
+  const loadingElapsedTime = ref<number>(0) // Elapsed time during loading (in seconds)
+  let loadingElapsedTimer: ReturnType<typeof setInterval> | null = null
   
   // Auto-sleep timer
   const autoSleepTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -44,6 +48,12 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   const isWarming = computed(() => modelStatus.value === 'warming')
   const isRunning = computed(() => modelStatus.value === 'running')
   const isCooling = computed(() => modelStatus.value === 'cooling')
+  
+  // Computed property for formatted elapsed time
+  const loadingElapsedFormatted = computed(() => {
+    if (loadingElapsedTime.value === 0) return ''
+    return `${loadingElapsedTime.value.toFixed(1)}s`
+  })
   
   // Session timer - reactive countdown
   const timeRemaining = ref<number | null>(null)
@@ -135,6 +145,17 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     loadingStage.value = 'Requesting model...'
     loadingStartTime.value = Date.now()
     loadingDuration.value = null
+    loadingElapsedTime.value = 0
+    
+    // Start elapsed time timer
+    if (loadingElapsedTimer) {
+      clearInterval(loadingElapsedTimer)
+    }
+    loadingElapsedTimer = setInterval(() => {
+      if (loadingStartTime.value && modelStatus.value === 'warming') {
+        loadingElapsedTime.value = (Date.now() - loadingStartTime.value) / 1000
+      }
+    }, 100) // Update every 100ms for smooth display
     
     try {
       // Actually request/load the model via API
@@ -177,6 +198,20 @@ export const useDemoControlStore = defineStore('demoControl', () => {
       modelStatus.value = 'running'
       loadingStage.value = ''
       
+      // Stop elapsed time timer
+      if (loadingElapsedTimer) {
+        clearInterval(loadingElapsedTimer)
+        loadingElapsedTimer = null
+      }
+      
+      // Refresh models store to pick up updated lifecycle state from Gateway
+      // This ensures the assets page and models page show the correct status
+      setTimeout(() => {
+        modelsStore.fetchModels().catch(err => {
+          console.warn('[DemoControl] Failed to refresh models after activation:', err)
+        })
+      }, 1000) // Small delay to allow Gateway to update lifecycle state
+      
       // Start session timer (will start countdown after 10s idle)
       startSessionTimer()
       
@@ -193,6 +228,19 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         const elapsed = (Date.now() - loadingStartTime.value) / 1000
         loadingDuration.value = Math.round(elapsed * 10) / 10
       }
+      
+      // Stop elapsed time timer
+      if (loadingElapsedTimer) {
+        clearInterval(loadingElapsedTimer)
+        loadingElapsedTimer = null
+      }
+      
+      // Refresh models store to pick up updated lifecycle state
+      setTimeout(() => {
+        modelsStore.fetchModels().catch(err => {
+          console.warn('[DemoControl] Failed to refresh models after activation (error case):', err)
+        })
+      }, 1000)
       
       startSessionTimer()
       startAutoSleepTimer()
@@ -233,10 +281,17 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     loadingStage.value = ''
     loadingStartTime.value = null
     loadingDuration.value = null
+    loadingElapsedTime.value = 0
     currentChallenge.value = null
     currentPrompt.value = null
     modelOutput.value = null
     isProcessing.value = false // Reset processing flag
+    
+    // Stop elapsed time timer
+    if (loadingElapsedTimer) {
+      clearInterval(loadingElapsedTimer)
+      loadingElapsedTimer = null
+    }
     
     stopSessionTimer()
     
@@ -405,6 +460,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     loadingStage,
     loadingStartTime,
     loadingDuration,
+    loadingElapsedTime,
+    loadingElapsedFormatted,
     liveMetrics,
     currentChallenge,
     currentPrompt,

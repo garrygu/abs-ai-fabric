@@ -85,8 +85,8 @@ function toggleAllInOneDemo(event?: Event) {
 }
 
 function recordActivity(event?: Event) {
-  // Don't record activity if clicking the guided tour button
-  if (event && (event.target as HTMLElement)?.closest('.indicator--guided-tour')) {
+  // Don't record activity if clicking the guided tour or attract mode buttons
+  if (event && (event.target as HTMLElement)?.closest('.indicator--guided-tour, .indicator--attract-mode')) {
     return
   }
   allInOneDemoStore.recordActivity()
@@ -159,18 +159,13 @@ const pageComponents = [
   Page2Performance,
   Page3Workloads,
   Page4Models,
-  Page5Explore,
-  Page6ModelOrchestration
+  Page6ModelOrchestration,
+  Page5Explore
 ]
 </script>
 
 <template>
   <div class="console-view">
-
-    <!-- Demo Mode Trigger -->
-    <button class="demo-trigger" @click="triggerAttractMode" title="Launch Demo Mode">
-      ✨ Demo
-    </button>
 
     <!-- Page Navigation -->
     <PageNavigation
@@ -182,6 +177,7 @@ const pageComponents = [
       @next="goNext"
       @go-to="goToPage"
       @toggle-guided-tour="toggleAllInOneDemo"
+      @trigger-attract-mode="triggerAttractMode"
     />
 
     <!-- Page Content with Transitions -->
@@ -213,30 +209,6 @@ const pageComponents = [
   min-height: 100vh;
   background: var(--abs-black);
 }
-
-.demo-trigger {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 100;
-  padding: 12px 24px;
-  background: linear-gradient(135deg, var(--electric-indigo), #4f46e5);
-  border: none;
-  border-radius: 24px;
-  color: white;
-  font-family: var(--font-label);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--shadow-md), var(--shadow-glow-indigo);
-  transition: all var(--duration-normal) var(--ease-smooth);
-}
-
-.demo-trigger:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg), 0 0 30px var(--electric-indigo-glow);
-}
-
 
 .page-container {
   min-height: calc(100vh - 120px);

@@ -34,6 +34,11 @@ REGISTRY_PATH = os.getenv("ASSETS_REGISTRY_PATH", "/app/assets/registry/assets.j
 _container_status_cache: Dict[str, tuple] = {}
 _CACHE_TTL = 5  # Cache for 5 seconds
 
+# Ollama running models cache (shared across all Asset instances)
+# Format: {model_name: (is_running, timestamp)}
+_ollama_running_models_cache: Dict[str, tuple] = {}
+_OLLAMA_CACHE_TTL = 2  # Cache for 2 seconds (models load/unload frequently)
+
 class Asset:
     """
     Represents a loaded asset definition.
@@ -153,6 +158,96 @@ class Asset:
                 return _container_status_cache[container_name][0]
             return "unknown"
     
+    def _check_ollama_model_running(self) -> bool:
+        """Check if this model is currently running in Ollama."""
+        global _ollama_running_models_cache
+        
+        # Get model name from asset_id or display_name
+        # Model names in Ollama might be in format "model:tag" or just "model"
+        model_name = self.asset_id
+        if not model_name or model_name == "unknown":
+            model_name = self.display_name
+        
+        # Check cache first
+        now = time.time()
+        if model_name in _ollama_running_models_cache:
+            cached_running, cached_time = _ollama_running_models_cache[model_name]
+            if now - cached_time < _OLLAMA_CACHE_TTL:
+                return cached_running
+        
+        # Cache miss or expired - check Ollama
+        try:
+            import httpx
+            from config import OLLAMA_BASE
+            
+            # Query Ollama's /api/ps endpoint to get running models
+            with httpx.Client(timeout=2.0) as client:
+                response = client.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+                if response.status_code == 200:
+                    data = response.json()
+                    running_models = data.get("models", [])
+                    
+                    # Check if our model is in the running list
+                    # Ollama returns models as {"name": "model:tag", ...}
+                    running_model_names = set()
+                    for m in running_models:
+                        name = m.get("name", "")
+                        if name:
+                            running_model_names.add(name)
+                            # Also check without tag (e.g., "model:70b" -> "model")
+                            if ":" in name:
+                                running_model_names.add(name.split(":")[0])
+                    
+                    # Check if our model matches any running model
+                    is_running = False
+                    
+                    # First, try exact match
+                    if model_name in running_model_names:
+                        is_running = True
+                    else:
+                        # Try normalized matching (handle variations in format)
+                        # Normalize both asset_id and Ollama names for comparison
+                        model_normalized = model_name.lower().replace("_", "-").replace(":", "-")
+                        
+                        for running_name in running_model_names:
+                            running_normalized = running_name.lower().replace("_", "-").replace(":", "-")
+                            
+                            # Exact normalized match
+                            if model_normalized == running_normalized:
+                                is_running = True
+                                break
+                            
+                            # Partial match (e.g., "deepseek-r1-70b" matches "deepseek-r1:70b")
+                            if model_normalized in running_normalized or running_normalized in model_normalized:
+                                is_running = True
+                                break
+                            
+                            # Also check if base names match (without tag)
+                            # e.g., "deepseek-r1:70b" and "deepseek-r1" should match
+                            if ":" in model_name and ":" in running_name:
+                                model_base = model_name.split(":")[0].lower().replace("_", "-")
+                                running_base = running_name.split(":")[0].lower().replace("_", "-")
+                                if model_base == running_base:
+                                    is_running = True
+                                    break
+                    
+                    # Cache the result
+                    _ollama_running_models_cache[model_name] = (is_running, now)
+                    
+                    # Debug logging for model status matching
+                    print(f"[AssetManager] Model '{model_name}' check: is_running={is_running}, ollama_models={[m.get('name') for m in running_models]}")
+                    
+                    return is_running
+                else:
+                    # Ollama API error - cache as not running
+                    _ollama_running_models_cache[model_name] = (False, now)
+                    return False
+        except Exception as e:
+            # Any error - return cached value if available, otherwise False
+            if model_name in _ollama_running_models_cache:
+                return _ollama_running_models_cache[model_name][0]
+            return False
+    
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialize to dictionary for API response.
@@ -169,6 +264,14 @@ class Asset:
             # Check real Docker status
             observed_state = self._get_container_status(container_name)
             lifecycle_with_state["state"] = observed_state
+        elif self.asset_class == "model" or self.interface in ["llm-runtime", "embedding-runtime", "image-runtime"]:
+            # For models, check Ollama running state
+            is_running = self._check_ollama_model_running()
+            if is_running:
+                lifecycle_with_state["state"] = "running"
+            elif "state" not in lifecycle_with_state:
+                # Default to idle if not running
+                lifecycle_with_state["state"] = "idle"
         elif "state" not in lifecycle_with_state:
             # Non-containerized: derive from desired
             desired = lifecycle_with_state.get("desired", "on-demand")

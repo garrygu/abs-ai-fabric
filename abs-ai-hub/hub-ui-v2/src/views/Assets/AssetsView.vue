@@ -5,7 +5,11 @@
         <h1>📦 Assets</h1>
         <p class="view-desc">Manage and observe all AI assets in your workspace — apps, models, services, tools, and datasets.</p>
       </div>
+      <button @click="refreshAssets" class="btn btn-primary" :disabled="assetStore.loading">
+        🔄 {{ assetStore.loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </header>
+
 
     <!-- Controls Bar -->
     <div class="controls-bar">
@@ -665,6 +669,10 @@ watch(() => assetStore.searchQuery, (val) => {
 onMounted(() => {
   assetStore.fetchAssets()
 })
+
+async function refreshAssets() {
+  await assetStore.fetchAssets()
+}
 
 function goToAsset(id: string) {
   router.push(`/workspace/${route.params.workspaceId}/assets/${id}`)
