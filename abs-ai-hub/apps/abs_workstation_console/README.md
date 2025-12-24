@@ -1,6 +1,6 @@
 # ABS Workstation Console
 
-A flagship system app for CES showcase that demonstrates live local AI capability through real-time metrics, workload visualization, and an auto-activating Attract Mode.
+A flagship system app for CES showcase that demonstrates live local AI capability through real-time metrics, workload visualization, and an auto-activating Showcase Mode.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ Then open http://localhost:5200
 - **AI Workloads**: Display of active apps and their AI workload types
 - **Installed Models**: Read-only view of local models with status
 - **Explore Workstations**: SKU information with CTAs
-- **Attract Mode**: Auto-activating idle visualization with GPU-aware resource budgeting
+- **Showcase Mode**: Auto-activating idle visualization with GPU-aware resource budgeting
 
 ## CES Mode
 
@@ -33,7 +33,7 @@ CES_MODE=true npm run build
 ```
 src/
 ├── components/
-│   ├── attract/           # Attract Mode components
+│   ├── attract/           # Showcase Mode components
 │   │   ├── AttractModeOverlay.vue
 │   │   ├── MetricsLayer.vue
 │   │   ├── BrandingLayer.vue

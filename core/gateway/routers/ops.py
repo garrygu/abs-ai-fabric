@@ -5,6 +5,7 @@ import psutil
 import asyncio
 import httpx
 from pydantic import BaseModel
+import random
 
 from services.autowake import (
     SERVICE_REGISTRY, 
@@ -158,6 +159,41 @@ async def load_model(model_name: str):
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to load model: {str(e)}")
+
+@router.post("/v1/admin/models/{model_name}/unload")
+async def unload_model(model_name: str):
+    """Unload a model from Ollama memory."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Use generate endpoint with keep_alive=0 to immediately unload model
+            response = await client.post(
+                f"{OLLAMA_BASE.rstrip('/')}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": "",  # Empty prompt, we just want to unload
+                    "stream": False,
+                    "keep_alive": "0"  # Immediately unload after this call
+                }
+            )
+            if response.status_code == 200:
+                # Clear the Ollama running models cache to force refresh
+                try:
+                    from services.asset_manager import _ollama_running_models_cache
+                    _ollama_running_models_cache.clear()
+                    print(f"[Ops] Cleared Ollama model cache after unloading {model_name}")
+                except (ImportError, AttributeError) as e:
+                    print(f"[Ops] Could not clear Ollama cache (non-fatal): {e}")
+                
+                return {"status": "success", "message": f"Model {model_name} unloaded successfully"}
+            else:
+                error_text = response.text
+                raise HTTPException(response.status_code, f"Failed to unload model: {error_text}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Timeout unloading model")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to unload model: {str(e)}")
 
 @router.delete("/v1/admin/models/{model_name}")
 async def delete_model(model_name: str):

@@ -481,7 +481,7 @@ onUnmounted(() => {
   window.removeEventListener('scroll', recordActivity)
 })
 
-// Watch for Attract Mode changes
+// Watch for Showcase Mode changes
 watch(() => attractStore.isActive, (isActive) => {
   if (isActive) {
     stopTour()

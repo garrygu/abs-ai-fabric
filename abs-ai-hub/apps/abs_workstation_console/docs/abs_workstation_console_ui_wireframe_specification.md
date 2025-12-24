@@ -1,4 +1,4 @@
-# 🧩 ABS Workstation Console – Attract Mode
+# 🧩 ABS Workstation Console – Showcase Mode
 
 ## UI Wireframe Specification (v1.0)
 
@@ -54,7 +54,7 @@
 
 📌 **Rule**
 
-> Attract Mode must *feel intentional*, not like a screensaver snapping on.
+> Showcase Mode must *feel intentional*, not like a screensaver snapping on.
 
 ---
 

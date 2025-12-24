@@ -1,4 +1,4 @@
-Below is a **full, implementation-ready engineering specification** for **Attract Mode**, written to fit **ABS AI OS**, **ABS Workstation Console**, your **Core Services architecture**, and **CES constraints**.
+Below is a **full, implementation-ready engineering specification** for **Showcase Mode**, written to fit **ABS AI OS**, **ABS Workstation Console**, your **Core Services architecture**, and **CES constraints**.
 
 This is not a concept doc — this is something you can hand directly to engineering.
 
@@ -6,7 +6,7 @@ This is not a concept doc — this is something you can hand directly to enginee
 
 # 📘 Engineering Specification
 
-## Feature: **Attract Mode**
+## Feature: **Showcase Mode**
 
 **App:** ABS Workstation Console
 **Version:** v1.0
@@ -19,7 +19,7 @@ This is not a concept doc — this is something you can hand directly to enginee
 
 ### 1.1 Purpose
 
-Attract Mode is an **automatic, GPU-powered, OS-native visualization mode** that activates when the system is idle and demonstrates the **live AI and compute capabilities** of an ABS Workstation.
+Showcase Mode is an **automatic, GPU-powered, OS-native visualization mode** that activates when the system is idle and demonstrates the **live AI and compute capabilities** of an ABS Workstation.
 
 ### 1.2 Goals
 
@@ -44,7 +44,7 @@ Attract Mode is an **automatic, GPU-powered, OS-native visualization mode** that
 
 ### 2.1 Idle Detection
 
-Attract Mode activates when **all** of the following are true:
+Showcase Mode activates when **all** of the following are true:
 
 ```yaml
 attract_mode:
@@ -66,7 +66,7 @@ Idle detection lives in the **Hub UI layer**, not Windows OS.
 
 ### 2.2 Exit Conditions (Immediate)
 
-Attract Mode **must exit instantly** on:
+Showcase Mode **must exit instantly** on:
 
 ```yaml
 exit_on:
@@ -98,9 +98,9 @@ gpu_policy:
 
 Rules:
 
-* Attract Mode must **throttle or pause** if GPU usage exceeds soft cap
-* Attract Mode **must stop immediately** if hard cap is reached
-* Attract Mode **always yields** to real workloads
+* Showcase Mode must **throttle or pause** if GPU usage exceeds soft cap
+* Showcase Mode **must stop immediately** if hard cap is reached
+* Showcase Mode **always yields** to real workloads
 
 ---
 
@@ -108,9 +108,9 @@ Rules:
 
 | Scenario                  | Behavior            |
 | ------------------------- | ------------------- |
-| Any app starts inference  | Pause Attract Mode  |
+| Any app starts inference  | Pause Showcase Mode  |
 | App GPU usage > threshold | Suspend visuals     |
-| All apps idle again       | Resume Attract Mode |
+| All apps idle again       | Resume Showcase Mode |
 
 No contention. Ever.
 
@@ -120,7 +120,7 @@ No contention. Ever.
 
 ```
 ABS Workstation Console
- └── Attract Mode Controller
+ └── Showcase Mode Controller
       ├── Idle Detector
       ├── Visual Scheduler
       ├── GPU Budget Monitor
@@ -134,7 +134,7 @@ All components run **locally** and reuse **existing Core services**.
 
 ## 5. Visual Stack (Layered)
 
-Attract Mode is composed of **three layers**, rendered full-screen.
+Showcase Mode is composed of **three layers**, rendered full-screen.
 
 ---
 
@@ -315,7 +315,7 @@ Effects:
 | LLM unavailable        | Disable LLM stream         |
 | Network unavailable    | No visible impact          |
 
-Attract Mode must **never crash the Console**.
+Showcase Mode must **never crash the Console**.
 
 ---
 
@@ -349,7 +349,7 @@ Safe for public display.
 * [ ] GPU throttle works
 * [ ] No memory leaks (1hr run)
 * [ ] Offline mode verified
-* [ ] App launch interrupts Attract Mode
+* [ ] App launch interrupts Showcase Mode
 * [ ] CES overlay visible
 
 ---
@@ -390,5 +390,5 @@ No buzzwords.
 
 ## Final Statement
 
-> **Attract Mode is a living proof of power — not a screensaver.**
+> **Showcase Mode is a living proof of power — not a screensaver.**
 > If implemented as specified, it becomes a signature ABS capability.

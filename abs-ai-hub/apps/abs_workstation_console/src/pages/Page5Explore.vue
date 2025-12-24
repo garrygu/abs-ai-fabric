@@ -18,7 +18,7 @@ const expandedWhyId = ref<string | null>(null)
 
 // Auto Highlight Tour state
 // CES-only enhancement: runs in Regular Mode when someone is nearby but not interacting
-// Stops when Attract Mode activates (full-screen) or user interacts
+// Stops when Showcase Mode activates (full-screen) or user interacts
 const highlightedCardId = ref<string | null>(null)
 const tourCaption = ref<string>('')
 const isTourActive = ref(false)
@@ -132,9 +132,9 @@ function recordActivity() {
 }
 
 // Check if should start tour
-// Only runs in CES mode, when NOT in Attract Mode (Regular Mode only)
+// Only runs in CES mode, when NOT in Showcase Mode (Regular Mode only)
 function checkIdle() {
-  // Don't start if Attract Mode is active (we're in full-screen mode)
+  // Don't start if Showcase Mode is active (we're in full-screen mode)
   if (attractStore.isActive) {
     stopTour()
     return
@@ -149,14 +149,14 @@ function checkIdle() {
   const idleTime = Date.now() - lastActivityTime.value
   const shouldStart = idleTime >= IDLE_THRESHOLD_MS && 
                       !isTourActive.value &&
-                      !attractStore.isActive && // Ensure Attract Mode is not active
+                      !attractStore.isActive && // Ensure Showcase Mode is not active
                       allTourCards.value.length > 0
   
   console.log('[Auto Highlight Tour] Check idle:', {
     idleTime: Math.round(idleTime / 1000) + 's',
     threshold: Math.round(IDLE_THRESHOLD_MS / 1000) + 's',
     isCESMode: isCESMode.value,
-    isAttractMode: attractStore.isActive,
+    isShowcaseMode: attractStore.isActive,
     isTourActive: isTourActive.value,
     cardsCount: allTourCards.value.length,
     shouldStart
@@ -183,7 +183,7 @@ function startTour() {
   let currentIndex = 0
   
   function highlightNext() {
-    // Safety check: stop if Attract Mode activated (we're going full-screen)
+    // Safety check: stop if Showcase Mode activated (we're going full-screen)
     if (!isTourActive.value || attractStore.isActive) {
       stopTour()
       return
@@ -285,15 +285,15 @@ watch(activeTab, () => {
   }
 })
 
-// Watch for Attract Mode changes
-// When Attract Mode activates (full-screen), stop the tour immediately
-// When Attract Mode deactivates, the tour can restart if still idle
+// Watch for Showcase Mode changes
+// When Showcase Mode activates (full-screen), stop the tour immediately
+// When Showcase Mode deactivates, the tour can restart if still idle
 watch(() => attractStore.isActive, (isActive) => {
   if (isActive) {
-    // Attract Mode activated - stop tour (we're going full-screen)
+    // Showcase Mode activated - stop tour (we're going full-screen)
     stopTour()
   } else {
-    // Attract Mode deactivated - check if we should restart tour (if still idle)
+    // Showcase Mode deactivated - check if we should restart tour (if still idle)
     if (isCESMode.value && Date.now() - lastActivityTime.value >= IDLE_THRESHOLD_MS) {
       setTimeout(checkIdle, 500)
     }
@@ -301,7 +301,7 @@ watch(() => attractStore.isActive, (isActive) => {
 })
 
 onMounted(() => {
-  console.log('[Auto Highlight Tour] Mounted. CES Mode:', isCESMode.value, 'Attract Mode:', attractStore.isActive)
+  console.log('[Auto Highlight Tour] Mounted. CES Mode:', isCESMode.value, 'Showcase Mode:', attractStore.isActive)
   
   // Fetch workloads and models for "currently running" indicator
   if (workloadsStore.workloads.length === 0) {

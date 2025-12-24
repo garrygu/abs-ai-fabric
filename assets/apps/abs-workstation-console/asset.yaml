@@ -6,7 +6,7 @@ interface: ui
 interface_version: v1
 class: app
 
-description: Real-time system metrics, hardware overview, and AI workload status for this ABS workstation. System observability console with Attract Mode.
+description: Real-time system metrics, hardware overview, and AI workload status for this ABS workstation. System observability console with Showcase Mode.
 
 policy:
   required_models: []

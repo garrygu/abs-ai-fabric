@@ -85,14 +85,14 @@ function triggerAttractMode(event: Event) {
         <span v-if="allInOneDemoStore.isActive" class="guided-tour-status">Activated</span>
       </button>
       
-      <!-- Attract Mode Toggle -->
+      <!-- Showcase Mode Toggle -->
       <button
         class="indicator indicator--attract-mode"
         :class="{ 'indicator--active': attractStore.isActive }"
-        :title="attractStore.isActive ? 'Deactivate Attract Mode' : 'Activate Attract Mode'"
+        :title="attractStore.isActive ? 'Deactivate Showcase Mode' : 'Activate Showcase Mode'"
         @click="triggerAttractMode"
       >
-        <span class="indicator-label">Attract Mode</span>
+        <span class="indicator-label">Showcase Mode</span>
         <span v-if="attractStore.isActive" class="attract-mode-status">Active</span>
       </button>
     </div>

@@ -23,7 +23,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   
   // Auto-sleep timer
   const autoSleepTimer = ref<ReturnType<typeof setTimeout> | null>(null)
-  const autoSleepDelay = 120000 // 2 minutes
+  const autoSleepDelay = 600000 // 10 minutes after kiosk is closed
   
   // Loading duration display timer (auto-hide after showing)
   const loadingDurationTimer = ref<ReturnType<typeof setTimeout> | null>(null)
@@ -43,6 +43,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   const currentPrompt = ref<string | null>(null)
   const modelOutput = ref<{ reasoned?: string; explained?: string } | null>(null)
   const isProcessing = ref(false) // Track if model is processing a prompt
+  const currentDocument = ref<string | null>(null) // Store current document for summarization
+  const isKioskOpen = ref(false) // Track if the "Try It Yourself" kiosk is open
   
   const isActive = computed(() => activeModel.value !== null && modelStatus.value !== 'idle')
   const isWarming = computed(() => modelStatus.value === 'warming')
@@ -69,6 +71,12 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         clearInterval(sessionTimerInterval)
         sessionTimerInterval = null
       }
+      return
+    }
+    
+    // Pause countdown if model is processing
+    if (isProcessing.value) {
+      // Don't update the countdown while processing - keep current value
       return
     }
     
@@ -212,11 +220,10 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         })
       }, 1000) // Small delay to allow Gateway to update lifecycle state
       
-      // Start session timer (will start countdown after 10s idle)
-      startSessionTimer()
+      // Session timer disabled - user can manually deactivate or wait for auto-sleep
+      // startSessionTimer()
       
-      // Start auto-sleep timer
-      startAutoSleepTimer()
+      // Don't start auto-sleep timer immediately - wait until kiosk is closed
     } catch (error) {
       console.error('[DemoControl] Error activating model:', error)
       // Even if load fails, mark as running - model will load on first use
@@ -242,8 +249,9 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         })
       }, 1000)
       
-      startSessionTimer()
-      startAutoSleepTimer()
+      // Session timer disabled - user can manually deactivate or wait for auto-sleep
+      // startSessionTimer()
+      // Don't start auto-sleep timer immediately - wait until kiosk is closed
     }
   }
   
@@ -252,15 +260,15 @@ export const useDemoControlStore = defineStore('demoControl', () => {
       clearTimeout(autoSleepTimer.value)
     }
     
-    // Don't start auto-sleep if model is processing
-    if (isProcessing.value) {
+    // Don't start auto-sleep if model is processing or kiosk is open
+    if (isProcessing.value || isKioskOpen.value) {
       return
     }
     
     autoSleepTimer.value = setTimeout(() => {
-      // Double-check processing status before sleeping
-      if (isProcessing.value) {
-        // If still processing, restart timer
+      // Double-check processing status and kiosk state before sleeping
+      if (isProcessing.value || isKioskOpen.value) {
+        // If still processing or kiosk is open, restart timer
         startAutoSleepTimer()
         return
       }
@@ -274,7 +282,36 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     }, autoSleepDelay)
   }
   
-  function deactivateModel() {
+  function setKioskOpen(open: boolean) {
+    isKioskOpen.value = open
+    
+    // If kiosk is opened, cancel any auto-sleep timer
+    if (open) {
+      if (autoSleepTimer.value) {
+        clearTimeout(autoSleepTimer.value)
+        autoSleepTimer.value = null
+      }
+    } else {
+      // If kiosk is closed, start the auto-sleep timer
+      startAutoSleepTimer()
+    }
+  }
+  
+  async function deactivateModel() {
+    // Unload the model(s) from VRAM before clearing UI state
+    const modelToUnload = activeModel.value
+    if (modelToUnload) {
+      try {
+        const { unloadModel } = await import('@/services/api')
+        await unloadModel(modelToUnload)
+        console.log(`[DemoControl] Unloaded model: ${modelToUnload}`)
+      } catch (error) {
+        console.error('[DemoControl] Error unloading model:', error)
+        // Continue with deactivation even if unload fails
+      }
+    }
+    
+    // Clear UI state
     activeModel.value = null
     modelStatus.value = 'idle'
     loadingProgress.value = 0
@@ -285,6 +322,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     currentChallenge.value = null
     currentPrompt.value = null
     modelOutput.value = null
+    currentDocument.value = null
     isProcessing.value = false // Reset processing flag
     
     // Stop elapsed time timer
@@ -303,6 +341,13 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     if (loadingDurationTimer.value) {
       clearTimeout(loadingDurationTimer.value)
       loadingDurationTimer.value = null
+    }
+    
+    // Refresh models list to update status
+    try {
+      modelsStore.fetchModels()
+    } catch (error) {
+      console.error('[DemoControl] Error refreshing models:', error)
     }
     
     // Process pending request if any
@@ -324,7 +369,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     liveMetrics.value = { ...liveMetrics.value, ...metrics }
   }
   
-  function setChallenge(challenge: string, prompt: string) {
+  async function setChallenge(challenge: string, prompt: string) {
     currentChallenge.value = challenge
     currentPrompt.value = prompt
     
@@ -335,6 +380,18 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     if (autoSleepTimer.value) {
       clearTimeout(autoSleepTimer.value)
       autoSleepTimer.value = null
+    }
+    
+    // For summarize challenge, fetch a sample document from HuggingFace
+    if (challenge === 'summarize' && !currentDocument.value) {
+      try {
+        const { fetchSampleDocument } = await import('@/services/api')
+        const sampleDoc = await fetchSampleDocument('cnn_dailymail')
+        currentDocument.value = sampleDoc.document
+      } catch (error) {
+        console.error('[DemoControl] Failed to fetch sample document:', error)
+        // Continue without document - model will still respond
+      }
     }
     
     // Ensure model status is 'running' if it's active
@@ -348,6 +405,12 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     // Mark as processing - this prevents auto-sleep and shows progress
     isProcessing.value = true
     
+    // Update activity time to pause/reset the session timer while processing
+    if (modelStatus.value === 'running') {
+      lastActivityTime.value = Date.now()
+      timeRemaining.value = null // Hide countdown while processing
+    }
+    
     // Call real model API to generate output
     ;(async () => {
       try {
@@ -359,14 +422,20 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         
         const challengeType = currentChallenge.value || undefined
         
+        // For summarize challenge, prepend document content to the prompt
+        let fullPrompt = prompt
+        if (challengeType === 'summarize' && currentDocument.value) {
+          fullPrompt = `Document to analyze:\n\n${currentDocument.value}\n\n---\n\nUser request: ${prompt}`
+        }
+        
         if (activeModel.value === 'dual') {
           // Dual model: generate both outputs in parallel
           const [reasonedResult, explainedResult] = await Promise.all([
-            sendChatCompletion('deepseek-r1-70b', prompt, undefined, challengeType).catch(err => {
+            sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch(err => {
               console.error('[DemoControl] DeepSeek error:', err)
               return `Error: ${err.message}`
             }),
-            sendChatCompletion('llama3-70b', prompt, undefined, challengeType).catch(err => {
+            sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType).catch(err => {
               console.error('[DemoControl] LLaMA error:', err)
               return `Error: ${err.message}`
             })
@@ -384,7 +453,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
         } else if (activeModel.value === 'deepseek-r1-70b') {
           // Reasoning challenge - use DeepSeek
-          const result = await sendChatCompletion(activeModel.value, prompt, undefined, challengeType)
+          const result = await sendChatCompletion(activeModel.value, fullPrompt, undefined, challengeType)
           
           // Check if model was deactivated during API call
           if (activeModel.value === null) {
@@ -397,7 +466,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
         } else if (activeModel.value === 'llama3-70b') {
           // Executive explanation or summarization challenge
-          const result = await sendChatCompletion(activeModel.value, prompt, undefined, challengeType)
+          const result = await sendChatCompletion(activeModel.value, fullPrompt, undefined, challengeType)
           
           // Check if model was deactivated during API call
           if (activeModel.value === null) {
@@ -413,9 +482,11 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         // Mark processing as complete
         isProcessing.value = false
         
-        // Start auto-sleep timer after output is generated (user might interact with it)
+        // Reset activity time when processing completes - this resets the idle timer
         if (modelStatus.value === 'running') {
-          startAutoSleepTimer()
+          lastActivityTime.value = Date.now()
+          timeRemaining.value = null // Hide countdown until idle threshold is reached again
+          // Don't start auto-sleep timer here - wait until kiosk is closed
         }
       } catch (error) {
         console.error('[DemoControl] Error generating model output:', error)
@@ -448,7 +519,14 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   }
   
   function clearSession() {
-    deactivateModel()
+    // Close kiosk (this will trigger auto-sleep timer)
+    setKioskOpen(false)
+    // setKioskOpen(false) already calls startAutoSleepTimer(), so no need to call it again
+  }
+  
+  async function deactivateModelManually() {
+    // Manual deactivation - immediately deactivate and unload model
+    await deactivateModel()
   }
   
   return {
@@ -465,6 +543,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     liveMetrics,
     currentChallenge,
     currentPrompt,
+    currentDocument,
     modelOutput,
     isProcessing,
     
@@ -483,6 +562,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     setChallenge,
     setModelOutput,
     clearSession,
+    deactivateModelManually,
+    setKioskOpen,
     startAutoSleepTimer,
     startSessionTimer,
     stopSessionTimer,

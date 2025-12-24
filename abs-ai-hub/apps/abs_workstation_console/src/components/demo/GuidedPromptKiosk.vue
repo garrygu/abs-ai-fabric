@@ -8,17 +8,76 @@ const selectedChallenge = ref<string | null>(null)
 const showKiosk = ref(false)
 const outputDisplayRef = ref<HTMLElement | null>(null)
 const selectedPromptIndex = ref<number | null>(null) // Track which prompt was clicked
+const isOnline = ref(true) // Track internet connectivity
+const customPrompt = ref('') // Custom user input
+const showCustomInput = ref(false) // Toggle custom input visibility
+const customPromptError = ref<string | null>(null) // Error message for custom prompt
+const lastCustomPromptTime = ref<number>(0) // Rate limiting
+
+// Guardrails constants
+const MAX_PROMPT_LENGTH = 2000 // Maximum characters
+const MIN_PROMPT_LENGTH = 3 // Minimum characters (after trim)
+const RATE_LIMIT_MS = 3000 // Minimum time between prompts (3 seconds)
+const MAX_LINES = 20 // Maximum number of lines
+
+// Check internet connectivity
+async function checkConnectivity() {
+  // First check navigator.onLine (quick check)
+  if (!navigator.onLine) {
+    isOnline.value = false
+    return
+  }
+  
+  // Then try to fetch from a simple endpoint to verify actual connectivity
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+    
+    const response = await fetch('https://www.google.com/favicon.ico', {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal,
+      cache: 'no-cache'
+    })
+    
+    clearTimeout(timeoutId)
+    isOnline.value = true
+  } catch (error) {
+    // If fetch fails, we're likely offline
+    isOnline.value = false
+  }
+}
 
 function handleShowKiosk() {
   showKiosk.value = true
+  demoControl.setKioskOpen(true)
 }
+
+// Watch kiosk visibility to update store
+watch([showKiosk, selectedChallenge], ([kioskVisible, challengeSelected]) => {
+  const isOpen = kioskVisible || challengeSelected !== null
+  demoControl.setKioskOpen(isOpen)
+}, { immediate: true })
 
 onMounted(() => {
   window.addEventListener('show-prompt-kiosk', handleShowKiosk)
+  window.addEventListener('online', checkConnectivity)
+  window.addEventListener('offline', () => { isOnline.value = false })
+  
+  // Check connectivity on mount
+  checkConnectivity()
+  
+  // Set initial kiosk state
+  demoControl.setKioskOpen(showKiosk.value || selectedChallenge.value !== null)
 })
 
 onUnmounted(() => {
   window.removeEventListener('show-prompt-kiosk', handleShowKiosk)
+  window.removeEventListener('online', checkConnectivity)
+  window.removeEventListener('offline', () => { isOnline.value = false })
+  
+  // Close kiosk when component unmounts
+  demoControl.setKioskOpen(false)
 })
 
 // Challenge definitions with prompt chips
@@ -90,7 +149,23 @@ const currentChallenge = computed(() => {
   return challenges[selectedChallenge.value as keyof typeof challenges]
 })
 
+// Filter out disabled challenges (temporarily disable 'summarize')
+const availableChallenges = computed(() => {
+  const result: Record<string, typeof challenges[keyof typeof challenges]> = {}
+  for (const [id, challenge] of Object.entries(challenges)) {
+    if (id !== 'summarize') {  // Temporarily disabled
+      result[id] = challenge
+    }
+  }
+  return result
+})
+
 function selectChallenge(challengeId: string) {
+  // Prevent selecting summarize challenge if offline
+  if (challengeId === 'summarize' && !isOnline.value) {
+    return
+  }
+  
   // Clear previous prompt selection when switching challenges
   selectedPromptIndex.value = null
   // Clear previous output when switching challenges
@@ -134,6 +209,132 @@ function selectPrompt(promptText: string, index: number) {
     }
   }
 }
+
+// Validate custom prompt with guardrails
+function validateCustomPrompt(prompt: string): { valid: boolean; error: string | null } {
+  const trimmed = prompt.trim()
+  
+  // Check if empty or too short
+  if (!trimmed) {
+    return { valid: false, error: 'Please enter a question or prompt' }
+  }
+  
+  if (trimmed.length < MIN_PROMPT_LENGTH) {
+    return { valid: false, error: `Prompt must be at least ${MIN_PROMPT_LENGTH} characters` }
+  }
+  
+  // Check if too long
+  if (trimmed.length > MAX_PROMPT_LENGTH) {
+    return { valid: false, error: `Prompt must be no more than ${MAX_PROMPT_LENGTH} characters (currently ${trimmed.length})` }
+  }
+  
+  // Check line count
+  const lines = trimmed.split('\n').filter(line => line.trim().length > 0)
+  if (lines.length > MAX_LINES) {
+    return { valid: false, error: `Prompt must be no more than ${MAX_LINES} lines` }
+  }
+  
+  // Check for rate limiting
+  const now = Date.now()
+  const timeSinceLastPrompt = now - lastCustomPromptTime.value
+  if (lastCustomPromptTime.value > 0 && timeSinceLastPrompt < RATE_LIMIT_MS) {
+    const remaining = Math.ceil((RATE_LIMIT_MS - timeSinceLastPrompt) / 1000)
+    return { valid: false, error: `Please wait ${remaining} second${remaining > 1 ? 's' : ''} before sending another prompt` }
+  }
+  
+  // Basic content filtering - check for potentially problematic patterns
+  const lowerPrompt = trimmed.toLowerCase()
+  
+  // Block attempts to override system prompts
+  if (lowerPrompt.includes('ignore previous') || 
+      lowerPrompt.includes('forget all') ||
+      lowerPrompt.includes('system:') ||
+      lowerPrompt.includes('you are now')) {
+    return { valid: false, error: 'This prompt type is not allowed in demo mode' }
+  }
+  
+  // Block excessive repetition (potential spam)
+  const words = trimmed.split(/\s+/)
+  if (words.length > 2) {
+    const wordCounts = new Map<string, number>()
+    words.forEach(word => {
+      const lowerWord = word.toLowerCase()
+      wordCounts.set(lowerWord, (wordCounts.get(lowerWord) || 0) + 1)
+    })
+    const maxRepeats = Math.max(...Array.from(wordCounts.values()))
+    if (maxRepeats > words.length * 0.5) {
+      return { valid: false, error: 'Prompt contains too much repetition' }
+    }
+  }
+  
+  // Block very long single words (potential encoding issues)
+  const longWords = words.filter(word => word.length > 100)
+  if (longWords.length > 0) {
+    return { valid: false, error: 'Prompt contains words that are too long' }
+  }
+  
+  return { valid: true, error: null }
+}
+
+function sendCustomPrompt() {
+  if (!selectedChallenge.value || demoControl.isProcessing) return
+  
+  // Clear previous error
+  customPromptError.value = null
+  
+  // Validate prompt
+  const validation = validateCustomPrompt(customPrompt.value)
+  if (!validation.valid) {
+    customPromptError.value = validation.error
+    return
+  }
+  
+  const trimmedPrompt = customPrompt.value.trim()
+  
+  // Update rate limit timestamp
+  lastCustomPromptTime.value = Date.now()
+  
+  // Clear any selected prompt chip
+  selectedPromptIndex.value = null
+  
+  // Record activity
+  demoControl.recordActivity()
+  
+  // Send custom prompt
+  if (demoControl.isActive) {
+    demoControl.setChallenge(selectedChallenge.value, trimmedPrompt)
+  } else {
+    demoControl.setChallenge(selectedChallenge.value, trimmedPrompt)
+    
+    // Activate appropriate model
+    if (!demoControl.isActive) {
+      if (selectedChallenge.value === 'reasoning') {
+        demoControl.activateModel('deepseek-r1-70b')
+      } else if (selectedChallenge.value === 'explanation') {
+        demoControl.activateModel('llama3-70b')
+      } else if (selectedChallenge.value === 'compare') {
+        demoControl.activateModel('dual')
+      } else {
+        demoControl.activateModel('llama3-70b')
+      }
+    }
+  }
+  
+  // Clear custom input and error after sending
+  customPrompt.value = ''
+  customPromptError.value = null
+}
+
+// Watch custom prompt for real-time validation feedback
+watch(customPrompt, (newValue) => {
+  // Clear error when user starts typing
+  if (customPromptError.value && newValue.trim().length > 0) {
+    const validation = validateCustomPrompt(newValue)
+    if (validation.valid) {
+      customPromptError.value = null
+    }
+  }
+})
 
 // Watch for when processing completes to reset selected prompt
 watch(() => demoControl.isProcessing, (isProcessing) => {
@@ -192,6 +393,7 @@ function closeKiosk() {
   selectedChallenge.value = null
   selectedPromptIndex.value = null
   showKiosk.value = false
+  demoControl.setKioskOpen(false) // This will trigger auto-sleep timer
   demoControl.clearSession()
 }
 </script>
@@ -214,14 +416,23 @@ function closeKiosk() {
         </div>
         <div class="challenge-grid">
           <button
-            v-for="(challenge, id) in challenges"
+            v-for="(challenge, id) in availableChallenges"
             :key="id"
             class="challenge-button"
+            :class="{ 
+              'challenge-button--disabled': id === 'summarize' && !isOnline 
+            }"
+            :disabled="id === 'summarize' && !isOnline"
+            :title="id === 'summarize' && !isOnline ? 'This challenge requires internet connection to fetch sample documents from HuggingFace datasets' : ''"
             @click="selectChallenge(id)"
           >
             <div class="challenge-title">{{ challenge.title }}</div>
             <div class="challenge-model">{{ challenge.model }}</div>
             <div class="challenge-desc">{{ challenge.description }}</div>
+            <div v-if="id === 'summarize' && !isOnline" class="challenge-offline-notice">
+              <span class="offline-icon">⚠️</span>
+              <span class="offline-text">Requires internet</span>
+            </div>
           </button>
         </div>
       </div>
@@ -267,6 +478,49 @@ function closeKiosk() {
               </div>
             </button>
           </div>
+          
+          <!-- Custom Prompt Input -->
+          <div class="custom-prompt-section">
+            <button 
+              class="custom-prompt-toggle"
+              @click="showCustomInput = !showCustomInput"
+              :class="{ 'custom-prompt-toggle--active': showCustomInput }"
+            >
+              <span v-if="!showCustomInput">+ Ask your own question</span>
+              <span v-else>− Hide custom input</span>
+            </button>
+            
+            <Transition name="slide-down">
+              <div v-if="showCustomInput" class="custom-prompt-input-wrapper">
+                <textarea
+                  v-model="customPrompt"
+                  class="custom-prompt-input"
+                  :class="{ 'custom-prompt-input--error': customPromptError }"
+                  placeholder="Type your own question or prompt here... (Press Enter to send, Shift+Enter for new line)"
+                  rows="3"
+                  :disabled="demoControl.isProcessing"
+                  :maxlength="MAX_PROMPT_LENGTH"
+                  @keydown.enter.exact.prevent="sendCustomPrompt()"
+                ></textarea>
+                <div v-if="customPromptError" class="custom-prompt-error">
+                  <span class="error-icon">⚠️</span>
+                  <span class="error-text">{{ customPromptError }}</span>
+                </div>
+                <div class="custom-prompt-footer">
+                  <div class="custom-prompt-counter">
+                    {{ customPrompt.length }} / {{ MAX_PROMPT_LENGTH }} characters
+                  </div>
+                  <button
+                    class="custom-prompt-send"
+                    @click="sendCustomPrompt()"
+                    :disabled="!customPrompt.trim() || demoControl.isProcessing || !!customPromptError"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
         </div>
         
         <!-- Processing Indicator -->
@@ -289,7 +543,10 @@ function closeKiosk() {
           ref="outputDisplayRef"
           class="model-output-display"
         >
-          <div class="output-header">Model Response:</div>
+          <div class="output-header-row">
+            <div class="output-header">Model Response:</div>
+            <button class="output-close-button" @click="closeKiosk" title="Close window">×</button>
+          </div>
           <div v-if="demoControl.modelOutput.reasoned" class="output-content">
             <div class="output-label">Reasoned Output:</div>
             <div class="output-text">{{ demoControl.modelOutput.reasoned }}</div>
@@ -431,11 +688,43 @@ function closeKiosk() {
   transition: all 0.3s ease;
 }
 
-.challenge-button:hover {
+.challenge-button:hover:not(:disabled) {
   background: var(--abs-card);
   border-color: var(--abs-orange);
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(249, 115, 22, 0.2);
+}
+
+.challenge-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.challenge-button--disabled {
+  position: relative;
+}
+
+.challenge-offline-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: var(--abs-orange);
+}
+
+.offline-icon {
+  font-size: 0.9rem;
+}
+
+.offline-text {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .challenge-title {
@@ -739,6 +1028,176 @@ function closeKiosk() {
   animation: spin 0.8s linear infinite;
 }
 
+/* Custom Prompt Input */
+.custom-prompt-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.custom-prompt-toggle {
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.custom-prompt-toggle:hover {
+  border-color: var(--abs-orange);
+  color: var(--abs-orange);
+  background: rgba(249, 115, 22, 0.05);
+}
+
+.custom-prompt-toggle--active {
+  border-color: var(--abs-orange);
+  color: var(--abs-orange);
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.custom-prompt-input-wrapper {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-prompt-input {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--abs-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 80px;
+  transition: all 0.2s ease;
+}
+
+.custom-prompt-input:focus {
+  outline: none;
+  border-color: var(--abs-orange);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.custom-prompt-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.custom-prompt-input--error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.custom-prompt-input::placeholder {
+  color: var(--text-muted);
+}
+
+.custom-prompt-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: #ef4444;
+}
+
+.error-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.error-text {
+  line-height: 1.4;
+}
+
+.custom-prompt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.custom-prompt-counter {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.custom-prompt-send {
+  padding: 10px 24px;
+  background: var(--abs-orange);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.custom-prompt-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--abs-orange), #ff9f43);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.custom-prompt-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Slide down animation for custom input */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.slide-down-enter-from {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-10px);
+}
+
+.slide-down-enter-to {
+  opacity: 1;
+  max-height: 300px;
+  transform: translateY(0);
+}
+
+.slide-down-leave-from {
+  opacity: 1;
+  max-height: 300px;
+  transform: translateY(0);
+}
+
+.slide-down-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: translateY(-10px);
+}
+
 .model-output-display {
   margin-top: 20px;
   padding: 20px;
@@ -747,14 +1206,44 @@ function closeKiosk() {
   border-radius: 12px;
 }
 
+.output-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 .output-header {
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-subtle);
+}
+
+.output-close-button {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.output-close-button:hover {
+  color: var(--abs-orange);
+  border-color: var(--abs-orange);
+  background: rgba(249, 115, 22, 0.1);
 }
 
 .output-content {

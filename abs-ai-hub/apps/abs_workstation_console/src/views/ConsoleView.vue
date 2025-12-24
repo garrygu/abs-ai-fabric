@@ -85,7 +85,7 @@ function toggleAllInOneDemo(event?: Event) {
 }
 
 function recordActivity(event?: Event) {
-  // Don't record activity if clicking the guided tour or attract mode buttons
+  // Don't record activity if clicking the guided tour or showcase mode buttons
   if (event && (event.target as HTMLElement)?.closest('.indicator--guided-tour, .indicator--attract-mode')) {
     return
   }

@@ -4,6 +4,9 @@ import { useDemoControlStore, type ActiveModel } from '@/stores/demoControlStore
 
 const demoControl = useDemoControlStore()
 
+// Panel visibility
+const isVisible = ref(true)
+
 // Dragging state
 const panelRef = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
@@ -45,9 +48,10 @@ function constrainPosition() {
 
 // Drag handlers
 function handleMouseDown(e: MouseEvent) {
-  // Only allow dragging from the header
+  // Only allow dragging from the header, but not from the close button
   const target = e.target as HTMLElement
   if (!target.closest('.panel-header')) return
+  if (target.closest('.panel-close')) return // Don't drag when clicking close button
   
   isDragging.value = true
   dragStart.value = {
@@ -147,7 +151,22 @@ function showPromptKiosk() {
 </script>
 
 <template>
+  <!-- Floating reopen button (shown when panel is closed) -->
+  <Transition name="fade">
+    <button
+      v-if="!isVisible && demoControl.isActive"
+      class="panel-reopen-button"
+      @click="isVisible = true"
+      title="Show Live Playground panel"
+    >
+      <span class="reopen-icon">⚡</span>
+      <span class="reopen-text">LIVE</span>
+    </button>
+  </Transition>
+
+  <!-- Main panel -->
   <div 
+    v-if="isVisible"
     ref="panelRef"
     class="demo-control-panel"
     :class="{ 'is-dragging': isDragging }"
@@ -160,10 +179,13 @@ function showPromptKiosk() {
     @mousedown="handleMouseDown"
   >
     <div class="panel-header">
-      <div class="panel-title">LIVE INTERACTION</div>
-      <div class="status-indicator" :style="{ color: getStatusColor() }">
-        <span class="status-dot" :style="{ backgroundColor: getStatusColor() }"></span>
-        {{ statusLabel }}
+      <div class="panel-title">LIVE PLAYGROUND</div>
+      <div class="header-right">
+        <div class="status-indicator" :style="{ color: getStatusColor() }">
+          <span class="status-dot" :style="{ backgroundColor: getStatusColor() }"></span>
+          {{ statusLabel }}
+        </div>
+        <button class="panel-close" @click="isVisible = false" title="Close panel">×</button>
       </div>
     </div>
     
@@ -250,16 +272,22 @@ function showPromptKiosk() {
       Try It Yourself
     </button>
     
+    <!-- Manual Deactivate Button -->
+    <button
+      v-if="demoControl.isRunning"
+      class="deactivate-button"
+      @click="demoControl.deactivateModelManually"
+      title="Manually deactivate and unload the model"
+    >
+      Deactivate Model
+    </button>
+    
     <!-- Safety Info -->
     <div class="safety-info">
-      Auto-sleep: 2 min after idle
+      Auto-sleep: 10 min after closing Try It window
     </div>
     
-    <!-- Session Timer -->
-    <div v-if="demoControl.timeRemaining !== null && demoControl.timeRemaining > 0" class="session-timer">
-      <span class="timer-label">Session ends in:</span>
-      <span class="timer-countdown">{{ demoControl.timeRemaining }}s</span>
-    </div>
+    <!-- Session Timer - Disabled: User can manually deactivate or wait for auto-sleep -->
   </div>
 </template>
 
@@ -292,6 +320,74 @@ function showPromptKiosk() {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
   cursor: grab;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-close {
+  background: transparent;
+  border: none;
+  color: var(--abs-text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.panel-close:hover {
+  color: var(--abs-text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Reopen button (shown when panel is closed) */
+.panel-reopen-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--abs-orange);
+  color: var(--abs-black);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.panel-reopen-button:hover {
+  background: linear-gradient(135deg, var(--abs-orange), #ff9f43);
+  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
+  transform: translateY(-2px);
+}
+
+.reopen-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.reopen-text {
+  line-height: 1;
 }
 
 .panel-header:active {
@@ -553,6 +649,29 @@ function showPromptKiosk() {
 .try-it-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 0 30px rgba(249, 115, 22, 0.5);
+}
+
+.deactivate-button {
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.deactivate-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
 }
 </style>
 

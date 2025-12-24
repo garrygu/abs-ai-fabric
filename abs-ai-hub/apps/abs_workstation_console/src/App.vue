@@ -12,7 +12,7 @@ const appClasses = computed(() => ({
   'ces-mode': isCESMode.value
 }))
 
-// Hide unified header when attract mode is active
+// Hide unified header when showcase mode is active
 function toggleUnifiedHeader(hide: boolean) {
   const header = document.querySelector('abs-unified-header') as HTMLElement | null
   if (header) {

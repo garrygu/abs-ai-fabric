@@ -360,6 +360,25 @@ export async function fetchInstalledModels(): Promise<InstalledModel[]> {
     }
 }
 
+// Fetch a sample document from HuggingFace datasets for summarization demo
+export async function fetchSampleDocument(dataset: string = 'cnn_dailymail'): Promise<{ document: string; summary?: string; dataset: string; source: string }> {
+    try {
+        const response = await fetch(`${GATEWAY_URL}/v1/demo/sample-document?dataset=${encodeURIComponent(dataset)}`)
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`)
+        }
+        return await response.json()
+    } catch (err) {
+        console.error('[API] Failed to fetch sample document:', err)
+        // Return a fallback sample document
+        return {
+            document: "Sample document content for demonstration purposes. This is a placeholder that will be replaced with real content from HuggingFace datasets when available.",
+            dataset: dataset,
+            source: 'fallback'
+        }
+    }
+}
+
 export function formatUptime(seconds: number): string {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -417,6 +436,54 @@ function mapModelIdToGatewayModel(modelId: string | null): string | null {
     
     // Return as-is if it's already in the correct format
     return modelId
+}
+
+// Unload a model from memory
+export async function unloadModel(modelId: string | null): Promise<void> {
+    try {
+        const gatewayModel = mapModelIdToGatewayModel(modelId)
+        
+        if (!gatewayModel) {
+            // For dual mode, unload both models
+            if (modelId === 'dual') {
+                await Promise.all([
+                    unloadModel('deepseek-r1-70b'),
+                    unloadModel('llama3-70b')
+                ])
+                return
+            }
+            throw new Error(`Model ${modelId} not available`)
+        }
+        
+        console.log('[API] Requesting model unload:', gatewayModel)
+        
+        // URL encode the model name (handles colons and special characters)
+        const encodedModelName = encodeURIComponent(gatewayModel)
+        
+        // Call the model unload endpoint
+        const response = await fetch(`${GATEWAY_URL}/v1/admin/models/${encodedModelName}/unload`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        })
+        
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error')
+            console.error(`[API] Model unload failed: ${response.status}`, errorText)
+            // Don't throw - model might already be unloaded
+            console.log('[API] Model may already be unloaded')
+        } else {
+            const data = await response.json()
+            console.log('[API] Model unload success:', data)
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('[API] Model unload error:', errorMessage)
+        // Don't throw - model will be unloaded automatically by Ollama after timeout
+        console.log('[API] Model will be unloaded automatically by Ollama')
+    }
 }
 
 // Request/load a model into memory
@@ -486,6 +553,14 @@ export async function sendChatCompletion(
             systemMessage = 'You are a document analysis expert. Extract and organize key information from documents, including main points, action items, risks, stakeholders, and deadlines.'
         }
         
+        // For summarize challenge, include document content in the prompt if available
+        let userPrompt = prompt
+        if (challengeType === 'summarize') {
+            // Check if document is passed in the prompt (it will be included by the store)
+            // The prompt format will be: "Document: [content]\n\nUser request: [prompt]"
+            // This is handled by the store when calling setChallenge
+        }
+        
         const request: ChatCompletionRequest = {
             model: gatewayModel,
             messages: [
@@ -495,7 +570,7 @@ export async function sendChatCompletion(
                 },
                 {
                     role: 'user',
-                    content: prompt
+                    content: userPrompt
                 }
             ],
             temperature: challengeType === 'reasoning' ? 0.3 : 0.7,

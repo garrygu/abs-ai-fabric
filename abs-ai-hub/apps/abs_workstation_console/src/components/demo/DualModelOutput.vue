@@ -7,14 +7,24 @@ const demoControl = useDemoControlStore()
 const showOutput = computed(() => {
   return demoControl.isRunning && demoControl.activeModel === 'dual' && demoControl.modelOutput !== null
 })
+
+function closeOutput() {
+  // Clear the output and close the window
+  demoControl.modelOutput = null
+  // Optionally deactivate the model
+  // demoControl.deactivateModel()
+}
 </script>
 
 <template>
   <Transition name="fade">
     <div v-if="showOutput" class="dual-output-display">
       <div class="dual-output-header">
-        <div class="output-title">Decide + Explain</div>
-        <div class="output-subtitle">Two AI minds working together</div>
+        <div class="header-content">
+          <div class="output-title">Decide + Explain</div>
+          <div class="output-subtitle">Two AI minds working together</div>
+        </div>
+        <button class="dual-output-close" @click="closeOutput" title="Close window">×</button>
       </div>
       
       <div class="dual-output-columns">
@@ -78,10 +88,45 @@ const showOutput = computed(() => {
 }
 
 .dual-output-header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 32px;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.header-content {
+  flex: 1;
+  text-align: center;
+}
+
+.dual-output-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dual-output-close:hover {
+  color: var(--abs-orange);
+  border-color: var(--abs-orange);
+  background: rgba(249, 115, 22, 0.1);
 }
 
 .output-title {
