@@ -167,8 +167,9 @@ const pageComponents = [
 <template>
   <div class="console-view">
 
-    <!-- Page Navigation -->
+    <!-- Page Navigation (hidden in attract mode) -->
     <PageNavigation
+      v-if="!attractStore.isActive"
       :current-index="currentIndex"
       :current-page="currentPage"
       :can-go-prev="canGoPrev"
@@ -187,20 +188,20 @@ const pageComponents = [
       </Transition>
     </main>
     
-    <!-- All-In-One Tagline (CES Only) -->
-    <AllInOneTagline />
+    <!-- All-In-One Tagline (CES Only, hidden in attract mode) -->
+    <AllInOneTagline v-if="!attractStore.isActive" />
     
-    <!-- All-In-One Demo Overlay (shows step info and progress) -->
-    <AllInOneDemoOverlay />
+    <!-- All-In-One Demo Overlay (shows step info and progress, hidden in attract mode) -->
+    <AllInOneDemoOverlay v-if="!attractStore.isActive" />
     
-    <!-- Demo Control Panel (on Performance, Models, Orchestration pages) -->
-    <DemoControlPanel v-if="showDemoControl" />
+    <!-- Demo Control Panel (on Performance, Models, Orchestration pages, hidden in attract mode) -->
+    <DemoControlPanel v-if="showDemoControl && !attractStore.isActive" />
     
-    <!-- Guided Prompt Kiosk (appears when demo is active) -->
-    <GuidedPromptKiosk />
+    <!-- Guided Prompt Kiosk (appears when demo is active, hidden in attract mode) -->
+    <GuidedPromptKiosk v-if="!attractStore.isActive" />
     
-    <!-- Dual Model Output Display (for "Decide + Explain" flow) -->
-    <DualModelOutput />
+    <!-- Dual Model Output Display (for "Decide + Explain" flow, hidden in attract mode) -->
+    <DualModelOutput v-if="!attractStore.isActive" />
   </div>
 </template>
 
