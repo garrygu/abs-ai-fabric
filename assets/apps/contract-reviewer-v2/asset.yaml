@@ -1,5 +1,5 @@
 asset_id: contract-reviewer-v2
-display_name: Contract Reviewer v2
+display_name: Contract Reviewer
 version: "1.0.0"
 
 interface: application

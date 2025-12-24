@@ -11,6 +11,7 @@ export const PAGES: PageConfig[] = [
     { id: 'performance', title: 'Performance', shortTitle: 'Performance' },
     { id: 'workloads', title: 'Active Workloads', shortTitle: 'Workloads' },
     { id: 'models', title: 'Installed Models', shortTitle: 'Models' },
+    { id: 'orchestration', title: 'Model Orchestration', shortTitle: 'Orchestration' },
     { id: 'explore', title: 'Explore ABS', shortTitle: 'Explore' }
 ]
 
@@ -64,6 +65,7 @@ export function usePageNavigation() {
             case '3':
             case '4':
             case '5':
+            case '6':
                 goToPage(parseInt(e.key) - 1)
                 break
         }

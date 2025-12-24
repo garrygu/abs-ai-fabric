@@ -1,5 +1,5 @@
 {
-  "name": "Contract Reviewer v2",
+  "name": "Contract Reviewer",
   "id": "contract-reviewer-v2",
   "version": "2.0.0",
   "description": "Professional AI-powered contract analysis platform with modern three-panel interface",
@@ -44,7 +44,11 @@
     "gateway_integration": {
       "enabled": true,
       "app_id": "contract-reviewer-v2",
-      "services": ["ollama", "qdrant", "redis"]
+      "services": [
+        "ollama",
+        "qdrant",
+        "redis"
+      ]
     },
     "features": {
       "document_upload": true,
@@ -54,7 +58,10 @@
       "export_reports": true,
       "session_management": true
     },
-    "supported_formats": [".pdf", ".docx"],
+    "supported_formats": [
+      ".pdf",
+      ".docx"
+    ],
     "max_file_size": "50MB",
     "ui": {
       "type": "modern",
@@ -79,7 +86,12 @@
       "contract-reviewer-v2-data:/data"
     ],
     "healthcheck": {
-      "test": ["CMD", "curl", "-f", "http://localhost:8080/healthz"],
+      "test": [
+        "CMD",
+        "curl",
+        "-f",
+        "http://localhost:8080/healthz"
+      ],
       "interval": "30s",
       "timeout": "10s",
       "retries": 3,
@@ -125,7 +137,9 @@
   "security": {
     "cors": {
       "enabled": true,
-      "origins": ["*"]
+      "origins": [
+        "*"
+      ]
     },
     "authentication": {
       "required": false,

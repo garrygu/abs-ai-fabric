@@ -283,7 +283,7 @@ async def get_system_metrics():
     try:
         import subprocess
         
-        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking, use cached value
         memory = psutil.virtual_memory()
         
         gpu_info = []

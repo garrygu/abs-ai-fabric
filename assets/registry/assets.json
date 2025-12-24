@@ -53,6 +53,11 @@
       "id": "open-webui",
       "interface": "application",
       "path": "apps/open-webui/asset.yaml"
+    },
+    {
+      "id": "abs-workstation-console",
+      "interface": "ui",
+      "path": "apps/abs-workstation-console/asset.yaml"
     }
   ],
   "models": [
@@ -65,6 +70,20 @@
       "id": "llama4:scout",
       "interface": "llm-runtime",
       "path": "models/llama4_scout/asset.yaml"
+    },
+    {
+      "id": "deepseek-r1:70b",
+      "interface": "llm-runtime",
+      "path": "models/deepseek_r1_70b/asset.yaml",
+      "ces_demo": true,
+      "role": "primary"
+    },
+    {
+      "id": "llama3:70b",
+      "interface": "llm-runtime",
+      "path": "models/llama3_70b/asset.yaml",
+      "ces_demo": true,
+      "role": "fallback"
     },
     {
       "id": "bge-small-en-v1.5",

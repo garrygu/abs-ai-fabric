@@ -41,9 +41,13 @@ export const useMetricsStore = defineStore('metrics', () => {
         try {
             isLoading.value = true
             error.value = null
-            metrics.value = await fetchSystemMetrics()
+            const result = await fetchSystemMetrics()
+            console.log('[MetricsStore] Received metrics:', result)
+            console.log('[MetricsStore] GPU data:', result?.gpu)
+            metrics.value = result
             lastUpdated.value = new Date()
         } catch (err) {
+            console.error('[MetricsStore] Error fetching metrics:', err)
             error.value = err instanceof Error ? err.message : 'Failed to fetch metrics'
         } finally {
             isLoading.value = false

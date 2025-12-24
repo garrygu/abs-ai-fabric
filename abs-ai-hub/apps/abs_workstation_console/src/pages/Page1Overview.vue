@@ -57,7 +57,7 @@ function goToModels() {
       
       <!-- Use Case Context -->
       <div class="use-cases">
-        Designed for: Enterprise AI • On-Prem Inference • Regulated Environments
+        Designed for: Enterprise AI • On-Prem Inference • Regulated & Air-Gapped Environments
       </div>
       
       <div class="gpu-metrics">
@@ -70,6 +70,11 @@ function goToModels() {
           <span class="metric-label">VRAM Available</span>
           <span class="metric-value">{{ vramAvailable }}<span class="metric-unit"> GB</span></span>
         </div>
+      </div>
+      
+      <!-- Current State Micro-Copy -->
+      <div class="current-state">
+        Current State: Idle · Standing By · Ready for On-Demand AI
       </div>
       <div class="gpu-bar">
         <div class="gpu-bar__fill" :style="{ width: `${100 - gpuHeadroom}%` }"></div>
@@ -93,8 +98,8 @@ function goToModels() {
     <div class="model-teaser">
       <div class="teaser-header">
         <span class="teaser-icon">🎯</span>
-        <span class="teaser-title">AI Models Ready</span>
-        <span class="teaser-badge">LOCAL</span>
+        <span class="teaser-title">AI Models Ready (Local)</span>
+        <span class="teaser-badge teaser-badge--pulse">LOCAL</span>
       </div>
       <div class="teaser-subtitle">Optimized for ABS-validated model stacks</div>
       <div class="teaser-categories">
@@ -128,7 +133,12 @@ function goToModels() {
 
     <!-- CES Script -->
     <div v-if="isCESMode" class="ces-script">
-      <p>"Everything you're seeing is running locally on this workstation, right now."</p>
+      <p>"Everything you're seeing is running locally — on this workstation — right now."</p>
+    </div>
+    
+    <!-- Architectural Hint -->
+    <div class="architectural-hint">
+      Powered by an AI Operating Fabric with on-demand model orchestration
     </div>
   </div>
 </template>
@@ -140,7 +150,7 @@ function goToModels() {
   align-items: center;
   justify-content: center;
   min-height: calc(100vh - 140px);
-  padding: 32px 24px;
+  padding: 40px 24px;
   gap: 24px;
 }
 
@@ -292,6 +302,16 @@ function goToModels() {
   transition: width var(--duration-slow) var(--ease-smooth);
 }
 
+.current-state {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 12px;
+  opacity: 0.8;
+}
+
 /* Capability Highlights */
 .capability-row {
   display: grid;
@@ -375,6 +395,21 @@ function goToModels() {
   color: var(--status-success);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.teaser-badge--pulse {
+  animation: badge-pulse 3s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.5);
+  }
 }
 
 .teaser-subtitle {
@@ -476,6 +511,16 @@ function goToModels() {
   font-style: italic;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.architectural-hint {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  opacity: 0.6;
+  font-style: italic;
+  margin-top: 8px;
 }
 
 /* CES Mode: Larger typography */

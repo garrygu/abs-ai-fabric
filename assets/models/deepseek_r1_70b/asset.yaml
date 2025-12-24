@@ -1,0 +1,36 @@
+asset_id: deepseek-r1:70b
+display_name: DeepSeek R1 70B
+version: "1.0.0"
+
+interface: llm-runtime
+interface_version: v1
+class: model
+
+description: DeepSeek R1 70B reasoning model - Primary CES demo model showcasing intelligent reasoning capabilities
+
+runtime:
+  type: external
+  install:
+    command: ollama pull deepseek-r1:70b
+    once: true
+
+lifecycle:
+  desired: on-demand
+
+resources:
+  gpu_required: true
+  min_vram_gb: 48
+  min_ram_gb: 64
+  disk_gb: 45
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: true
+
+metadata:
+  provider: ollama
+  parameters: 70B
+  format: GGUF Q4_K_M
+  category: Reasoning
+  ces_primary: true

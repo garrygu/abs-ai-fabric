@@ -62,7 +62,7 @@
       "database_schema": "whisper_server"
     },
     {
-      "name": "Contract Reviewer v2",
+      "name": "Contract Reviewer",
       "id": "contract-reviewer-v2",
       "category": "Legal Apps",
       "description": "Professional AI-powered contract analysis platform with modern three-panel interface.",

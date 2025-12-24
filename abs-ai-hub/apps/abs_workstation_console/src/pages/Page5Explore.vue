@@ -3,14 +3,18 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import HeroContextLayer from '@/components/explore/HeroContextLayer.vue'
 import { useCESMode } from '@/composables/useCESMode'
 import { useAttractModeStore } from '@/stores/attractModeStore'
+import { useWorkloadsStore } from '@/stores/workloadsStore'
+import { useModelsStore } from '@/stores/modelsStore'
 
 const { isCESMode } = useCESMode()
 const attractStore = useAttractModeStore()
+const workloadsStore = useWorkloadsStore()
+const modelsStore = useModelsStore()
 
 const activeTab = ref<'models' | 'solutions'>('models')
 
-// Development mode check (for showing test button)
-const isDev = import.meta.env.DEV
+// "Why this matters" expansion state
+const expandedWhyId = ref<string | null>(null)
 
 // Auto Highlight Tour state
 // CES-only enhancement: runs in Regular Mode when someone is nearby but not interacting
@@ -25,22 +29,75 @@ const lastActivityTime = ref(Date.now())
 const IDLE_THRESHOLD_MS = 7000 // 7 seconds (6-8 seconds for passive attention)
 const TOUR_CYCLE_MS = 7000 // 7 seconds per card (6-8 seconds range, as per spec)
 
-// Model captions for tour (content narration, not spectacle)
+// Model captions for tour - narrative story-driven (one sentence max)
 const modelCaptions: Record<string, string> = {
-  'zaurion-aqua': 'Optimized for 70B+ local LLMs',
-  'zaurion-duo-aqua': 'Multi-GPU scalable for training',
-  'zaurion-ruby': 'Enterprise air-gapped deployments',
-  'zaurion-duo-ruby': 'Dual-GPU secure AI processing',
-  'zaurion-pro': 'Enterprise AI at scale'
+  'zaurion-aqua': 'Designed for local 70B-parameter LLM inference — no cloud required.',
+  'zaurion-duo-aqua': 'Multi-GPU systems optimized for parallel AI training workloads.',
+  'zaurion-ruby': 'Enterprise air-gapped deployments for secure, offline AI processing.',
+  'zaurion-duo-ruby': 'Dual-GPU architecture for high-throughput secure AI workloads.',
+  'zaurion-pro': 'Enterprise AI at scale with quad-GPU configuration and 512GB ECC memory.'
 }
 
-// Solution captions for tour
+// Solution captions for tour - narrative story-driven (one sentence max)
 const solutionCaptions: Record<string, string> = {
-  'ai-deep-learning': 'Train and deploy large models',
-  'engineering-cad': 'Professional CAD and simulation',
-  'content-creation': 'VFX and media production',
-  'scientific-research': 'HPC and big data analytics'
+  'ai-deep-learning': 'Train and deploy large language models locally with multi-GPU acceleration.',
+  'engineering-cad': 'Professional CAD workflows and engineering simulation with GPU acceleration.',
+  'content-creation': 'VFX and media production pipelines with real-time rendering capabilities.',
+  'scientific-research': 'High-performance computing for big data analytics and scientific research.'
 }
+
+// "Why this matters" explanations (hidden by default, revealed on demand)
+const whyThisMatters: Record<string, string> = {
+  // Models
+  'zaurion-aqua': 'Local LLM inference eliminates cloud dependency, reduces latency, and ensures data privacy. Perfect for enterprises that need AI capabilities without sending sensitive data to external services.',
+  'zaurion-duo-aqua': 'Dual-GPU configuration enables parallel training workflows, cutting model training time in half. Essential for AI teams iterating on large models where time-to-insight matters.',
+  'zaurion-ruby': 'Air-gapped deployment means your AI workloads run completely offline. Critical for defense, healthcare, and financial sectors where data sovereignty and compliance are non-negotiable.',
+  'zaurion-duo-ruby': 'Combines multi-GPU performance with enterprise security. Enables high-throughput AI processing while maintaining strict data isolation—ideal for regulated industries.',
+  'zaurion-pro': 'Quad-GPU setup with 512GB ECC memory handles the largest models and datasets. Enterprise-grade reliability ensures 24/7 operation for mission-critical AI workloads.',
+  // Solutions
+  'ai-deep-learning': 'Training large models requires massive parallel compute. Multi-GPU systems distribute the workload across GPUs, reducing training time from weeks to days. Local deployment means you own your models and data.',
+  'engineering-cad': 'GPU acceleration transforms CAD workflows—complex assemblies render in real-time, simulations complete faster, and design iterations happen in minutes instead of hours. Professional GPUs ensure certification compliance.',
+  'content-creation': 'Media production demands both speed and quality. Multi-GPU rendering enables concurrent workstreams—one GPU handles final renders while others process previews, compositing, and effects. Real-time previews eliminate guesswork.',
+  'scientific-research': 'Big data analytics and scientific simulations require massive memory and parallel processing. High-core-count CPUs and multi-GPU configurations enable researchers to process datasets that were previously impossible to analyze locally.'
+}
+
+function toggleWhy(id: string) {
+  expandedWhyId.value = expandedWhyId.value === id ? null : id
+}
+
+// Get currently running workload info for "proof" indicator
+const currentRunningInfo = computed(() => {
+  const active = workloadsStore.activeWorkloads
+  if (active.length === 0) return null
+  
+  // Get the first active workload
+  const workload = active[0]
+  const appName = workload.app_name
+  
+  // Try to get model info from associated models
+  let modelInfo = ''
+  if (workload.associated_models && workload.associated_models.length > 0) {
+    const modelName = workload.associated_models[0]
+    // Try to find model size/type from models store
+    const model = modelsStore.models.find(m => 
+      m.name.toLowerCase().includes(modelName.toLowerCase()) || 
+      modelName.toLowerCase().includes(m.name.toLowerCase())
+    )
+    if (model) {
+      // Format like "70B" or "Llama 3 70B"
+      const sizeMatch = model.name.match(/(\d+B|\d+GB)/i)
+      modelInfo = sizeMatch ? ` (${sizeMatch[1]})` : ` (${model.name})`
+    } else {
+      modelInfo = ` (${modelName})`
+    }
+  }
+  
+  return {
+    appName,
+    modelInfo,
+    fullText: `Currently running on this workstation → ${appName}${modelInfo}`
+  }
+})
 
 // All cards (models + solutions) for tour
 const allTourCards = computed(() => {
@@ -52,11 +109,12 @@ const allTourCards = computed(() => {
 })
 
 // Get caption for current card
+// Get caption for current card (narrative story-driven, one sentence max)
 function getCardCaption(cardId: string, type: 'model' | 'solution'): string {
   if (type === 'model') {
-    return modelCaptions[cardId] || 'Professional workstation'
+    return modelCaptions[cardId] || 'Professional workstation designed for demanding workloads.'
   } else {
-    return solutionCaptions[cardId] || 'Optimized solution'
+    return solutionCaptions[cardId] || 'Optimized solution for enterprise computing needs.'
   }
 }
 
@@ -245,6 +303,14 @@ watch(() => attractStore.isActive, (isActive) => {
 onMounted(() => {
   console.log('[Auto Highlight Tour] Mounted. CES Mode:', isCESMode.value, 'Attract Mode:', attractStore.isActive)
   
+  // Fetch workloads and models for "currently running" indicator
+  if (workloadsStore.workloads.length === 0) {
+    workloadsStore.fetchWorkloads()
+  }
+  if (modelsStore.models.length === 0) {
+    modelsStore.fetchModels()
+  }
+  
   // Set up activity listeners
   const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel', 'click']
   events.forEach(event => {
@@ -254,12 +320,6 @@ onMounted(() => {
   // Start idle detection
   console.log('[Auto Highlight Tour] Starting idle detection, will check after', IDLE_THRESHOLD_MS / 1000, 'seconds')
   idleTimer = setTimeout(checkIdle, IDLE_THRESHOLD_MS)
-  
-  // Expose test function to window for debugging
-  ;(window as any).testAutoHighlightTour = () => {
-    console.log('[Auto Highlight Tour] Manual test trigger')
-    startTour()
-  }
 })
 
 onUnmounted(() => {
@@ -446,13 +506,6 @@ function openContact() {
 function getModelById(id: string) {
   return workstationModels.find(m => m.id === id)
 }
-
-// Test function for debugging
-function testTour() {
-  console.log('[Auto Highlight Tour] Manual test triggered')
-  lastActivityTime.value = Date.now() - IDLE_THRESHOLD_MS - 1000 // Simulate idle
-  startTour()
-}
 </script>
 
 <template>
@@ -462,17 +515,7 @@ function testTour() {
     
     <div class="page-content">
     <div class="page-header">
-      <h1 class="page-title">EXPLORE ABS</h1>
-    <p class="page-subtitle">Explore the ABS Workstation lineup</p>
-      <!-- Debug: Test Auto Highlight Tour (only in development) -->
-      <button 
-        v-if="isCESMode && isDev" 
-        @click="testTour" 
-        style="margin-top: 16px; padding: 8px 16px; background: var(--abs-orange); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.75rem; opacity: 0.7;"
-        title="Development only - Test the Auto Highlight Tour feature"
-      >
-        🧪 Test Auto Highlight Tour
-      </button>
+      <p class="page-subtitle">Explore the ABS Workstation lineup</p>
     </div>
 
     <!-- Tabs -->
@@ -512,6 +555,20 @@ function testTour() {
             <div class="gpu-icon">⚡</div>
           </div>
           <h3 class="model-name">{{ model.name }}</h3>
+          
+          <!-- Currently Running Indicator (shown during tour on highlighted cards) -->
+          <!-- Hidden until workloads are available -->
+          <!--
+          <Transition name="fade-in">
+            <div 
+              v-if="isTourActive && highlightedCardId === model.id && currentRunningInfo" 
+              class="currently-running-indicator"
+            >
+              <span class="running-icon">●</span>
+              <span class="running-text">{{ currentRunningInfo.fullText }}</span>
+            </div>
+          </Transition>
+          -->
           
           <!-- Live Capability Badges -->
           <div class="capability-badges">
@@ -557,6 +614,24 @@ function testTour() {
           <div class="model-best-for">
             <span class="best-for-label">Best For:</span>
             <span class="best-for-text">{{ model.bestFor }}</span>
+          </div>
+
+          <!-- "Why this matters" inline expansion -->
+          <div class="why-this-matters">
+            <button 
+              class="learn-why-link"
+              @click="toggleWhy(model.id)"
+              :aria-expanded="expandedWhyId === model.id"
+            >
+              <span v-if="expandedWhyId !== model.id">Learn why</span>
+              <span v-else>Hide</span>
+              <span class="learn-why-icon">{{ expandedWhyId === model.id ? '▲' : '▼' }}</span>
+            </button>
+            <Transition name="why-expand">
+              <div v-if="expandedWhyId === model.id" class="why-content">
+                <p class="why-text">{{ whyThisMatters[model.id] || 'This workstation is optimized for demanding professional workloads.' }}</p>
+              </div>
+            </Transition>
           </div>
 
           <div class="model-actions">
@@ -726,6 +801,23 @@ function testTour() {
               </button>
             </div>
           </div>
+
+          <!-- "Why this matters" inline expansion -->
+          <div class="why-this-matters">
+            <button 
+              class="learn-why-link"
+              @click="toggleWhy(solution.id)"
+              :aria-expanded="expandedWhyId === solution.id"
+            >
+              <span>{{ expandedWhyId === solution.id ? 'Hide' : 'Learn why' }}</span>
+              <span class="learn-why-icon">{{ expandedWhyId === solution.id ? '▲' : '▼' }}</span>
+            </button>
+            <Transition name="why-expand">
+              <div v-if="expandedWhyId === solution.id" class="why-content">
+                <p class="why-text">{{ whyThisMatters[solution.id] || 'This solution is optimized for specific enterprise computing needs.' }}</p>
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
     </div>
@@ -775,7 +867,7 @@ function testTour() {
 
 .page-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
   position: relative;
   z-index: 1;
 }
@@ -802,7 +894,7 @@ function testTour() {
   display: flex;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
   border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 0;
   position: relative;
@@ -1517,24 +1609,30 @@ function testTour() {
   position: fixed;
   /* transform is set dynamically via inline style */
   z-index: 100;
-  pointer-events: none;
-  white-space: nowrap;
+  pointer-events: none; /* Never blocks content - not clickable */
+  /* Allow text wrapping for longer narrative sentences */
+  white-space: normal;
+  max-width: 500px;
 }
 
 .tour-caption-text {
   display: inline-block;
-  padding: 16px 32px;
-  background: rgba(0, 0, 0, 0.85);
+  max-width: 500px; /* Limit width for readability */
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.9);
   border: 1px solid var(--abs-orange);
   border-radius: 12px;
   color: var(--abs-orange);
   font-family: var(--font-label);
-  font-size: 1rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  letter-spacing: 0.05em;
   box-shadow: 0 0 30px rgba(255, 107, 0, 0.4), 0 4px 20px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(8px);
+  /* Normal case for narrative text (not uppercase) */
+  text-transform: none;
 }
 
 /* Fade transition for caption */
@@ -1560,5 +1658,149 @@ function testTour() {
 .fade-caption-leave-from {
   opacity: 1;
   /* transform is set dynamically via inline style */
+}
+
+/* "Why this matters" inline expansion */
+.why-this-matters {
+  margin-top: 20px;
+  margin-bottom: 16px;
+}
+
+.learn-why-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-smooth);
+}
+
+.learn-why-link:hover {
+  border-color: var(--abs-orange);
+  color: var(--abs-orange);
+  background: rgba(255, 107, 0, 0.05);
+}
+
+.learn-why-icon {
+  font-size: 0.7rem;
+  transition: transform var(--duration-fast) var(--ease-smooth);
+}
+
+.why-content {
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(99, 102, 241, 0.05);
+  border-left: 3px solid var(--electric-indigo);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.why-text {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Smooth expand/collapse transition */
+.why-expand-enter-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.why-expand-leave-active {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.why-expand-enter-from {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.why-expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.why-expand-enter-to,
+.why-expand-leave-from {
+  opacity: 1;
+  max-height: 200px;
+}
+
+/* Currently Running Indicator - Proof layer */
+.currently-running-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.running-icon {
+  color: #22c55e;
+  font-size: 0.7rem;
+  animation: pulse-running 2s ease-in-out infinite;
+}
+
+@keyframes pulse-running {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.running-text {
+  color: #22c55e;
+  font-family: var(--font-label);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Fade-in transition for running indicator */
+.fade-in-enter-active {
+  transition: opacity 0.5s ease-in-out, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-in-leave-active {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.fade-in-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.fade-in-leave-to {
+  opacity: 0;
+}
+
+.fade-in-enter-to,
+.fade-in-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>

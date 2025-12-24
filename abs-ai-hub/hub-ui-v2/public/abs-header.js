@@ -8,7 +8,7 @@
  * <script type="module" src="http://localhost:5173/abs-header.js"></script>
  * <abs-unified-header 
  *   app-id="contract-reviewer-v2"
- *   app-name="Contract Reviewer v2"
+ *   app-name="Contract Reviewer"
  *   app-icon="⚖️"
  *   hub-url="http://localhost:5173"
  *   gateway-url="http://localhost:8081">
@@ -102,7 +102,7 @@ class ABSUnifiedHeader extends HTMLElement {
 
   getFallbackApps() {
     return [
-      { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer v2', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
+      { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
       { id: 'legal-assistant', display_name: 'Legal Assistant', metadata: { url: 'http://localhost:7862', category: 'Legal Apps' } },
       { id: 'onyx-assistant', display_name: 'Onyx AI Assistant', metadata: { url: 'http://localhost:8000', category: 'AI Assistants' } },
       { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } }
@@ -254,8 +254,9 @@ class ABSUnifiedHeader extends HTMLElement {
           background: rgba(255, 107, 0, 0.15);
           border: 1px solid rgba(255, 107, 0, 0.3);
           border-radius: 6px;
-          cursor: pointer;
+          cursor: default;
           transition: all 0.2s;
+          position: relative;
         }
         
         .ces-badge:hover {
@@ -266,6 +267,74 @@ class ABSUnifiedHeader extends HTMLElement {
           font-size: 0.7rem;
           font-weight: 600;
           color: #FF6B00;
+        }
+        
+        /* CES Popover */
+        .ces-popover {
+          position: absolute;
+          top: 100%;
+          right: 0;
+          margin-top: 0.5rem;
+          width: 220px;
+          background: white;
+          border-radius: 10px;
+          box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+          padding: 1rem;
+          z-index: 1001;
+          opacity: 0;
+          visibility: hidden;
+          transform: translateY(-5px);
+          transition: all 0.2s ease;
+        }
+        
+        .ces-badge:hover .ces-popover,
+        .ces-badge.popover-open .ces-popover {
+          opacity: 1;
+          visibility: visible;
+          transform: translateY(0);
+        }
+        
+        .ces-popover::before {
+          content: '';
+          position: absolute;
+          top: -6px;
+          right: 20px;
+          width: 12px;
+          height: 12px;
+          background: white;
+          transform: rotate(45deg);
+          box-shadow: -2px -2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .ces-popover-item {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          padding: 0.4rem 0;
+          font-size: 0.8rem;
+          color: #374151;
+        }
+        
+        .ces-popover-item span:first-child {
+          font-size: 1rem;
+        }
+        
+        .ces-popover-link {
+          display: block;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid #e5e7eb;
+          text-align: center;
+          color: #FF6B00;
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-decoration: none;
+          cursor: pointer;
+          transition: color 0.2s;
+        }
+        
+        .ces-popover-link:hover {
+          color: #cc5500;
         }
         
         .hub-btn, .icon-btn {
@@ -470,9 +539,15 @@ class ABSUnifiedHeader extends HTMLElement {
         </div>
         
         <div class="right-section">
-          <div class="ces-badge" onclick="window.open('https://absworkstation.com', '_blank')">
+          <div class="ces-badge" id="ces-badge">
             <span>⚡</span>
             <span>Powered by ABS Workstation</span>
+            <div class="ces-popover">
+              <div class="ces-popover-item"><span>🎮</span><span>RTX Pro 6000</span></div>
+              <div class="ces-popover-item"><span>💾</span><span>128GB RAM</span></div>
+              <div class="ces-popover-item"><span>🧠</span><span>Local AI Processing</span></div>
+              <a class="ces-popover-link" href="https://absworkstation.com?utm_source=ai_fabric&utm_campaign=ces_demo" target="_blank" rel="noopener">View Hardware →</a>
+            </div>
           </div>
           <button class="icon-btn settings" onclick="this.getRootNode().host.goToSettings()" title="Settings">⚙️</button>
           <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to Hub</button>

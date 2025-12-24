@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { PAGES, type PageConfig } from '@/composables/usePageNavigation'
+import { useAllInOneDemoStore } from '@/stores/allInOneDemoStore'
+
+const allInOneDemoStore = useAllInOneDemoStore()
 
 defineProps<{
   currentIndex: number
@@ -12,7 +15,13 @@ const emit = defineEmits<{
   prev: []
   next: []
   goTo: [index: number]
+  toggleGuidedTour: []
 }>()
+
+function toggleGuidedTour(event: Event) {
+  event.stopPropagation()
+  emit('toggleGuidedTour')
+}
 </script>
 
 <template>
@@ -55,6 +64,17 @@ const emit = defineEmits<{
         @click="emit('goTo', index)"
       >
         <span class="indicator-label">{{ page.shortTitle }}</span>
+      </button>
+      
+      <!-- Guided Tour Toggle -->
+      <button
+        class="indicator indicator--guided-tour"
+        :class="{ 'indicator--active': allInOneDemoStore.isActive }"
+        :title="allInOneDemoStore.isActive ? 'Deactivate Guided Tour' : 'Activate Guided Tour'"
+        @click="toggleGuidedTour"
+      >
+        <span class="indicator-label">Guided Tour</span>
+        <span v-if="allInOneDemoStore.isActive" class="guided-tour-status">Activated</span>
       </button>
     </div>
   </nav>
@@ -172,5 +192,35 @@ const emit = defineEmits<{
 .indicator:not(.indicator--active)::before {
   content: '○';
   margin-right: 4px;
+}
+
+.indicator--guided-tour {
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.indicator--guided-tour .indicator-label {
+  margin-right: 8px;
+}
+
+.guided-tour-status {
+  font-size: 0.65rem;
+  color: var(--abs-orange);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.indicator--guided-tour.indicator--active {
+  background: rgba(255, 107, 0, 0.15);
+  border-color: rgba(255, 107, 0, 0.3);
+  color: var(--abs-orange);
+}
+
+.indicator--guided-tour.indicator--active::before {
+  content: '●';
+  color: var(--abs-orange);
 }
 </style>

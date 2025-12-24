@@ -251,7 +251,7 @@
     {
       "id": "contract-reviewer-v2",
       "class": "app",
-      "name": "Contract Reviewer v2",
+      "name": "Contract Reviewer",
       "description": "Professional AI-powered contract analysis platform with modern three-panel interface",
       "policy": {
         "allowed_models": [

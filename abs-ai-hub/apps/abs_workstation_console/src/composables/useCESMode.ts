@@ -5,7 +5,23 @@ declare const __CES_MODE__: boolean
 
 export function useCESMode() {
     // Default to true (CES app) - can be overridden by build-time flag
-    const isCESMode = ref(typeof __CES_MODE__ !== 'undefined' ? __CES_MODE__ : true)
+    // Try to read the build-time constant, with fallback to true
+    let cesModeValue = true
+    try {
+        // @ts-ignore - __CES_MODE__ is defined at build time by Vite
+        if (typeof __CES_MODE__ !== 'undefined') {
+            // @ts-ignore
+            cesModeValue = __CES_MODE__
+        }
+    } catch (e) {
+        // If not defined, default to true
+        cesModeValue = true
+    }
+    
+    const isCESMode = ref(cesModeValue)
+    
+    // Debug log
+    console.log('[CESMode] Initialized:', { isCESMode: isCESMode.value, __CES_MODE__: typeof __CES_MODE__ !== 'undefined' ? __CES_MODE__ : 'undefined' })
 
     // CES-specific text overlays
     const cesOverlayText = computed(() =>
