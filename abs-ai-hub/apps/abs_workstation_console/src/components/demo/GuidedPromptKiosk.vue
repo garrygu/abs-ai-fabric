@@ -160,6 +160,16 @@ const availableChallenges = computed(() => {
   return result
 })
 
+function isChallengeModelActive(challengeId: string) {
+  if (!demoControl.isActive) return false
+  
+  if (challengeId === 'reasoning') return demoControl.activeModel === 'deepseek-r1-70b'
+  if (challengeId === 'explanation') return demoControl.activeModel === 'llama3-70b'
+  if (challengeId === 'compare') return demoControl.activeModel === 'dual'
+  
+  return false
+}
+
 function selectChallenge(challengeId: string) {
   // Prevent selecting summarize challenge if offline
   if (challengeId === 'summarize' && !isOnline.value) {
@@ -412,7 +422,7 @@ function closeKiosk() {
       <div v-if="!selectedChallenge" class="challenge-selection">
         <div v-if="demoControl.isActive" class="active-model-notice">
           <span class="notice-icon">●</span>
-          <span>Using active model: <strong>{{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1 70B' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3 70B' : 'Dual 70B' }}</strong></span>
+          <span class="notice-text">SYSTEM READY: Running on <strong>{{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1 70B' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3 70B' : 'Dual 70B' }}</strong></span>
         </div>
         <div class="challenge-grid">
           <button
@@ -420,14 +430,23 @@ function closeKiosk() {
             :key="id"
             class="challenge-button"
             :class="{ 
-              'challenge-button--disabled': id === 'summarize' && !isOnline 
+              'challenge-button--disabled': id === 'summarize' && !isOnline,
+              'challenge-button--active': isChallengeModelActive(id)
             }"
             :disabled="id === 'summarize' && !isOnline"
             :title="id === 'summarize' && !isOnline ? 'This challenge requires internet connection to fetch sample documents from HuggingFace datasets' : ''"
             @click="selectChallenge(id)"
           >
-            <div class="challenge-title">{{ challenge.title }}</div>
-            <div class="challenge-model">{{ challenge.model }}</div>
+            <div class="challenge-header-row">
+              <div class="challenge-title">{{ challenge.title }}</div>
+              <div v-if="isChallengeModelActive(id)" class="challenge-active-badge">ACTIVE</div>
+            </div>
+            <div class="challenge-model-info">
+              <span class="model-recommendation">Recommended: {{ challenge.model }}</span>
+              <span v-if="demoControl.isActive && !isChallengeModelActive(id)" class="model-actual">
+                • Will use: {{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3' : 'Dual 70B' }}
+              </span>
+            </div>
             <div class="challenge-desc">{{ challenge.description }}</div>
             <div v-if="id === 'summarize' && !isOnline" class="challenge-offline-notice">
               <span class="offline-icon">⚠️</span>
@@ -440,8 +459,10 @@ function closeKiosk() {
       <div v-else class="prompt-selection">
         <div class="selected-challenge-header">
           <div class="selected-challenge-title">{{ currentChallenge?.title }}</div>
-          <div class="selected-challenge-model">
-            {{ demoControl.isActive ? `Using: ${demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1 70B' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3 70B' : 'Dual 70B'}` : currentChallenge?.model }}
+          <div class="selected-challenge-model-info">
+            <span class="rec-label">Recommended: {{ currentChallenge?.model }}</span>
+            <span class="divider">|</span>
+            <span class="active-label">Running on: <strong>{{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3' : 'Dual 70B' }}</strong></span>
           </div>
           <div v-if="currentChallenge?.explanation" class="challenge-explanation">
             {{ currentChallenge.explanation }}
@@ -661,6 +682,12 @@ function closeKiosk() {
   color: var(--abs-orange);
 }
 
+.notice-text {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .notice-icon {
   color: var(--status-success);
   font-size: 0.75rem;
@@ -686,6 +713,8 @@ function closeKiosk() {
   text-align: left;
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .challenge-button:hover:not(:disabled) {
@@ -735,12 +764,42 @@ function closeKiosk() {
   margin-bottom: 8px;
 }
 
-.challenge-model {
+.challenge-active-badge {
+  background: var(--status-success);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.challenge-button--active {
+  border-color: var(--status-success) !important;
+  background: rgba(34, 197, 94, 0.05) !important;
+}
+
+.challenge-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.model-recommendation {
   font-family: var(--font-label);
-  font-size: 0.875rem;
-  color: var(--abs-orange);
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.model-actual {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--status-success);
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .challenge-desc {
@@ -770,12 +829,26 @@ function closeKiosk() {
   margin-bottom: 4px;
 }
 
-.selected-challenge-model {
-  font-family: var(--font-label);
-  font-size: 0.875rem;
-  color: var(--abs-orange);
-  font-weight: 600;
+.selected-challenge-model-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 8px;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+}
+
+.rec-label {
+  color: var(--text-muted);
+}
+
+.divider {
+  color: var(--border-subtle);
+}
+
+.active-label {
+  color: var(--status-success);
 }
 
 .challenge-explanation {
