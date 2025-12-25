@@ -811,6 +811,7 @@ watch(() => attractStore.isActive, (isActive) => {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
+  color: var(--text-muted); /* Default color for idle */
 }
 
 .model-status.ready {
@@ -821,22 +822,23 @@ watch(() => attractStore.isActive, (isActive) => {
   color: var(--text-muted);
 }
 
-.model-status--warming {
-  color: var(--abs-orange);
+/* Demo control states - higher specificity */
+.model-status.model-status--warming {
+  color: var(--abs-orange) !important;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-.model-status--ready {
-  color: var(--status-success);
+.model-status.model-status--ready {
+  color: var(--status-success) !important;
 }
 
-.model-status--running {
-  color: var(--status-success);
+.model-status.model-status--running {
+  color: var(--status-success) !important;
   animation: pulse 2s ease-in-out infinite;
 }
 
-.model-status--cooling {
-  color: var(--text-muted);
+.model-status.model-status--cooling {
+  color: var(--text-muted) !important;
   opacity: 0.7;
 }
 
