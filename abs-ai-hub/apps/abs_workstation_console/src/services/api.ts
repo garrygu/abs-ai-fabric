@@ -420,9 +420,9 @@ export interface ChatCompletionResponse {
 // Map demo model IDs to actual model names used by gateway
 function mapModelIdToGatewayModel(modelId: string | null): string | null {
     if (!modelId) return null
-    
+
     const modelIdLower = modelId.toLowerCase()
-    
+
     // Map demo model IDs to actual model names (from asset.yaml files)
     if (modelIdLower.includes('deepseek') && (modelIdLower.includes('70b') || modelIdLower.includes('r1'))) {
         return 'deepseek-r1:70b' // From assets/models/deepseek_r1_70b/asset.yaml
@@ -433,7 +433,7 @@ function mapModelIdToGatewayModel(modelId: string | null): string | null {
     if (modelIdLower === 'dual') {
         return null // Dual model handled separately
     }
-    
+
     // Return as-is if it's already in the correct format
     return modelId
 }
@@ -442,7 +442,7 @@ function mapModelIdToGatewayModel(modelId: string | null): string | null {
 export async function unloadModel(modelId: string | null): Promise<void> {
     try {
         const gatewayModel = mapModelIdToGatewayModel(modelId)
-        
+
         if (!gatewayModel) {
             // For dual mode, unload both models
             if (modelId === 'dual') {
@@ -454,12 +454,12 @@ export async function unloadModel(modelId: string | null): Promise<void> {
             }
             throw new Error(`Model ${modelId} not available`)
         }
-        
+
         console.log('[API] Requesting model unload:', gatewayModel)
-        
+
         // URL encode the model name (handles colons and special characters)
         const encodedModelName = encodeURIComponent(gatewayModel)
-        
+
         // Call the model unload endpoint
         const response = await fetch(`${GATEWAY_URL}/v1/admin/models/${encodedModelName}/unload`, {
             method: 'POST',
@@ -468,7 +468,7 @@ export async function unloadModel(modelId: string | null): Promise<void> {
                 'Accept': 'application/json'
             }
         })
-        
+
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Model unload failed: ${response.status}`, errorText)
@@ -490,16 +490,16 @@ export async function unloadModel(modelId: string | null): Promise<void> {
 export async function requestModel(modelId: string | null): Promise<void> {
     try {
         const gatewayModel = mapModelIdToGatewayModel(modelId)
-        
+
         if (!gatewayModel) {
             throw new Error(`Model ${modelId} not available`)
         }
-        
+
         console.log('[API] Requesting model load:', gatewayModel)
-        
+
         // URL encode the model name (handles colons and special characters)
         const encodedModelName = encodeURIComponent(gatewayModel)
-        
+
         // Call the model load endpoint to pre-load the model into VRAM
         const response = await fetch(`${GATEWAY_URL}/v1/admin/models/${encodedModelName}/load`, {
             method: 'POST',
@@ -508,7 +508,7 @@ export async function requestModel(modelId: string | null): Promise<void> {
                 'Accept': 'application/json'
             }
         })
-        
+
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Model load failed: ${response.status}`, errorText)
@@ -526,6 +526,47 @@ export async function requestModel(modelId: string | null): Promise<void> {
     }
 }
 
+// Warmup model by sending a short inference request directly to Ollama
+// This forces the model to actually load into VRAM and stay there
+export async function warmupModel(modelId: string | null): Promise<void> {
+    const modelName = mapModelIdToGatewayModel(modelId)
+    if (!modelName) {
+        console.log('[API] No model to warmup')
+        return
+    }
+
+    console.log(`[API] Warming up model: ${modelName}`)
+
+    try {
+        // Send a minimal inference request directly to Ollama to force loading
+        // Use keep_alive=30m to keep the model in VRAM
+        const response = await fetch('http://localhost:11434/api/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: modelName,
+                prompt: 'Hello',
+                stream: false,
+                options: {
+                    num_predict: 1  // Only generate 1 token for fast warmup
+                },
+                keep_alive: '30m'  // Keep model loaded for 30 minutes
+            })
+        })
+
+        if (!response.ok) {
+            console.warn(`[API] Warmup failed: ${response.status}`)
+        } else {
+            console.log(`[API] Model ${modelName} warmed up and loaded into VRAM`)
+        }
+    } catch (error) {
+        console.warn('[API] Warmup error:', error)
+        // Don't throw - warmup failure is not critical
+    }
+}
+
 export async function sendChatCompletion(
     modelId: string | null,
     prompt: string,
@@ -535,14 +576,14 @@ export async function sendChatCompletion(
     try {
         // Map model ID to gateway model name
         const gatewayModel = mapModelIdToGatewayModel(modelId)
-        
+
         if (!gatewayModel) {
             throw new Error(`Model ${modelId} not available`)
         }
-        
+
         // Build system prompt based on challenge type
         let systemMessage = systemPrompt || 'You are a helpful AI assistant.'
-        
+
         if (challengeType === 'reasoning') {
             systemMessage = 'You are an expert at reasoning and analysis. Provide detailed, structured analysis with clear recommendations, assumptions, and risk assessments.'
         } else if (challengeType === 'explanation') {
@@ -552,7 +593,7 @@ export async function sendChatCompletion(
         } else if (challengeType === 'summarize') {
             systemMessage = 'You are a document analysis expert. Extract and organize key information from documents, including main points, action items, risks, stakeholders, and deadlines.'
         }
-        
+
         // For summarize challenge, include document content in the prompt if available
         let userPrompt = prompt
         if (challengeType === 'summarize') {
@@ -560,7 +601,7 @@ export async function sendChatCompletion(
             // The prompt format will be: "Document: [content]\n\nUser request: [prompt]"
             // This is handled by the store when calling setChallenge
         }
-        
+
         const request: ChatCompletionRequest = {
             model: gatewayModel,
             messages: [
@@ -576,9 +617,9 @@ export async function sendChatCompletion(
             temperature: challengeType === 'reasoning' ? 0.3 : 0.7,
             max_tokens: 2000
         }
-        
+
         console.log('[API] Sending chat completion request:', { model: gatewayModel, prompt: prompt.substring(0, 100) + '...' })
-        
+
         const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
             method: 'POST',
             headers: {
@@ -587,18 +628,18 @@ export async function sendChatCompletion(
             },
             body: JSON.stringify(request)
         })
-        
+
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Chat completion failed: ${response.status}`, errorText)
             throw new Error(`Model API error: ${response.status} - ${errorText.substring(0, 200)}`)
         }
-        
+
         const data: ChatCompletionResponse = await response.json()
         const content = data.choices?.[0]?.message?.content || 'No response generated'
-        
+
         console.log('[API] Chat completion success, response length:', content.length)
-        
+
         return content
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)

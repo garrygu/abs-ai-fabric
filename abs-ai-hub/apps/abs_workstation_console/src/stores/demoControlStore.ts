@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { sendChatCompletion, requestModel } from '@/services/api'
+import { sendChatCompletion, requestModel, warmupModel } from '@/services/api'
 import { useModelsStore } from './modelsStore'
 
 export type ModelStatus = 'idle' | 'warming' | 'running' | 'cooling'
@@ -207,10 +207,21 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           requestModel('deepseek-r1-70b'),
           requestModel('llama3-70b')
         ])
+
+        // Warmup inference to force models into VRAM
+        loadingStage.value = 'Warming up models...'
+        await Promise.all([
+          warmupModel('deepseek-r1-70b'),
+          warmupModel('llama3-70b')
+        ])
       } else {
         // Single model
         loadingStage.value = 'Loading model...'
         await requestModel(model)
+
+        // Warmup inference to force model into VRAM
+        loadingStage.value = 'Warming up model...'
+        await warmupModel(model)
       }
 
       // Update progress to show model is ready
