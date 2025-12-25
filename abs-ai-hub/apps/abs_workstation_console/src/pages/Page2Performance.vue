@@ -351,13 +351,6 @@ onUnmounted(() => {
           </div>
         </div>
         
-        <!-- Model Loading Overlay -->
-        <Transition name="fade">
-          <div v-if="modelLoadingText" class="model-loading-overlay">
-            {{ modelLoadingText }}
-          </div>
-        </Transition>
-        
         <div class="hero-caption">
           <Transition name="fade" mode="out-in">
             <span :key="enhancedGpuUtilization > 10 ? 'active' : 'idle'">
@@ -372,6 +365,13 @@ onUnmounted(() => {
             </span>
           </Transition>
         </div>
+        
+        <!-- Model Loading Overlay - positioned below GPU value -->
+        <Transition name="fade">
+          <div v-if="modelLoadingText" class="model-loading-overlay">
+            {{ modelLoadingText }}
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -1081,12 +1081,13 @@ onUnmounted(() => {
   }
 }
 
-/* Model Loading Overlay */
+/* Model Loading Overlay - positioned below GPU value, not covering it */
 .model-loading-overlay {
   position: absolute;
-  top: 50%;
+  top: auto;
+  bottom: 60px;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   padding: 12px 24px;
   background: rgba(0, 0, 0, 0.9);
   border: 1px solid var(--abs-orange);
@@ -1100,6 +1101,7 @@ onUnmounted(() => {
   z-index: 10;
   box-shadow: 0 0 30px rgba(249, 115, 22, 0.4);
   backdrop-filter: blur(10px);
+  white-space: nowrap;
 }
 
 .hero-value--surge {

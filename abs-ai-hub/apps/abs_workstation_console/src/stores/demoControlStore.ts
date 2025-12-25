@@ -473,27 +473,41 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         }
 
         if (activeModel.value === 'dual') {
-          // Dual model: generate both outputs in parallel
-          const [reasonedResult, explainedResult] = await Promise.all([
-            sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch(err => {
-              console.error('[DemoControl] DeepSeek error:', err)
-              return `Error: ${err.message}`
-            }),
-            sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType).catch(err => {
-              console.error('[DemoControl] LLaMA error:', err)
-              return `Error: ${err.message}`
-            })
-          ])
+          // Dual model: only generate both outputs if it's a comparison challenge
+          if (challengeType === 'compare') {
+            const [reasonedResult, explainedResult] = await Promise.all([
+              sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch(err => {
+                console.error('[DemoControl] DeepSeek error:', err)
+                return `Error: ${err.message}`
+              }),
+              sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType).catch(err => {
+                console.error('[DemoControl] LLaMA error:', err)
+                return `Error: ${err.message}`
+              })
+            ])
 
-          // Check if model was deactivated during API call
-          if (activeModel.value === null) {
-            isProcessing.value = false
-            return
-          }
+            // Check if model was deactivated during API call
+            if (activeModel.value === null) {
+              isProcessing.value = false
+              return
+            }
 
-          modelOutput.value = {
-            reasoned: reasonedResult,
-            explained: explainedResult
+            modelOutput.value = {
+              reasoned: reasonedResult,
+              explained: explainedResult
+            }
+          } else if (challengeType === 'reasoning') {
+            // Even in dual mode, if it's a reasoning challenge, just use DeepSeek
+            const result = await sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType)
+            if (activeModel.value !== null) {
+              modelOutput.value = { reasoned: result }
+            }
+          } else {
+            // For other challenges (explanation, etc.), use LLaMA-3 70B
+            const result = await sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType)
+            if (activeModel.value !== null) {
+              modelOutput.value = { explained: result }
+            }
           }
         } else if (activeModel.value === 'deepseek-r1-70b') {
           // Reasoning challenge - use DeepSeek

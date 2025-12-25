@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useDemoControlStore } from '@/stores/demoControlStore'
+import { useDemoControlStore, type ActiveModel } from '@/stores/demoControlStore'
 
 const demoControl = useDemoControlStore()
 
@@ -160,8 +160,30 @@ const availableChallenges = computed(() => {
   return result
 })
 
+const actualModelLabel = computed(() => {
+  if (!demoControl.activeModel) return ''
+  if (demoControl.activeModel === 'deepseek-r1-70b') return 'DeepSeek R1 70B'
+  if (demoControl.activeModel === 'llama3-70b') return 'LLaMA-3 70B'
+  return 'Dual 70B'
+})
+
+const actualModelForChallenge = computed(() => {
+  if (!selectedChallenge.value) return null
+  if (demoControl.activeModel !== 'dual') return actualModelLabel.value
+  
+  if (selectedChallenge.value === 'reasoning') return 'DeepSeek R1 70B'
+  if (selectedChallenge.value === 'explanation') return 'LLaMA-3 70B'
+  if (selectedChallenge.value === 'compare') return 'Dual 70B'
+  return 'LLaMA-3 70B'
+})
+
 function isChallengeModelActive(challengeId: string) {
   if (!demoControl.isActive) return false
+  
+  // In dual mode, all primary challenges are considered active because both models are pre-loaded
+  if (demoControl.activeModel === 'dual') {
+    return ['reasoning', 'explanation', 'compare'].includes(challengeId)
+  }
   
   if (challengeId === 'reasoning') return demoControl.activeModel === 'deepseek-r1-70b'
   if (challengeId === 'explanation') return demoControl.activeModel === 'llama3-70b'
@@ -422,7 +444,7 @@ function closeKiosk() {
       <div v-if="!selectedChallenge" class="challenge-selection">
         <div v-if="demoControl.isActive" class="active-model-notice">
           <span class="notice-icon">●</span>
-          <span class="notice-text">SYSTEM READY: Running on <strong>{{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1 70B' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3 70B' : 'Dual 70B' }}</strong></span>
+          <span class="notice-text">SYSTEM READY: {{ actualModelLabel }} Active</span>
         </div>
         <div class="challenge-grid">
           <button
@@ -460,9 +482,9 @@ function closeKiosk() {
         <div class="selected-challenge-header">
           <div class="selected-challenge-title">{{ currentChallenge?.title }}</div>
           <div class="selected-challenge-model-info">
-            <span class="rec-label">Recommended: {{ currentChallenge?.model }}</span>
+            <span class="rec-label">Target: {{ currentChallenge?.model }}</span>
             <span class="divider">|</span>
-            <span class="active-label">Running on: <strong>{{ demoControl.activeModel === 'deepseek-r1-70b' ? 'DeepSeek R1' : demoControl.activeModel === 'llama3-70b' ? 'LLaMA-3' : 'Dual 70B' }}</strong></span>
+            <span class="active-label">Using: <strong>{{ actualModelForChallenge }}</strong></span>
           </div>
           <div v-if="currentChallenge?.explanation" class="challenge-explanation">
             {{ currentChallenge.explanation }}
