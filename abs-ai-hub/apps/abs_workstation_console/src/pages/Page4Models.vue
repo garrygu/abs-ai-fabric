@@ -281,6 +281,12 @@ function getCardCaption(modelId: string): string {
          'Enterprise-validated AI model running 100% locally on this workstation.'
 }
 
+// Manual refresh function for models list
+function refreshModels() {
+  console.log('[Page4Models] Manually refreshing models...')
+  modelsStore.fetchModels()
+}
+
 function recordActivity() {
   lastActivityTime.value = Date.now()
   if (isTourActive.value) {
@@ -512,6 +518,9 @@ watch(() => attractStore.isActive, (isActive) => {
           <span class="status-label">Total Models:</span>
           <span class="status-count">{{ modelsStore.models.length }}</span>
         </div>
+        <button class="refresh-button" @click="refreshModels" title="Refresh model list and status">
+          🔄
+        </button>
       </div>
     </div>
 
@@ -719,6 +728,22 @@ watch(() => attractStore.isActive, (isActive) => {
 .status-summary-item--total {
   padding-left: 16px;
   border-left: 1px solid var(--border-subtle);
+}
+
+.refresh-button {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 16px;
+}
+
+.refresh-button:hover {
+  background: var(--abs-card-hover);
+  border-color: var(--abs-orange);
 }
 
 .models-grid {
