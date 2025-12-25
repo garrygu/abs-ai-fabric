@@ -14,11 +14,285 @@ const showCustomInput = ref(false) // Toggle custom input visibility
 const customPromptError = ref<string | null>(null) // Error message for custom prompt
 const lastCustomPromptTime = ref<number>(0) // Rate limiting
 
+// Dragging state
+const kioskRef = ref<HTMLElement | null>(null)
+const isDragging = ref(false)
+const dragStart = ref({ x: 0, y: 0 })
+const kioskPosition = ref({ x: 0, y: 0 })
+const dragOffset = ref({ x: 0, y: 0 })
+
+// Resizing state
+const isResizing = ref(false)
+const resizeDirection = ref<string | null>(null)
+const kioskSize = ref({ width: 0, height: 0 })
+const initialSize = ref({ width: 0, height: 0 })
+const initialMouse = ref({ x: 0, y: 0 })
+
 // Guardrails constants
 const MAX_PROMPT_LENGTH = 2000 // Maximum characters
 const MIN_PROMPT_LENGTH = 3 // Minimum characters (after trim)
 const RATE_LIMIT_MS = 3000 // Minimum time between prompts (3 seconds)
 const MAX_LINES = 20 // Maximum number of lines
+
+// Load saved position from localStorage
+function loadKioskPosition() {
+  const saved = localStorage.getItem('promptKioskPosition')
+  if (saved) {
+    try {
+      const { x, y } = JSON.parse(saved)
+      kioskPosition.value = { x, y }
+      return
+    } catch (e) {
+      console.warn('Failed to parse saved kiosk position', e)
+    }
+  }
+  // Default position: centered
+  kioskPosition.value = { x: 0, y: 0 }
+}
+
+// Load saved size from localStorage
+function loadKioskSize() {
+  const saved = localStorage.getItem('promptKioskSize')
+  if (saved) {
+    try {
+      const { width, height } = JSON.parse(saved)
+      kioskSize.value = { width, height }
+      return
+    } catch (e) {
+      console.warn('Failed to parse saved kiosk size', e)
+    }
+  }
+  // Default size: use CSS defaults
+  kioskSize.value = { width: 0, height: 0 }
+}
+
+// Save size to localStorage
+function saveKioskSize() {
+  localStorage.setItem('promptKioskSize', JSON.stringify(kioskSize.value))
+}
+
+// Save position to localStorage
+function saveKioskPosition() {
+  localStorage.setItem('promptKioskPosition', JSON.stringify(kioskPosition.value))
+}
+
+// Constrain position to viewport
+function constrainKioskPosition() {
+  if (!kioskRef.value) return
+  
+  const rect = kioskRef.value.getBoundingClientRect()
+  const margin = 24
+  
+  // Calculate center-based position
+  const centerX = window.innerWidth / 2
+  const centerY = window.innerHeight / 2
+  
+  // If using offset positioning (x, y != 0), constrain it
+  if (kioskPosition.value.x !== 0 || kioskPosition.value.y !== 0) {
+    const maxX = window.innerWidth - rect.width / 2 - margin
+    const minX = rect.width / 2 + margin
+    const maxY = window.innerHeight - rect.height / 2 - margin
+    const minY = rect.height / 2 + margin
+    
+    const currentX = centerX + kioskPosition.value.x
+    const currentY = centerY + kioskPosition.value.y
+    
+    if (currentX > maxX) kioskPosition.value.x = maxX - centerX
+    if (currentX < minX) kioskPosition.value.x = minX - centerX
+    if (currentY > maxY) kioskPosition.value.y = maxY - centerY
+    if (currentY < minY) kioskPosition.value.y = minY - centerY
+  }
+}
+
+// Mouse drag handlers
+function handleMouseDown(e: MouseEvent) {
+  // Don't start drag if clicking on interactive elements
+  const target = e.target as HTMLElement
+  if (target.closest('button, input, textarea, a')) return
+  
+  isDragging.value = true
+  dragStart.value = { x: e.clientX, y: e.clientY }
+  
+  if (kioskRef.value) {
+    const rect = kioskRef.value.getBoundingClientRect()
+    const centerX = window.innerWidth / 2
+    const centerY = window.innerHeight / 2
+    dragOffset.value = {
+      x: e.clientX - (centerX + kioskPosition.value.x),
+      y: e.clientY - (centerY + kioskPosition.value.y)
+    }
+  }
+  
+  e.preventDefault()
+}
+
+function handleMouseMove(e: MouseEvent) {
+  if (isResizing.value) {
+    handleResizeMove(e)
+    return
+  }
+  
+  if (!isDragging.value) return
+  
+  const centerX = window.innerWidth / 2
+  const centerY = window.innerHeight / 2
+  
+  kioskPosition.value = {
+    x: e.clientX - centerX - dragOffset.value.x,
+    y: e.clientY - centerY - dragOffset.value.y
+  }
+  
+  constrainKioskPosition()
+}
+
+function handleMouseUp() {
+  if (isResizing.value) {
+    handleResizeEnd()
+  }
+  if (isDragging.value) {
+    isDragging.value = false
+    saveKioskPosition()
+  }
+}
+
+// Touch drag handlers
+function handleTouchStart(e: TouchEvent) {
+  const target = e.target as HTMLElement
+  if (target.closest('button, input, textarea, a')) return
+  
+  if (e.touches.length === 1) {
+    isDragging.value = true
+    const touch = e.touches[0]
+    dragStart.value = { x: touch.clientX, y: touch.clientY }
+    
+    if (kioskRef.value) {
+      const rect = kioskRef.value.getBoundingClientRect()
+      const centerX = window.innerWidth / 2
+      const centerY = window.innerHeight / 2
+      dragOffset.value = {
+        x: touch.clientX - (centerX + kioskPosition.value.x),
+        y: touch.clientY - (centerY + kioskPosition.value.y)
+      }
+    }
+  }
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (isResizing.value && e.touches.length === 1) {
+    handleResizeMove(e)
+    return
+  }
+  
+  if (!isDragging.value || e.touches.length !== 1) return
+  
+  const touch = e.touches[0]
+  const centerX = window.innerWidth / 2
+  const centerY = window.innerHeight / 2
+  
+  kioskPosition.value = {
+    x: touch.clientX - centerX - dragOffset.value.x,
+    y: touch.clientY - centerY - dragOffset.value.y
+  }
+  
+  constrainKioskPosition()
+  e.preventDefault()
+}
+
+function handleTouchEnd() {
+  if (isResizing.value) {
+    handleResizeEnd()
+  }
+  if (isDragging.value) {
+    isDragging.value = false
+    saveKioskPosition()
+  }
+}
+
+// Handle window resize
+function handleResize() {
+  constrainKioskPosition()
+  constrainKioskSize()
+}
+
+// Constrain size to reasonable bounds
+function constrainKioskSize() {
+  if (!kioskRef.value) return
+  
+  const minWidth = 400
+  const maxWidth = window.innerWidth - 48
+  const minHeight = 300
+  const maxHeight = window.innerHeight - 48
+  
+  if (kioskSize.value.width > 0) {
+    kioskSize.value.width = Math.max(minWidth, Math.min(maxWidth, kioskSize.value.width))
+  }
+  if (kioskSize.value.height > 0) {
+    kioskSize.value.height = Math.max(minHeight, Math.min(maxHeight, kioskSize.value.height))
+  }
+}
+
+// Resize handlers
+function handleResizeStart(e: MouseEvent | TouchEvent, direction: string) {
+  if (!kioskRef.value) return
+  
+  e.preventDefault()
+  e.stopPropagation()
+  
+  isResizing.value = true
+  resizeDirection.value = direction
+  
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  
+  initialMouse.value = { x: clientX, y: clientY }
+  
+  const rect = kioskRef.value.getBoundingClientRect()
+  initialSize.value = {
+    width: kioskSize.value.width || rect.width,
+    height: kioskSize.value.height || rect.height
+  }
+  
+  if (kioskSize.value.width === 0) {
+    kioskSize.value.width = rect.width
+  }
+  if (kioskSize.value.height === 0) {
+    kioskSize.value.height = rect.height
+  }
+}
+
+function handleResizeMove(e: MouseEvent | TouchEvent) {
+  if (!isResizing.value || !resizeDirection.value) return
+  
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY
+  
+  const deltaX = clientX - initialMouse.value.x
+  const deltaY = clientY - initialMouse.value.y
+  
+  if (resizeDirection.value.includes('right')) {
+    kioskSize.value.width = initialSize.value.width + deltaX
+  }
+  if (resizeDirection.value.includes('left')) {
+    kioskSize.value.width = initialSize.value.width - deltaX
+  }
+  if (resizeDirection.value.includes('bottom')) {
+    kioskSize.value.height = initialSize.value.height + deltaY
+  }
+  if (resizeDirection.value.includes('top')) {
+    kioskSize.value.height = initialSize.value.height - deltaY
+  }
+  
+  constrainKioskSize()
+  e.preventDefault()
+}
+
+function handleResizeEnd() {
+  if (isResizing.value) {
+    isResizing.value = false
+    resizeDirection.value = null
+    saveKioskSize()
+  }
+}
 
 // Check internet connectivity
 async function checkConnectivity() {
@@ -51,6 +325,10 @@ async function checkConnectivity() {
 function handleShowKiosk() {
   showKiosk.value = true
   demoControl.setKioskOpen(true)
+  nextTick(() => {
+    loadKioskPosition()
+    constrainKioskPosition()
+  })
 }
 
 // Watch kiosk visibility to update store
@@ -63,18 +341,51 @@ onMounted(() => {
   window.addEventListener('show-prompt-kiosk', handleShowKiosk)
   window.addEventListener('online', checkConnectivity)
   window.addEventListener('offline', () => { isOnline.value = false })
+  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', handleTouchEnd)
+  window.addEventListener('resize', handleResize)
   
   // Check connectivity on mount
   checkConnectivity()
   
   // Set initial kiosk state
   demoControl.setKioskOpen(showKiosk.value || selectedChallenge.value !== null)
+  
+  // Load saved position
+  loadKioskPosition()
+})
+
+onMounted(() => {
+  window.addEventListener('show-prompt-kiosk', handleShowKiosk)
+  window.addEventListener('online', checkConnectivity)
+  window.addEventListener('offline', () => { isOnline.value = false })
+  window.addEventListener('mousemove', handleMouseMove)
+  window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', handleTouchEnd)
+  window.addEventListener('resize', handleResize)
+  
+  // Check connectivity on mount
+  checkConnectivity()
+  
+  // Set initial kiosk state
+  demoControl.setKioskOpen(showKiosk.value || selectedChallenge.value !== null)
+  
+  // Load saved position
+  loadKioskPosition()
 })
 
 onUnmounted(() => {
   window.removeEventListener('show-prompt-kiosk', handleShowKiosk)
   window.removeEventListener('online', checkConnectivity)
   window.removeEventListener('offline', () => { isOnline.value = false })
+  window.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', handleTouchEnd)
+  window.removeEventListener('resize', handleResize)
   
   // Close kiosk when component unmounts
   demoControl.setKioskOpen(false)
@@ -187,7 +498,7 @@ function isChallengeModelActive(challengeId: string) {
   
   if (challengeId === 'reasoning') return demoControl.activeModel === 'deepseek-r1-70b'
   if (challengeId === 'explanation') return demoControl.activeModel === 'llama3-70b'
-  if (challengeId === 'compare') return demoControl.activeModel === 'dual'
+  if (challengeId === 'compare') return (demoControl.activeModel as ActiveModel) === 'dual'
   
   return false
 }
@@ -432,8 +743,31 @@ function closeKiosk() {
 
 <template>
   <Transition name="fade">
-    <div v-if="showKiosk || selectedChallenge" class="prompt-kiosk">
-      <div class="kiosk-header">
+    <div 
+      v-if="showKiosk || selectedChallenge" 
+      ref="kioskRef"
+      class="prompt-kiosk"
+      :class="{ 'is-dragging': isDragging, 'is-resizing': isResizing }"
+      :style="{
+        transform: `translate(calc(-50% + ${kioskPosition.x}px), calc(-50% + ${kioskPosition.y}px))`,
+        width: kioskSize.width > 0 ? `${kioskSize.width}px` : undefined,
+        height: kioskSize.height > 0 ? `${kioskSize.height}px` : undefined
+      }"
+    >
+      <div class="kiosk-header" @mousedown="handleMouseDown" @touchstart="handleTouchStart">
+        <div class="kiosk-drag-handle">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="5" cy="5" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="10" cy="5" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="15" cy="5" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="5" cy="10" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="10" cy="10" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="15" cy="10" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="5" cy="15" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="10" cy="15" r="1.5" fill="currentColor" opacity="0.4"/>
+            <circle cx="15" cy="15" r="1.5" fill="currentColor" opacity="0.4"/>
+          </svg>
+        </div>
         <div class="kiosk-title">Try It</div>
         <div class="kiosk-actions">
           <button v-if="selectedChallenge" class="kiosk-back" @click="clearSelection" title="Back to challenge selection">← Back</button>
@@ -441,7 +775,7 @@ function closeKiosk() {
         </div>
       </div>
       
-      <div v-if="!selectedChallenge" class="challenge-selection">
+      <div v-if="!selectedChallenge" class="challenge-selection kiosk-content">
         <div v-if="demoControl.isActive" class="active-model-notice">
           <span class="notice-icon">●</span>
           <span class="notice-text">SYSTEM READY: {{ actualModelLabel }} Active</span>
@@ -478,7 +812,7 @@ function closeKiosk() {
         </div>
       </div>
       
-      <div v-else class="prompt-selection">
+      <div v-else class="prompt-selection kiosk-content">
         <div class="selected-challenge-header">
           <div class="selected-challenge-title">{{ currentChallenge?.title }}</div>
           <div class="selected-challenge-model-info">
@@ -606,6 +940,16 @@ function closeKiosk() {
           <span class="timer-countdown">{{ demoControl.timeRemaining }}s</span>
         </div>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="resize-handle resize-handle--top" @mousedown="(e) => handleResizeStart(e, 'top')" @touchstart="(e) => handleResizeStart(e, 'top')"></div>
+      <div class="resize-handle resize-handle--right" @mousedown="(e) => handleResizeStart(e, 'right')" @touchstart="(e) => handleResizeStart(e, 'right')"></div>
+      <div class="resize-handle resize-handle--bottom" @mousedown="(e) => handleResizeStart(e, 'bottom')" @touchstart="(e) => handleResizeStart(e, 'bottom')"></div>
+      <div class="resize-handle resize-handle--left" @mousedown="(e) => handleResizeStart(e, 'left')" @touchstart="(e) => handleResizeStart(e, 'left')"></div>
+      <div class="resize-handle resize-handle--top-right" @mousedown="(e) => handleResizeStart(e, 'top-right')" @touchstart="(e) => handleResizeStart(e, 'top-right')"></div>
+      <div class="resize-handle resize-handle--bottom-right" @mousedown="(e) => handleResizeStart(e, 'bottom-right')" @touchstart="(e) => handleResizeStart(e, 'bottom-right')"></div>
+      <div class="resize-handle resize-handle--bottom-left" @mousedown="(e) => handleResizeStart(e, 'bottom-left')" @touchstart="(e) => handleResizeStart(e, 'bottom-left')"></div>
+      <div class="resize-handle resize-handle--top-left" @mousedown="(e) => handleResizeStart(e, 'top-left')" @touchstart="(e) => handleResizeStart(e, 'top-left')"></div>
     </div>
   </Transition>
 </template>
@@ -615,11 +959,10 @@ function closeKiosk() {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
   width: 90%;
   max-width: 800px;
   max-height: 80vh;
-  padding: 32px;
+  padding: 0;
   background: var(--abs-card);
   border: 1px solid var(--abs-orange);
   border-radius: 16px;
@@ -627,24 +970,154 @@ function closeKiosk() {
   z-index: 200;
   backdrop-filter: blur(20px);
   overflow-y: auto;
+  overflow-x: hidden;
+  transition: box-shadow 0.2s ease;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-kiosk.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 0 80px rgba(249, 115, 22, 0.6), 0 8px 40px rgba(0, 0, 0, 0.7);
+  user-select: none;
+}
+
+.prompt-kiosk.is-resizing {
+  user-select: none;
+}
+
+/* Resize handles */
+.resize-handle {
+  position: absolute;
+  background: transparent;
+  z-index: 10;
+}
+
+.resize-handle--top,
+.resize-handle--bottom {
+  left: 8px;
+  right: 8px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.resize-handle--top {
+  top: 0;
+}
+
+.resize-handle--bottom {
+  bottom: 0;
+}
+
+.resize-handle--left,
+.resize-handle--right {
+  top: 8px;
+  bottom: 8px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.resize-handle--left {
+  left: 0;
+}
+
+.resize-handle--right {
+  right: 0;
+}
+
+.resize-handle--top-left {
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-handle--top-right {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.resize-handle--bottom-left {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.resize-handle--bottom-right {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.resize-handle:hover {
+  background: rgba(249, 115, 22, 0.2);
+}
+
+.resize-handle:active {
+  background: rgba(249, 115, 22, 0.4);
 }
 
 .kiosk-header {
+  position: sticky;
+  top: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  margin: 0;
+  padding: 16px 32px;
   border-bottom: 1px solid var(--border-subtle);
+  cursor: grab;
+  user-select: none;
+  background: var(--abs-card);
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.kiosk-header:active {
+  cursor: grabbing;
+}
+
+.kiosk-drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.kiosk-drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.kiosk-drag-handle:hover {
+  opacity: 1;
+}
+
+.prompt-kiosk.is-dragging .kiosk-drag-handle {
+  opacity: 1;
 }
 
 .kiosk-title {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--abs-orange);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.2;
 }
 
 .kiosk-actions {
@@ -829,6 +1302,12 @@ function closeKiosk() {
   font-size: 0.8rem;
   color: var(--text-secondary);
   font-style: italic;
+}
+
+.kiosk-content {
+  padding: 16px 32px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .prompt-selection {

@@ -116,8 +116,8 @@ const ringProgress = computed(() => {
 })
 
 // GPU ring circumference calculation (for SVG)
-const radius = 120
-const innerRadius = 100
+const radius = 140
+const innerRadius = 120
 const circumference = 2 * Math.PI * radius
 const innerCircumference = 2 * Math.PI * innerRadius
 const gpuUtilOffset = computed(() => circumference * (1 - ringProgress.value))
@@ -249,6 +249,69 @@ const centerSublabel = computed(() => {
       return 'LOCAL AI'
   }
 })
+
+// Inference load label (below ring)
+const inferenceLoadLabel = computed(() => {
+  if (display.value.state === 'LIVE_INFERENCE' || display.value.state === 'LOADING_70B') {
+    return 'ACTIVE INFERENCE'
+  }
+  return 'INFERENCE LOAD'
+})
+
+// Active model name for VRAM allocation label
+const activeModelForVram = computed(() => {
+  if (display.value.state === 'LIVE_INFERENCE' && display.value.activeModel) {
+    return display.value.activeModel
+  }
+  if (demoControlStore.activeModel === 'deepseek-r1-70b') return 'deepseek-r1-70b'
+  if (demoControlStore.activeModel === 'llama3-70b') return 'llama3-70b'
+  if (demoControlStore.activeModel === 'dual') return 'dual-70b'
+  return null
+})
+
+// Performance metrics for right panel
+const performanceMetrics = computed(() => {
+  const metrics: {
+    tokPerSec?: string
+    ttft?: string
+    lat?: string
+    ctx?: string
+    quant?: string
+  } = {}
+  
+  if (display.value.state === 'LIVE_INFERENCE') {
+    if (display.value.tokPerSec) {
+      metrics.tokPerSec = display.value.tokPerSec
+    }
+    
+    // TTFT
+    if (display.value.ttftMs !== null && display.value.ttftMs !== undefined) {
+      const ttftMs = display.value.ttftMs
+      metrics.ttft = ttftMs < 1000 ? `${ttftMs}ms` : `${(ttftMs / 1000).toFixed(1)}s`
+    } else if (demoControlStore.liveMetrics.timeToFirstToken !== undefined && demoControlStore.liveMetrics.timeToFirstToken > 0) {
+      const ttftMs = demoControlStore.liveMetrics.timeToFirstToken
+      metrics.ttft = ttftMs < 1000 ? `${ttftMs}ms` : `${(ttftMs / 1000).toFixed(1)}s`
+    } else {
+      metrics.ttft = '<1s'
+    }
+    
+    // Latency
+    if (demoControlStore.liveMetrics.latency !== undefined && demoControlStore.liveMetrics.latency > 0) {
+      const lat = demoControlStore.liveMetrics.latency
+      metrics.lat = lat < 1000 ? `${lat}ms` : `${(lat / 1000).toFixed(1)}s`
+    } else {
+      metrics.lat = '<1s'
+    }
+    
+    // Context window
+    metrics.ctx = demoControlStore.liveMetrics.contextWindow || '128k'
+    
+    // Quantization (default for 70B models)
+    metrics.quant = 'Q4_K_M'
+  }
+  
+  return metrics
+})
 </script>
 
 <template>
@@ -273,9 +336,10 @@ const centerSublabel = computed(() => {
     <!-- ============================================== -->
     <!-- CENTER: GPU RING + CONTEXTUAL LABELS -->
     <!-- ============================================== -->
-    <div class="scene-a__gpu-ring" :style="ringTransform">
+    <div class="scene-a__gpu-ring-wrapper">
+      <div class="scene-a__gpu-ring" :style="ringTransform">
       <!-- Outer ring: VRAM bandwidth -->
-      <svg class="gpu-ring-svg gpu-ring-svg--outer" width="500" height="500" viewBox="0 0 300 300">
+      <svg class="gpu-ring-svg gpu-ring-svg--outer" width="600" height="600" viewBox="0 0 300 300">
         <circle
           cx="150"
           cy="150"
@@ -301,7 +365,7 @@ const centerSublabel = computed(() => {
       </svg>
       
       <!-- Inner ring: GPU util / progress -->
-      <svg class="gpu-ring-svg gpu-ring-svg--inner" width="500" height="500" viewBox="0 0 300 300">
+      <svg class="gpu-ring-svg gpu-ring-svg--inner" width="600" height="600" viewBox="0 0 300 300">
         <circle
           cx="150"
           cy="150"
@@ -331,6 +395,12 @@ const centerSublabel = computed(() => {
         <div class="gpu-ring-value" :style="ringGlow">{{ centerLabel }}</div>
         <div class="gpu-ring-sublabel">{{ centerSublabel }}</div>
       </div>
+      </div>
+      
+      <!-- Inference Load Label (below ring) -->
+      <div class="gpu-ring-inference-label">
+        {{ inferenceLoadLabel }}
+      </div>
     </div>
     
     <!-- ============================================== -->
@@ -341,6 +411,9 @@ const centerSublabel = computed(() => {
         <div class="metric-label">GPU VRAM</div>
         <div class="metric-value-large" :style="getElementGlow('var(--text-primary)', 0.3)">
           {{ display.vramUsed }} / {{ display.vramTotal }} GB
+        </div>
+        <div v-if="activeModelForVram" class="metric-allocated">
+          ALLOCATED BY: <span class="model-name">{{ activeModelForVram }}</span>
         </div>
       </div>
       
@@ -385,14 +458,22 @@ const centerSublabel = computed(() => {
         <div class="performance-card__header">Running:</div>
         <div class="performance-card__model">{{ display.activeModel || 'Llama 70B' }}</div>
         <div class="performance-card__metrics">
-          <div v-if="display.tokPerSec" class="perf-metric">
-            <span class="perf-metric__value">{{ display.tokPerSec }}</span>
+          <div v-if="performanceMetrics.tokPerSec" class="perf-metric">
+            <span class="perf-metric__value">{{ performanceMetrics.tokPerSec }}</span>
             <span class="perf-metric__label">tok/s</span>
           </div>
-          <div v-if="display.ttftMs" class="perf-metric">
-            <span class="perf-metric__value">{{ (display.ttftMs / 1000).toFixed(1) }}s</span>
+          <div v-if="performanceMetrics.ttft" class="perf-metric">
+            <span class="perf-metric__value">{{ performanceMetrics.ttft }}</span>
             <span class="perf-metric__label">TTFT</span>
           </div>
+          <div v-if="performanceMetrics.lat" class="perf-metric">
+            <span class="perf-metric__value">{{ performanceMetrics.lat }}</span>
+            <span class="perf-metric__label">LAT</span>
+          </div>
+        </div>
+        <div v-if="performanceMetrics.ctx || performanceMetrics.quant" class="performance-card__meta">
+          <span v-if="performanceMetrics.ctx" class="meta-item">CTX {{ performanceMetrics.ctx }}</span>
+          <span v-if="performanceMetrics.quant" class="meta-item">{{ performanceMetrics.quant }}</span>
         </div>
       </div>
     </div>
@@ -427,6 +508,23 @@ const centerSublabel = computed(() => {
   z-index: 0;
 }
 
+.scene-a__gpu-ring-wrapper {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, calc(-50% + 20px)); /* Offset down to avoid top overlap */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 15; /* Center ring above side panels */
+  width: 600px;
+  pointer-events: none; /* Allow clicks to pass through */
+}
+
+.scene-a__gpu-ring-wrapper > * {
+  pointer-events: auto; /* Re-enable for interactive elements */
+}
+
 .scene-a__gpu-ring {
   position: relative;
   display: flex;
@@ -434,7 +532,6 @@ const centerSublabel = computed(() => {
   justify-content: center;
   transform-style: preserve-3d;
   transition: transform 0.1s linear;
-  z-index: 15; /* Center ring above side panels */
 }
 
 .gpu-ring-svg {
@@ -463,7 +560,7 @@ const centerSublabel = computed(() => {
 .gpu-ring-value {
   /* No position: absolute - let flex container handle layout */
   font-family: var(--font-mono);
-  font-size: 8.5rem; /* Reduced from 10rem (~15% smaller) */
+  font-size: 7.5rem; /* Slightly smaller to fit better in larger ring */
   font-weight: 700;
   color: var(--abs-orange);
   text-shadow: 
@@ -475,7 +572,7 @@ const centerSublabel = computed(() => {
 
 .scene-a__left-rail {
   position: absolute;
-  left: 80px;
+  left: 40px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -486,6 +583,9 @@ const centerSublabel = computed(() => {
   padding: 32px;
   border-radius: 12px;
   backdrop-filter: blur(10px);
+  width: 360px;
+  min-width: 320px;
+  max-width: calc(50vw - 300px); /* Ensure it doesn't overlap center */
 }
 
 .metric-item {
@@ -496,7 +596,7 @@ const centerSublabel = computed(() => {
 
 .metric-label {
   font-family: var(--font-label);
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -506,20 +606,35 @@ const centerSublabel = computed(() => {
 
 .metric-value-large {
   font-family: var(--font-mono);
-  font-size: 5.5rem;
+  font-size: 3rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
   text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
   transition: all 0.3s var(--ease-smooth);
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .metric-value-medium {
   font-family: var(--font-mono);
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   text-shadow: 0 0 4px rgba(255, 255, 255, 0.25);
+}
+
+.metric-allocated {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+
+.metric-allocated .model-name {
+  color: var(--abs-orange);
+  font-weight: 600;
 }
 
 .scene-a__top-right {
@@ -738,17 +853,34 @@ const centerSublabel = computed(() => {
   /* Sublabel now positioned above value */
 }
 
+/* Inference Load Label (below ring) */
+.gpu-ring-inference-label {
+  margin-top: 32px;
+  font-family: var(--font-label);
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--abs-orange);
+  text-shadow: 0 0 8px var(--abs-orange-glow);
+  white-space: nowrap;
+  transition: all 0.3s var(--ease-smooth);
+  position: relative;
+  z-index: 16;
+}
+
 /* ============================================== */
 /* RIGHT PANEL */
 /* ============================================== */
 
 .scene-a__right-panel {
   position: absolute;
-  right: 80px;
+  right: 40px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 5; /* Side panels below center */
-  width: 320px;
+  width: 280px;
+  max-width: calc(50vw - 300px); /* Ensure it doesn't overlap center */
 }
 
 /* Carousel Card */
@@ -885,6 +1017,23 @@ const centerSublabel = computed(() => {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.performance-card__meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font-label);
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.performance-card__meta .meta-item {
+  font-weight: 500;
+}
+
 /* ============================================== */
 /* LIVE BADGE (Bottom-right) */
 /* ============================================== */
@@ -913,6 +1062,65 @@ const centerSublabel = computed(() => {
   background: #4ade80;
   box-shadow: 0 0 12px #4ade80;
   animation: pulse-dot 1s ease-in-out infinite;
+}
+
+/* Responsive adjustments to prevent overlap */
+@media (max-width: 1600px) {
+  .scene-a__left-rail {
+    left: 40px;
+    max-width: 340px;
+    width: 340px;
+  }
+  
+  .scene-a__gpu-ring-wrapper {
+    width: 550px;
+  }
+  
+  .gpu-ring-svg {
+    width: 550px;
+    height: 550px;
+  }
+  
+  .gpu-ring-value {
+    font-size: 7rem;
+  }
+  
+  .scene-a__right-panel {
+    right: 40px;
+    width: 280px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .scene-a__left-rail {
+    left: 20px;
+    max-width: 300px;
+    width: 300px;
+    padding: 24px;
+  }
+  
+  .scene-a__gpu-ring-wrapper {
+    width: 450px;
+    padding-bottom: 100px;
+  }
+  
+  .gpu-ring-svg {
+    width: 450px;
+    height: 450px;
+  }
+  
+  .gpu-ring-value {
+    font-size: 6rem;
+  }
+  
+  .scene-a__right-panel {
+    right: 20px;
+    width: 250px;
+  }
+  
+  .gpu-ring-inference-label {
+    font-size: 1.25rem;
+  }
 }
 </style>
 

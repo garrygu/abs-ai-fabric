@@ -467,7 +467,7 @@ function getGpuMetricStyle(utilization: number) {
           <!-- Control buttons group - Top Right -->
           <div class="header-controls">
             <!-- State dropdown menu -->
-            <div class="state-dropdown" v-if="panelState !== 'collapsed'">
+            <div class="state-dropdown" v-if="(panelState as PanelState) !== 'collapsed'">
             <button 
               class="state-dropdown-trigger"
               @click.stop="showStateDropdown = !showStateDropdown"
@@ -517,7 +517,7 @@ function getGpuMetricStyle(utilization: number) {
                 
                 <button
                   class="state-dropdown-item"
-                  :class="{ 'active': panelState === 'collapsed' }"
+                  :class="{ 'active': (panelState as PanelState) === 'collapsed' }"
                   @click.stop="setPanelState('collapsed')"
                 >
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -1561,6 +1561,8 @@ function getGpuMetricStyle(utilization: number) {
   align-items: baseline;
   padding: 8px 0;
   border-bottom: 1px solid var(--border-subtle);
+  gap: 12px;
+  min-width: 0;
 }
 
 .compact-metric:last-child {
@@ -1576,16 +1578,21 @@ function getGpuMetricStyle(utilization: number) {
   letter-spacing: 0.05em;
 }
 
+.compact-metric-label {
+  flex-shrink: 0;
+  min-width: fit-content;
+}
+
 .compact-metric-value {
   font-family: var(--font-mono);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.compact-metric-value--gpu {
-  /* Base color will be overridden by inline style based on utilization */
-  color: var(--abs-orange);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-align: right;
+  min-width: fit-content;
 }
 
 .compact-metric-value--gpu {
