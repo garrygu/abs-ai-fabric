@@ -13,6 +13,7 @@ const { isCESMode } = useCESMode()
 const attractStore = useAttractModeStore()
 
 // Get model loading status from demo control
+// Returns: 'warming' (loading), 'ready' (loaded and idle), 'running' (actively processing), 'cooling', or null
 function getModelLoadingStatus(modelId: string) {
   if (!demoControl.activeModel || demoControl.modelStatus === 'idle') {
     return null
@@ -21,43 +22,39 @@ function getModelLoadingStatus(modelId: string) {
   const modelIdLower = modelId.toLowerCase()
   const normalizedModelId = modelIdLower.replace(/[:_]/g, '-') // Normalize colons and underscores to dashes
   
+  // Helper function to get status for this model
+  function getStatus() {
+    if (demoControl.modelStatus === 'warming') return 'warming'
+    if (demoControl.modelStatus === 'cooling') return 'cooling'
+    // Model is loaded ('running' state in demoControl)
+    if (demoControl.modelStatus === 'running') {
+      // Only show 'running' if actively processing
+      return demoControl.isProcessing ? 'running' : 'ready'
+    }
+    return null
+  }
+  
   // Check DeepSeek R1 70B
   if (demoControl.activeModel === 'deepseek-r1-70b') {
     if (normalizedModelId.includes('deepseek') && (normalizedModelId.includes('r1') || normalizedModelId.includes('70b'))) {
-      // If processing, show as running
-      if (demoControl.isProcessing && demoControl.modelStatus === 'running') {
-        return 'running'
-      }
-      return demoControl.modelStatus
+      return getStatus()
     }
   }
   
   // Check LLaMA-3 70B (not 8B)
   if (demoControl.activeModel === 'llama3-70b') {
     if (normalizedModelId.includes('llama') && normalizedModelId.includes('70b') && !normalizedModelId.includes('8b')) {
-      // If processing, show as running
-      if (demoControl.isProcessing && demoControl.modelStatus === 'running') {
-        return 'running'
-      }
-      return demoControl.modelStatus
+      return getStatus()
     }
   }
   
   // Check dual mode
   if (demoControl.activeModel === 'dual') {
     if (normalizedModelId.includes('deepseek') && (normalizedModelId.includes('r1') || normalizedModelId.includes('70b'))) {
-      // If processing, show as running
-      if (demoControl.isProcessing && demoControl.modelStatus === 'running') {
-        return 'running'
-      }
-      return demoControl.modelStatus
+      return getStatus()
     }
     if (normalizedModelId.includes('llama') && normalizedModelId.includes('70b') && !normalizedModelId.includes('8b')) {
-      // If processing, show as running
-      if (demoControl.isProcessing && demoControl.modelStatus === 'running') {
-        return 'running'
-      }
-      return demoControl.modelStatus
+      return getStatus()
     }
   }
   
@@ -545,13 +542,15 @@ watch(() => attractStore.isActive, (isActive) => {
                   model.serving_status,
                   { 
                     'model-status--warming': getModelLoadingStatus(model.model_id) === 'warming',
-                    'model-status--running': getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id)),
+                    'model-status--ready': getModelLoadingStatus(model.model_id) === 'ready',
+                    'model-status--running': getModelLoadingStatus(model.model_id) === 'running',
                     'model-status--cooling': getModelLoadingStatus(model.model_id) === 'cooling'
                   }
                 ]"
               >
                 <span v-if="getModelLoadingStatus(model.model_id) === 'warming'">⚡ Warming</span>
-                <span v-else-if="getModelLoadingStatus(model.model_id) === 'running' || (demoControl.isProcessing && isModelActive(model.model_id))">● Running</span>
+                <span v-else-if="getModelLoadingStatus(model.model_id) === 'running'">● Running</span>
+                <span v-else-if="getModelLoadingStatus(model.model_id) === 'ready'">● Ready</span>
                 <span v-else-if="getModelLoadingStatus(model.model_id) === 'cooling'">❄ Cooling</span>
                 <span v-else-if="model.serving_status === 'ready'">● Ready</span>
                 <span v-else>○ Idle</span>
@@ -566,8 +565,8 @@ watch(() => attractStore.isActive, (isActive) => {
           <div class="model-loading-bar-fill" :style="{ width: `${demoControl.loadingProgress}%` }"></div>
         </div>
         
-        <!-- VRAM Allocated (when running) -->
-        <div v-if="getModelLoadingStatus(model.model_id) === 'running'" class="model-vram-info">
+        <!-- VRAM Allocated (when loaded - ready or running) -->
+        <div v-if="getModelLoadingStatus(model.model_id) === 'running' || getModelLoadingStatus(model.model_id) === 'ready'" class="model-vram-info">
           <span class="vram-label">VRAM allocated:</span>
           <span class="vram-value">{{ model.size_gb ? Math.round(model.size_gb * 0.6) : '~' }} GB</span>
         </div>
@@ -825,6 +824,10 @@ watch(() => attractStore.isActive, (isActive) => {
 .model-status--warming {
   color: var(--abs-orange);
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+.model-status--ready {
+  color: var(--status-success);
 }
 
 .model-status--running {
