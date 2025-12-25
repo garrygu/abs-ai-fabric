@@ -80,7 +80,41 @@ const activeIntelligenceCards = computed(() => {
   
   // Add asset state card - reactive based on workload state (only when no active workloads shown)
   const readyModels = modelsStore.readyModels
-  if (readyModels.length > 0 && cards.length === 0) {
+  
+  // Check demoControlStore state for warming/running status
+  if (demoControlStore.isWarming && cards.length === 0) {
+    // Model is warming up
+    let modelName = 'Model'
+    if (demoControlStore.activeModel === 'deepseek-r1-70b') {
+      modelName = 'DeepSeek R1 70B'
+    } else if (demoControlStore.activeModel === 'llama3-70b') {
+      modelName = 'LLaMA-3 70B'
+    } else if (demoControlStore.activeModel === 'dual') {
+      modelName = 'Dual 70B Models'
+    }
+    cards.push({
+      icon: '⚡',
+      title: `${modelName} Warming`,
+      subtitle: `Loading into VRAM... ${Math.round(demoControlStore.loadingProgress)}%`,
+      state: 'Warming'
+    })
+  } else if (demoControlStore.isRunning && cards.length === 0) {
+    // Model is loaded and running (but no active workloads yet)
+    let modelName = 'Model'
+    if (demoControlStore.activeModel === 'deepseek-r1-70b') {
+      modelName = 'DeepSeek R1 70B'
+    } else if (demoControlStore.activeModel === 'llama3-70b') {
+      modelName = 'LLaMA-3 70B'
+    } else if (demoControlStore.activeModel === 'dual') {
+      modelName = 'Dual 70B Models'
+    }
+    cards.push({
+      icon: '⚡',
+      title: 'Models Ready',
+      subtitle: `${modelName} loaded · Waiting for Request`,
+      state: 'Ready'
+    })
+  } else if (readyModels.length > 0 && cards.length === 0) {
     // Idle state - show asset state card
     cards.push({
       icon: '⚡',
@@ -287,6 +321,12 @@ onUnmounted(() => {
 
 <template>
   <div class="page page-performance-v2">
+    <!-- Subtle labels for each line (positioned above chart) -->
+    <div class="flow-labels">
+      <div class="flow-label flow-label--gpu">GPU</div>
+      <div class="flow-label flow-label--vram">VRAM</div>
+      <div class="flow-label flow-label--ram">RAM</div>
+    </div>
     <!-- ① HERO: LIVE SYSTEM PULSE -->
     <div class="hero-section">
       <div class="hero-background">
@@ -365,32 +405,31 @@ onUnmounted(() => {
             </span>
           </Transition>
         </div>
-        
-        <!-- Model Loading Overlay - positioned below GPU value -->
-        <Transition name="fade">
-          <div v-if="modelLoadingText" class="model-loading-overlay">
-            {{ modelLoadingText }}
-          </div>
-        </Transition>
+
       </div>
     </div>
 
     <!-- ② ACTIVE INTELLIGENCE OVERLAY -->
-    <TransitionGroup name="intelligence-fade" tag="div" class="intelligence-overlay">
-      <div 
-        v-for="(card, index) in activeIntelligenceCards" 
-        :key="card.title + index"
-        class="intelligence-card"
-        :style="{ '--delay': index * 0.1 + 's' }"
-      >
-        <span class="intelligence-icon">{{ card.icon }}</span>
-        <div class="intelligence-content">
-          <div class="intelligence-title">{{ card.title }}</div>
-          <div class="intelligence-subtitle">{{ card.subtitle }}</div>
-          <div v-if="card.state" class="intelligence-state">{{ card.state }}</div>
+    <div class="intelligence-overlay">
+      <Transition name="intelligence-fade">
+        <div 
+          v-if="activeIntelligenceCards.length > 0"
+          :key="activeIntelligenceCards[0].title + activeIntelligenceCards[0].state"
+          class="intelligence-card"
+          :class="{
+            'intelligence-card--warming': activeIntelligenceCards[0].state === 'Warming',
+            'intelligence-card--ready': activeIntelligenceCards[0].state === 'Ready',
+            'intelligence-card--running': activeIntelligenceCards[0].state === 'Running'
+          }"
+        >
+          <span class="intelligence-icon">{{ activeIntelligenceCards[0].icon }}</span>
+          <div class="intelligence-content">
+            <div class="intelligence-title">{{ activeIntelligenceCards[0].title }}</div>
+            <div class="intelligence-subtitle">{{ activeIntelligenceCards[0].subtitle }}</div>
+          </div>
         </div>
-      </div>
-    </TransitionGroup>
+      </Transition>
+    </div>
 
     <!-- ③ & ④ DUAL PANEL: HARDWARE REALITY + AI OUTCOMES -->
     <div class="dual-panel-section">
@@ -540,6 +579,7 @@ onUnmounted(() => {
 
 <style scoped>
 .page-performance-v2 {
+  position: relative;
   padding: 40px 24px;
   max-width: var(--container-max);
   margin: 0 auto;
@@ -598,6 +638,45 @@ onUnmounted(() => {
   animation-delay: 2s;
 }
 
+.flow-labels {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  z-index: 1000;
+  align-items: center;
+}
+
+.flow-label {
+  font-family: var(--font-label, 'Rajdhani', sans-serif);
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  display: block;
+  text-shadow: 0 0 8px currentColor;
+}
+
+.flow-label--gpu {
+  color: #3b82f6;
+}
+
+.flow-label--vram {
+  color: #a855f7;
+}
+
+.flow-label--ram {
+  color: #06b6d4;
+}
+
 @keyframes flow {
   0%, 100% {
     opacity: 0.4;
@@ -634,7 +713,8 @@ onUnmounted(() => {
   font-size: 6rem;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1;
+  line-height: 1.1;
+  padding-bottom: 8px;
   transition: all 0.3s ease;
 }
 
@@ -668,12 +748,10 @@ onUnmounted(() => {
 }
 
 .model-loading-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  display: inline-block;
+  margin-top: 32px;
   padding: 12px 24px;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid var(--abs-orange);
   border-radius: 8px;
   font-family: var(--font-label);
@@ -722,10 +800,10 @@ onUnmounted(() => {
 .intelligence-overlay {
   position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   justify-content: center;
+  align-items: center;
   min-height: 60px;
+  width: 100%;
 }
 
 .intelligence-card {
@@ -737,9 +815,52 @@ onUnmounted(() => {
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   backdrop-filter: blur(10px);
-  animation: float-in 0.5s ease-out;
-  animation-delay: var(--delay, 0s);
-  animation-fill-mode: both;
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.intelligence-card--warming {
+  border-color: var(--abs-orange);
+  border-width: 2px;
+  box-shadow: 
+    0 0 20px rgba(249, 115, 22, 0.4),
+    0 0 40px rgba(249, 115, 22, 0.2),
+    inset 0 0 20px rgba(249, 115, 22, 0.1);
+  background: rgba(15, 15, 24, 0.95);
+  animation: warmingPulse 2s ease-in-out infinite;
+}
+
+.intelligence-card--ready {
+  border-color: var(--status-success);
+  border-width: 2px;
+  box-shadow: 
+    0 0 20px rgba(34, 197, 94, 0.3),
+    0 0 40px rgba(34, 197, 94, 0.15);
+  background: rgba(15, 15, 24, 0.95);
+}
+
+.intelligence-card--running {
+  border-color: var(--electric-indigo);
+  border-width: 2px;
+  box-shadow: 
+    0 0 20px rgba(99, 102, 241, 0.4),
+    0 0 40px rgba(99, 102, 241, 0.2);
+  background: rgba(15, 15, 24, 0.95);
+}
+
+@keyframes warmingPulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(249, 115, 22, 0.4),
+      0 0 40px rgba(249, 115, 22, 0.2),
+      inset 0 0 20px rgba(249, 115, 22, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(249, 115, 22, 0.6),
+      0 0 60px rgba(249, 115, 22, 0.3),
+      inset 0 0 30px rgba(249, 115, 22, 0.15);
+  }
 }
 
 @keyframes float-in {
@@ -779,27 +900,25 @@ onUnmounted(() => {
   color: var(--text-secondary);
 }
 
-.intelligence-state {
-  font-family: var(--font-label);
-  font-size: 0.65rem;
-  color: var(--status-success);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+
+.intelligence-fade-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.intelligence-fade-enter-active,
 .intelligence-fade-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 0.15s ease;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .intelligence-fade-enter-from {
   opacity: 0;
-  transform: translateY(10px) scale(0.95);
+  transform: translateY(5px);
 }
 
 .intelligence-fade-leave-to {
   opacity: 0;
-  transform: translateY(-10px) scale(0.95);
 }
 
 /* ③ & ④ DUAL PANEL */
