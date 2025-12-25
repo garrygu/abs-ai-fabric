@@ -173,7 +173,8 @@ function isCardHighlighted(modelId: string): boolean {
         
         <div class="model-card__badge" 
              v-if="getModelStatus(model.model_id)"
-             :style="getModelStatus(model.model_id) === 'RUNNING' ? getElementGlow('var(--abs-orange)', 1) : {}">
+             :class="{ 'model-card__badge--running': getModelStatus(model.model_id) === 'RUNNING' }"
+             :style="getModelStatus(model.model_id) === 'RUNNING' ? { ...getElementGlow('var(--status-success)', 1), background: 'var(--status-success)' } : {}">
           {{ getModelStatus(model.model_id) }}
         </div>
         <div class="model-card__name">{{ getModelDisplayName(model.model_id) }}</div>

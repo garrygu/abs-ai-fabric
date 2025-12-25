@@ -90,6 +90,9 @@ onMounted(() => {
   window.addEventListener('mouseup', handleMouseUp)
   window.addEventListener('resize', handleResize)
   
+  // Check for already-loaded models on mount
+  demoControl.checkLoadedModels()
+  
   // Calculate initial position from bottom-right if not saved
   if (panelPosition.value.x === 0 && panelPosition.value.y === 0) {
     nextTick(() => {
@@ -145,6 +148,20 @@ const statusLabel = computed(() => {
   }
 })
 
+// Human-readable active model name
+const activeModelDisplayName = computed(() => {
+  switch (demoControl.activeModel) {
+    case 'deepseek-r1-70b':
+      return 'DeepSeek R1 70B'
+    case 'llama3-70b':
+      return 'LLaMA-3 70B'
+    case 'dual':
+      return 'Dual 70B Mode'
+    default:
+      return 'No Model'
+  }
+})
+
 function showPromptKiosk() {
   window.dispatchEvent(new CustomEvent('show-prompt-kiosk'))
 }
@@ -169,7 +186,7 @@ function showPromptKiosk() {
     v-if="isVisible"
     ref="panelRef"
     class="demo-control-panel"
-    :class="{ 'is-dragging': isDragging }"
+    :class="{ 'is-dragging': isDragging, 'is-running': demoControl.isRunning }"
     :style="{
       left: `${panelPosition.x}px`,
       top: `${panelPosition.y}px`,
@@ -189,45 +206,80 @@ function showPromptKiosk() {
       </div>
     </div>
     
-    <div class="panel-actions">
-      <button
-        class="demo-button"
-        :class="{ 
-          'demo-button--active': demoControl.activeModel === 'deepseek-r1-70b' && demoControl.isActive,
-          'demo-button--pending': demoControl.pendingRequest === 'deepseek-r1-70b'
-        }"
-        :disabled="demoControl.isActive && demoControl.activeModel !== 'deepseek-r1-70b'"
-        @click="activateModel('deepseek-r1-70b')"
-      >
-        <span v-if="demoControl.pendingRequest === 'deepseek-r1-70b'">⏳ </span>
-        Activate DeepSeek R1 70B
+    <!-- ============================================== -->
+    <!-- ACTIVE MODEL SECTION (shown when running) -->
+    <!-- ============================================== -->
+    <div v-if="demoControl.isRunning" class="active-model-section">
+      <div class="active-model-label">ACTIVE MODEL</div>
+      <div class="active-model-name">{{ activeModelDisplayName }}</div>
+      
+      <!-- Try It Button - Always prominent when running -->
+      <button class="try-it-button" @click="showPromptKiosk">
+        ⚡ Try It Yourself
       </button>
       
       <button
-        class="demo-button"
-        :class="{ 
-          'demo-button--active': demoControl.activeModel === 'llama3-70b' && demoControl.isActive,
-          'demo-button--pending': demoControl.pendingRequest === 'llama3-70b'
-        }"
-        :disabled="demoControl.isActive && demoControl.activeModel !== 'llama3-70b'"
-        @click="activateModel('llama3-70b')"
+        class="deactivate-button"
+        @click="demoControl.deactivateModelManually"
+        title="Unload model and free VRAM"
       >
-        <span v-if="demoControl.pendingRequest === 'llama3-70b'">⏳ </span>
-        Activate LLaMA-3 70B
+        Deactivate Model
       </button>
+    </div>
+    
+    <!-- ============================================== -->
+    <!-- MODEL SELECTOR SECTION -->
+    <!-- ============================================== -->
+    <div class="model-selector-section">
+      <div v-if="demoControl.isRunning" class="section-label">SWITCH MODEL</div>
+      <div v-else class="section-label">SELECT MODEL TO ACTIVATE</div>
       
-      <button
-        class="demo-button demo-button--dual"
-        :class="{ 
-          'demo-button--active': demoControl.activeModel === 'dual' && demoControl.isActive,
-          'demo-button--pending': demoControl.pendingRequest === 'dual'
-        }"
-        :disabled="demoControl.isActive && demoControl.activeModel !== 'dual'"
-        @click="activateModel('dual')"
-      >
-        <span v-if="demoControl.pendingRequest === 'dual'">⏳ </span>
-        Dual 70B Showcase
-      </button>
+      <div class="model-buttons">
+        <button
+          class="model-button"
+          :class="{ 
+            'model-button--active': demoControl.activeModel === 'deepseek-r1-70b',
+            'model-button--pending': demoControl.pendingRequest === 'deepseek-r1-70b'
+          }"
+          :disabled="demoControl.activeModel === 'deepseek-r1-70b'"
+          @click="activateModel('deepseek-r1-70b')"
+        >
+          <span class="model-icon">🧠</span>
+          <span class="model-name">DeepSeek R1 70B</span>
+          <span v-if="demoControl.activeModel === 'deepseek-r1-70b'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
+        </button>
+        
+        <button
+          class="model-button"
+          :class="{ 
+            'model-button--active': demoControl.activeModel === 'llama3-70b',
+            'model-button--pending': demoControl.pendingRequest === 'llama3-70b'
+          }"
+          :disabled="demoControl.activeModel === 'llama3-70b'"
+          @click="activateModel('llama3-70b')"
+        >
+          <span class="model-icon">🦙</span>
+          <span class="model-name">LLaMA-3 70B</span>
+          <span v-if="demoControl.activeModel === 'llama3-70b'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
+        </button>
+        
+        <button
+          class="model-button model-button--dual"
+          :class="{ 
+            'model-button--active': demoControl.activeModel === 'dual',
+            'model-button--pending': demoControl.pendingRequest === 'dual'
+          }"
+          :disabled="demoControl.activeModel === 'dual'"
+          @click="activateModel('dual')"
+        >
+          <span class="model-icon">⚡</span>
+          <span class="model-name">Dual 70B Showcase</span>
+          <span v-if="demoControl.activeModel === 'dual'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
+        </button>
+      </div>
     </div>
     
     <!-- Loading Progress -->
@@ -241,18 +293,11 @@ function showPromptKiosk() {
       </div>
     </div>
     
-    <!-- Loading Duration (when ready, auto-hides after 5s) -->
-    <Transition name="fade">
-      <div v-if="demoControl.isRunning && demoControl.loadingDuration !== null" class="loading-duration">
-        <span class="duration-text">Loaded in {{ demoControl.loadingDuration }}s</span>
-      </div>
-    </Transition>
-    
     <!-- Pending Request Status -->
     <div v-if="demoControl.pendingRequest" class="pending-request-status">
       <div class="pending-message">
         <span class="pending-icon">⏳</span>
-        <span>Waiting for current session to end...</span>
+        <span>Switching model...</span>
       </div>
       <button 
         class="cancel-pending-button"
@@ -262,32 +307,6 @@ function showPromptKiosk() {
         Cancel
       </button>
     </div>
-    
-    <!-- Try It Button -->
-    <button
-      v-if="demoControl.isRunning"
-      class="try-it-button"
-      @click="showPromptKiosk"
-    >
-      Try It Yourself
-    </button>
-    
-    <!-- Manual Deactivate Button -->
-    <button
-      v-if="demoControl.isRunning"
-      class="deactivate-button"
-      @click="demoControl.deactivateModelManually"
-      title="Manually deactivate and unload the model"
-    >
-      Deactivate Model
-    </button>
-    
-    <!-- Safety Info -->
-    <div class="safety-info">
-      Auto-sleep: 10 min after closing Try It window
-    </div>
-    
-    <!-- Session Timer - Disabled: User can manually deactivate or wait for auto-sleep -->
   </div>
 </template>
 
@@ -672,6 +691,148 @@ function showPromptKiosk() {
   background: rgba(255, 255, 255, 0.05);
   border-color: var(--text-muted);
   color: var(--text-primary);
+}
+
+/* ============================================== */
+/* NEW LAYOUT STYLES */
+/* ============================================== */
+
+.demo-control-panel.is-running {
+  border-color: var(--status-success);
+  box-shadow: 0 0 30px rgba(34, 197, 94, 0.2), var(--shadow-lg);
+}
+
+/* Active Model Section */
+.active-model-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: center;
+}
+
+.active-model-label {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--status-success);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.active-model-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+/* Model Selector Section */
+.model-selector-section {
+  margin-bottom: 16px;
+}
+
+.section-label {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.model-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--abs-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.model-button:hover {
+  background: var(--abs-card);
+  border-color: var(--electric-indigo);
+}
+
+.model-button--active {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05));
+  border-color: var(--abs-orange);
+}
+
+.model-button--pending {
+  opacity: 0.7;
+  border-color: var(--abs-orange);
+}
+
+.model-button--dual {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05));
+  border-color: var(--electric-indigo);
+}
+
+.model-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.model-name {
+  flex: 1;
+}
+
+.active-badge {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  background: var(--abs-orange);
+  color: white;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.switch-hint {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+
+.model-button:hover .switch-hint {
+  background: var(--electric-indigo);
+  border-color: var(--electric-indigo);
+  color: white;
+}
+
+.model-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.model-button:disabled:hover {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05));
+  border-color: var(--abs-orange);
+  transform: none;
 }
 </style>
 

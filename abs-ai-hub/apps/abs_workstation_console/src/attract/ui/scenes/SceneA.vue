@@ -185,8 +185,14 @@ onUnmounted(() => {
 
 const currentCard = computed(() => carouselCards[currentCardIndex.value])
 
-// GPU model info (for hero bar)
-const gpuModel = computed(() => metricsStore.gpuModel || 'RTX PRO 6000')
+// GPU model info (for hero bar) - extract short name
+const gpuModelRaw = computed(() => metricsStore.gpuModel || 'RTX PRO 6000')
+const gpuModelShort = computed(() => {
+  // Extract just "RTX PRO 6000" from full model name
+  const raw = gpuModelRaw.value
+  const match = raw.match(/RTX\s*(?:PRO)?\s*\d+/i)
+  return match ? match[0].toUpperCase() : 'RTX PRO 6000'
+})
 const vramTotal = computed(() => Math.round(metricsStore.vramTotal) || 96)
 
 // WebGPU visual parameters by state
@@ -259,12 +265,8 @@ const centerSublabel = computed(() => {
         <span class="hero-bar__divider">·</span>
         <span class="hero-bar__tag">NO CLOUD</span>
         <span class="hero-bar__divider">·</span>
-        <span class="hero-bar__gpu">{{ gpuModel }} · {{ vramTotal }}GB</span>
-      </div>
-      <div class="hero-bar__status">
-        <span class="hero-bar__dot" :class="`hero-bar__dot--${display.state.toLowerCase()}`"></span>
-        <span class="hero-bar__status-text">{{ display.statusLabel }}</span>
-        <span v-if="!display.isFresh" class="hero-bar__stale">DEMO</span>
+        <span class="hero-bar__gpu">{{ gpuModelShort }} · {{ vramTotal }}GB</span>
+        <span v-if="!display.isFresh" class="hero-bar__stale">· DEMO</span>
       </div>
     </div>
     
@@ -324,7 +326,7 @@ const centerSublabel = computed(() => {
         />
       </svg>
       
-      <!-- Center value (contextual) -->
+      <!-- Center value (contextual) - value first (larger), label below (smaller) -->
       <div class="gpu-ring-center">
         <div class="gpu-ring-value" :style="ringGlow">{{ centerLabel }}</div>
         <div class="gpu-ring-sublabel">{{ centerSublabel }}</div>
@@ -459,15 +461,14 @@ const centerSublabel = computed(() => {
 }
 
 .gpu-ring-value {
-  position: absolute;
+  /* No position: absolute - let flex container handle layout */
   font-family: var(--font-mono);
-  font-size: 10rem;
+  font-size: 8.5rem; /* Reduced from 10rem (~15% smaller) */
   font-weight: 700;
   color: var(--abs-orange);
   text-shadow: 
     0 0 8px var(--abs-orange-glow),
     0 0 15px rgba(249, 115, 22, 0.4);
-  z-index: 3;
   transition: all 0.3s var(--ease-smooth);
   letter-spacing: -0.02em;
 }
@@ -723,17 +724,18 @@ const centerSublabel = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 20px; /* Large gap between sublabel and value */
   z-index: 3;
 }
 
 .gpu-ring-sublabel {
   font-family: var(--font-label);
-  font-size: 1.5rem;
+  font-size: 1.25rem; /* Slightly smaller */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.5);
+  /* Sublabel now positioned above value */
 }
 
 /* ============================================== */

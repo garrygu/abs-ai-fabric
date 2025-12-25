@@ -29,13 +29,20 @@ export interface SceneManifestItem {
 /**
  * Scene Manifest — matches timing from Visual Design & Motion Prototyping spec
  * 
- * Total loop: ~43s (9 + 11 + 9 + 7 + 7)
+ * Total loop: ~43s (9 + 11 + 9 + 7 + 7) in production
+ * 
+ * DEV_MODE: Set to true for faster testing (3s per scene)
  */
+export const DEV_MODE = true  // Toggle for faster testing
+
+/** Duration multiplier for dev mode */
+const DURATION_MULT = DEV_MODE ? 0.33 : 1.0  // ~3x faster in dev mode
+
 export const SCENE_MANIFEST: SceneManifestItem[] = [
     {
         id: 'sceneA',
         name: 'Hero System Status',
-        durationMs: 9000,
+        durationMs: 9000 * DURATION_MULT,
         intensity: [
             { t01: 0.0, v: 0.20 },
             { t01: 0.5, v: 0.28 },
@@ -45,7 +52,7 @@ export const SCENE_MANIFEST: SceneManifestItem[] = [
     {
         id: 'sceneB',
         name: 'Installed Models Power Wall',
-        durationMs: 11000,
+        durationMs: 11000 * DURATION_MULT,
         intensity: [
             { t01: 0.0, v: 0.30 },
             { t01: 0.6, v: 0.45 },
@@ -55,7 +62,7 @@ export const SCENE_MANIFEST: SceneManifestItem[] = [
     {
         id: 'sceneC',
         name: 'Live Load Surge',
-        durationMs: 9000,
+        durationMs: 9000 * DURATION_MULT,
         intensity: [
             { t01: 0.0, v: 0.25 },
             { t01: 0.55, v: 0.60 },
@@ -66,7 +73,7 @@ export const SCENE_MANIFEST: SceneManifestItem[] = [
     {
         id: 'sceneD',
         name: 'Platform Message',
-        durationMs: 7000,
+        durationMs: 7000 * DURATION_MULT,
         intensity: [
             { t01: 0.0, v: 0.20 },
             { t01: 0.55, v: 0.30 },
@@ -77,7 +84,7 @@ export const SCENE_MANIFEST: SceneManifestItem[] = [
     {
         id: 'sceneE',
         name: 'Gentle Invitation',
-        durationMs: 7000,
+        durationMs: 7000 * DURATION_MULT,
         intensity: [
             { t01: 0.0, v: 0.18 },
             { t01: 0.6, v: 0.28 },
