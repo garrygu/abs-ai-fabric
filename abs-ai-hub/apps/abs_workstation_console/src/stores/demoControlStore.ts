@@ -202,7 +202,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
       // Actually request/load the model via API
       if (model === 'dual') {
         // For dual mode, load both models in parallel
-        loadingStage.value = 'Loading DeepSeek R1 70B...'
+        loadingStage.value = 'Loading dual 70B models...'
         await Promise.all([
           requestModel('deepseek-r1-70b'),
           requestModel('llama3-70b')
