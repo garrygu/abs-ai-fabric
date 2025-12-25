@@ -15,7 +15,7 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
   const particleCount = 100000
   let viewport: [number, number] = [1920, 1080]
   let center: [number, number] = [960, 540]
-  
+
   // Update viewport from canvas
   const canvas = context.canvas
   if (canvas) {
@@ -26,11 +26,11 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
   // Buffers
   const uniformBuffer = createUniformBuffer(device, 12 * 4) // 12 floats
   const { bufferA, bufferB } = createParticleBuffers(device, particleCount)
-  
+
   // Initialize particles
   initializeParticles(device, bufferA, particleCount, viewport)
   initializeParticles(device, bufferB, particleCount, viewport)
-  
+
   let currentParticleBuffer = bufferA
   let nextParticleBuffer = bufferB
 
@@ -72,7 +72,7 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
     }
   })
 
-  const particleComputeBindGroup = device.createBindGroup({
+  let particleComputeBindGroup = device.createBindGroup({
     layout: particleComputePipeline.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
@@ -82,6 +82,7 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
       { binding: 4, resource: flowFieldSampler }
     ]
   })
+
 
   // Flow field compute pipeline (optional - can use analytic curl noise)
   const flowFieldComputeModule = device.createShaderModule({
@@ -196,6 +197,15 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
     }
   })
 
+
+  // Particle render bind group
+  let particleRenderBindGroup = device.createBindGroup({
+    layout: particleRenderPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: uniformBuffer } },
+      { binding: 1, resource: currentParticleBuffer }
+    ]
+  })
 
   // ============================================================================
   // POST-PROCESSING PIPELINES
@@ -591,7 +601,7 @@ export function createWebGPURenderer(deviceContext: GPUDeviceContext): WebGPURen
     viewport = [width, height]
     center = [width / 2, height / 2]
     renderTargets = createRenderTargets(device, width, height)
-    
+
     // Reinitialize particles for new viewport
     initializeParticles(device, bufferA, particleCount, viewport)
     initializeParticles(device, bufferB, particleCount, viewport)

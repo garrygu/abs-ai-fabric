@@ -80,13 +80,13 @@ const currentRunningInfo = computed(() => {
     const modelName = workload.associated_models[0]
     // Try to find model size/type from models store
     const model = modelsStore.models.find(m => 
-      m.name.toLowerCase().includes(modelName.toLowerCase()) || 
-      modelName.toLowerCase().includes(m.name.toLowerCase())
+      m.display_name.toLowerCase().includes(modelName.toLowerCase()) || 
+      modelName.toLowerCase().includes(m.display_name.toLowerCase())
     )
     if (model) {
       // Format like "70B" or "Llama 3 70B"
-      const sizeMatch = model.name.match(/(\d+B|\d+GB)/i)
-      modelInfo = sizeMatch ? ` (${sizeMatch[1]})` : ` (${model.name})`
+      const sizeMatch = model.display_name.match(/(\d+B|\d+GB)/i)
+      modelInfo = sizeMatch ? ` (${sizeMatch[1]})` : ` (${model.display_name})`
     } else {
       modelInfo = ` (${modelName})`
     }
@@ -503,6 +503,14 @@ function openContact() {
   window.open('https://absworkstation.com/contact?utm_source=console&utm_campaign=explore', '_blank')
 }
 
+function navigateToModel(modelId: string) {
+  activeTab.value = 'models'
+  setTimeout(() => {
+    const el = document.querySelector(`[data-model-id='${modelId}']`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, 100)
+}
+
 function getModelById(id: string) {
   return workstationModels.find(m => m.id === id)
 }
@@ -795,7 +803,7 @@ function getModelById(id: string) {
                 v-for="modelId in solution.recommendedModels"
                 :key="modelId"
                 class="model-chip"
-                @click="activeTab = 'models'; setTimeout(() => document.querySelector(`[data-model-id='${modelId}']`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)"
+                @click="navigateToModel(modelId)"
               >
                 {{ getModelById(modelId)?.name }}
               </button>
