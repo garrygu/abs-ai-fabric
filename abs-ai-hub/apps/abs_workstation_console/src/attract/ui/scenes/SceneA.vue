@@ -152,14 +152,125 @@ function formatUptime(seconds: number): string {
   const s = seconds % 60
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
+
+// ============================================================================
+// CES Wow Enhancements
+// ============================================================================
+
+// Carousel cards for IDLE state (rotate every 8s)
+const carouselCards = [
+  { title: 'No Cloud', subtitle: '0 data leaves this device' },
+  { title: '70B Ready', subtitle: '96GB VRAM · Instant inference' },
+  { title: 'Apps', subtitle: 'Chat · RAG · Vision · Code' },
+  { title: 'Live Demo', subtitle: 'One-click to try it yourself' }
+]
+const currentCardIndex = ref(0)
+let carouselInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  // Rotate carousel every 8 seconds
+  carouselInterval = setInterval(() => {
+    if (uniforms.value.state === 'IDLE_READY') {
+      currentCardIndex.value = (currentCardIndex.value + 1) % carouselCards.length
+    }
+  }, 8000)
+})
+
+onUnmounted(() => {
+  if (carouselInterval) {
+    clearInterval(carouselInterval)
+    carouselInterval = null
+  }
+})
+
+const currentCard = computed(() => carouselCards[currentCardIndex.value])
+
+// GPU model info (for hero bar)
+const gpuModel = computed(() => metricsStore.gpuModel || 'RTX PRO 6000')
+const vramTotal = computed(() => Math.round(metricsStore.vramTotal) || 96)
+
+// WebGPU visual parameters by state
+const webgpuParams = computed(() => {
+  switch (uniforms.value.state) {
+    case 'LIVE_INFERENCE':
+      const utilNorm = uniforms.value.gpuUtil01
+      return {
+        energy: 0.80,
+        flowSpeed: 0.45,
+        particleSpeed: 0.55 + 0.60 * utilNorm,
+        pulseFreq: 0.8 + 1.4 * Math.min(1, (display.value.tokPerSec ? parseFloat(display.value.tokPerSec) : 0) / 80),
+        bloom: 0.65
+      }
+    case 'LOADING_70B':
+      return {
+        energy: 0.55,
+        flowSpeed: 0.30,
+        particleSpeed: 0.35,
+        pulseFreq: 0,
+        bloom: 0.55
+      }
+    default: // IDLE_READY
+      return {
+        energy: 0.25,
+        flowSpeed: 0.12,
+        particleSpeed: 0.18,
+        pulseFreq: 0,
+        bloom: 0.35
+      }
+  }
+})
+
+// Center ring label (contextual - never bare %)
+const centerLabel = computed(() => {
+  switch (display.value.state) {
+    case 'LOADING_70B':
+      return `${display.value.loadProgressPct}%`
+    case 'LIVE_INFERENCE':
+      return `GPU ${display.value.gpuUtilPct}%`
+    default:
+      // Trust rule: if VRAM high + GPU low = PRELOADED
+      return display.value.statusLabel
+  }
+})
+
+const centerSublabel = computed(() => {
+  switch (display.value.state) {
+    case 'LOADING_70B':
+      return 'LOADING 70B'
+    case 'LIVE_INFERENCE':
+      return display.value.activeModel || 'INFERENCE'
+    default:
+      return 'LOCAL AI'
+  }
+})
 </script>
 
 <template>
-  <div ref="containerRef" class="scene-a">
+  <div ref="containerRef" class="scene-a" :class="`scene-a--${display.state.toLowerCase()}`">
     <!-- GPU Particle Field Background -->
     <!-- Particle field is rendered via composable -->
     
-    <!-- Full-screen GPU ring (center, 3D) -->
+    <!-- ============================================== -->
+    <!-- HERO STATUS BAR (Top) -->
+    <!-- ============================================== -->
+    <div class="scene-a__hero-bar">
+      <div class="hero-bar__content">
+        <span class="hero-bar__tag">LOCAL AI</span>
+        <span class="hero-bar__divider">·</span>
+        <span class="hero-bar__tag">NO CLOUD</span>
+        <span class="hero-bar__divider">·</span>
+        <span class="hero-bar__gpu">{{ gpuModel }} · {{ vramTotal }}GB</span>
+      </div>
+      <div class="hero-bar__status">
+        <span class="hero-bar__dot" :class="`hero-bar__dot--${display.state.toLowerCase()}`"></span>
+        <span class="hero-bar__status-text">{{ display.statusLabel }}</span>
+        <span v-if="!display.isFresh" class="hero-bar__stale">DEMO</span>
+      </div>
+    </div>
+    
+    <!-- ============================================== -->
+    <!-- CENTER: GPU RING + CONTEXTUAL LABELS -->
+    <!-- ============================================== -->
     <div class="scene-a__gpu-ring" :style="ringTransform">
       <!-- Outer ring: VRAM bandwidth -->
       <svg class="gpu-ring-svg gpu-ring-svg--outer" width="500" height="500" viewBox="0 0 300 300">
@@ -187,7 +298,7 @@ function formatUptime(seconds: number): string {
         />
       </svg>
       
-      <!-- Inner ring: CUDA cores -->
+      <!-- Inner ring: GPU util / progress -->
       <svg class="gpu-ring-svg gpu-ring-svg--inner" width="500" height="500" viewBox="0 0 300 300">
         <circle
           cx="150"
@@ -213,83 +324,81 @@ function formatUptime(seconds: number): string {
         />
       </svg>
       
-      <div class="gpu-ring-value" :style="ringGlow">
-        <template v-if="display.state === 'LOADING_70B'">
-          {{ display.loadProgressPct }}%
-        </template>
-        <template v-else>
-          {{ display.gpuUtilPct }}%
-        </template>
-      </div>
-      
-      <!-- Status badge below ring -->
-      <div class="gpu-ring-status" :class="`gpu-ring-status--${display.state.toLowerCase()}`">
-        {{ display.statusLabel }}
+      <!-- Center value (contextual) -->
+      <div class="gpu-ring-center">
+        <div class="gpu-ring-value" :style="ringGlow">{{ centerLabel }}</div>
+        <div class="gpu-ring-sublabel">{{ centerSublabel }}</div>
       </div>
     </div>
     
-    <!-- Left rail: Metrics -->
+    <!-- ============================================== -->
+    <!-- LEFT RAIL: METRICS -->
+    <!-- ============================================== -->
     <div class="scene-a__left-rail">
-      <!-- State-specific content -->
-      <template v-if="display.state === 'IDLE_READY' || display.state === 'LIVE_INFERENCE'">
-        <div class="metric-item">
-          <div class="metric-label">GPU VRAM</div>
-          <div class="metric-value-large" :style="getElementGlow('var(--text-primary)', 0.3)">
-            {{ display.vramUsed }} / {{ display.vramTotal }} GB
-          </div>
+      <div class="metric-item">
+        <div class="metric-label">GPU VRAM</div>
+        <div class="metric-value-large" :style="getElementGlow('var(--text-primary)', 0.3)">
+          {{ display.vramUsed }} / {{ display.vramTotal }} GB
         </div>
-        
-        <div class="metric-item">
-          <div class="metric-label">RAM</div>
-          <div class="metric-value-large" :style="getElementGlow('var(--text-primary)', 0.3)">
-            {{ display.ramUsed }} / {{ display.ramTotal }} GB
-          </div>
-        </div>
-        
-        <div class="metric-item">
-          <div class="metric-label">UPTIME</div>
-          <div class="metric-value-medium">
-            {{ formatUptime(display.uptime) }}
-          </div>
-        </div>
-      </template>
+      </div>
       
-      <!-- Loading state: show phase -->
-      <template v-if="display.state === 'LOADING_70B'">
-        <div class="metric-item">
-          <div class="metric-label">LOADING</div>
-          <div class="metric-value-large" :style="getElementGlow('var(--abs-orange)', 0.4)">
-            {{ display.activeModel || '70B MODEL' }}
-          </div>
+      <div class="metric-item">
+        <div class="metric-label">RAM</div>
+        <div class="metric-value-large" :style="getElementGlow('var(--text-primary)', 0.3)">
+          {{ display.ramUsed }} / {{ display.ramTotal }} GB
         </div>
-        <div class="metric-item">
-          <div class="metric-label">PHASE</div>
-          <div class="metric-value-medium">
-            {{ display.loadPhase?.toUpperCase() || 'LOADING' }}
-          </div>
-        </div>
-      </template>
+      </div>
       
-      <!-- Live state: show performance -->
-      <template v-if="display.state === 'LIVE_INFERENCE'">
-        <div class="metric-item metric-item--highlight">
-          <div class="metric-label">TOKENS/SEC</div>
-          <div class="metric-value-large" :style="getElementGlow('var(--abs-orange)', 0.5)">
-            {{ display.tokPerSec }}
-          </div>
+      <div class="metric-item">
+        <div class="metric-label">UPTIME</div>
+        <div class="metric-value-medium">
+          {{ formatUptime(display.uptime) }}
         </div>
-      </template>
+      </div>
     </div>
     
-    <!-- Top-right: CES overlay + live indicator -->
-    <div class="scene-a__top-right">
-      <div v-if="isCESMode" class="ces-badge" :style="getElementGlow('var(--abs-orange)', 0.5)">
-        LIVE AI · NO CLOUD · RTX PRO 6000
+    <!-- ============================================== -->
+    <!-- RIGHT PANEL: CAROUSEL / PHASE / PERFORMANCE -->
+    <!-- ============================================== -->
+    <div class="scene-a__right-panel">
+      <!-- IDLE: Rotating carousel cards -->
+      <Transition name="card-fade" mode="out-in">
+        <div v-if="display.state === 'IDLE_READY'" :key="currentCardIndex" class="carousel-card">
+          <div class="carousel-card__title">{{ currentCard.title }}</div>
+          <div class="carousel-card__subtitle">{{ currentCard.subtitle }}</div>
+        </div>
+      </Transition>
+      
+      <!-- LOADING: Phase card -->
+      <div v-if="display.state === 'LOADING_70B'" class="phase-card">
+        <div class="phase-card__title">{{ display.loadPhase?.toUpperCase() || 'LOADING' }}</div>
+        <div class="phase-card__subtitle">Preparing 70B for instant inference</div>
+        <div class="phase-card__progress">
+          <div class="phase-card__progress-bar" :style="{ width: `${display.loadProgressPct}%` }"></div>
+        </div>
       </div>
-      <div v-if="display.isFresh" class="live-indicator">
-        <span class="live-indicator__dot"></span>
-        LIVE
+      
+      <!-- LIVE: Performance card -->
+      <div v-if="display.state === 'LIVE_INFERENCE'" class="performance-card">
+        <div class="performance-card__header">Running:</div>
+        <div class="performance-card__model">{{ display.activeModel || 'Llama 70B' }}</div>
+        <div class="performance-card__metrics">
+          <div v-if="display.tokPerSec" class="perf-metric">
+            <span class="perf-metric__value">{{ display.tokPerSec }}</span>
+            <span class="perf-metric__label">tok/s</span>
+          </div>
+          <div v-if="display.ttftMs" class="perf-metric">
+            <span class="perf-metric__value">{{ (display.ttftMs / 1000).toFixed(1) }}s</span>
+            <span class="perf-metric__label">TTFT</span>
+          </div>
+        </div>
       </div>
+    </div>
+    
+    <!-- LIVE indicator (bottom-right) -->
+    <div v-if="display.isFresh" class="scene-a__live-badge">
+      <span class="live-badge__dot"></span>
+      LIVE
     </div>
   </div>
 </template>
@@ -323,7 +432,7 @@ function formatUptime(seconds: number): string {
   justify-content: center;
   transform-style: preserve-3d;
   transition: transform 0.1s linear;
-  z-index: 10;
+  z-index: 15; /* Center ring above side panels */
 }
 
 .gpu-ring-svg {
@@ -371,7 +480,7 @@ function formatUptime(seconds: number): string {
   display: flex;
   flex-direction: column;
   gap: 48px;
-  z-index: 10;
+  z-index: 5; /* Side panels below center */
   background: rgba(0, 0, 0, 0.4);
   padding: 32px;
   border-radius: 12px;
@@ -516,6 +625,292 @@ function formatUptime(seconds: number): string {
   flex-direction: column;
   align-items: flex-end;
   gap: 12px;
+}
+
+/* ============================================== */
+/* HERO STATUS BAR */
+/* ============================================== */
+
+.scene-a__hero-bar {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 20;
+}
+
+.hero-bar__content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-label);
+  font-size: 2rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 16px 32px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hero-bar__tag {
+  color: var(--abs-orange);
+  text-shadow: 0 0 8px var(--abs-orange-glow);
+}
+
+.hero-bar__divider {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.hero-bar__gpu {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.hero-bar__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-label);
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.hero-bar__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.hero-bar__dot--idle_ready {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.hero-bar__dot--loading_70b {
+  background: var(--abs-orange);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.hero-bar__dot--live_inference {
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+  animation: pulse-dot 0.8s ease-in-out infinite;
+}
+
+.hero-bar__status-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.hero-bar__stale {
+  color: #fbbf24;
+  font-size: 0.9rem;
+}
+
+/* ============================================== */
+/* CENTER RING SUBLABEL */
+/* ============================================== */
+
+.gpu-ring-center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 3;
+}
+
+.gpu-ring-sublabel {
+  font-family: var(--font-label);
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================== */
+/* RIGHT PANEL */
+/* ============================================== */
+
+.scene-a__right-panel {
+  position: absolute;
+  right: 80px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5; /* Side panels below center */
+  width: 320px;
+}
+
+/* Carousel Card */
+.carousel-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 32px;
+  backdrop-filter: blur(10px);
+}
+
+.carousel-card__title {
+  font-family: var(--font-label);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--abs-orange);
+  margin-bottom: 12px;
+  text-shadow: 0 0 8px var(--abs-orange-glow);
+}
+
+.carousel-card__subtitle {
+  font-family: var(--font-label);
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+/* Card fade transition */
+.card-fade-enter-active,
+.card-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.card-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.card-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Phase Card (Loading) */
+.phase-card {
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid var(--abs-orange);
+  border-radius: 16px;
+  padding: 32px;
+}
+
+.phase-card__title {
+  font-family: var(--font-label);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--abs-orange);
+  margin-bottom: 8px;
+  text-shadow: 0 0 8px var(--abs-orange-glow);
+}
+
+.phase-card__subtitle {
+  font-family: var(--font-label);
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 20px;
+}
+
+.phase-card__progress {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.phase-card__progress-bar {
+  height: 100%;
+  background: var(--abs-orange);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px var(--abs-orange-glow);
+}
+
+/* Performance Card (Live) */
+.performance-card {
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 16px;
+  padding: 32px;
+}
+
+.performance-card__header {
+  font-family: var(--font-label);
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #4ade80;
+  margin-bottom: 8px;
+}
+
+.performance-card__model {
+  font-family: var(--font-label);
+  font-size: 2rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 20px;
+}
+
+.performance-card__metrics {
+  display: flex;
+  gap: 24px;
+}
+
+.perf-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.perf-metric__value {
+  font-family: var(--font-mono);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--abs-orange);
+  text-shadow: 0 0 8px var(--abs-orange-glow);
+}
+
+.perf-metric__label {
+  font-family: var(--font-label);
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================== */
+/* LIVE BADGE (Bottom-right) */
+/* ============================================== */
+
+.scene-a__live-badge {
+  position: absolute;
+  bottom: 40px;
+  right: 80px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-label);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #4ade80;
+  text-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+  z-index: 20;
+}
+
+.live-badge__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 12px #4ade80;
+  animation: pulse-dot 1s ease-in-out infinite;
 }
 </style>
 
