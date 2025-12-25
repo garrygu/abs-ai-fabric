@@ -34,12 +34,15 @@ CES_MODE=true npm run build
 src/
 ├── components/
 │   ├── attract/           # Showcase Mode components
-│   │   ├── AttractModeOverlay.vue
-│   │   ├── MetricsLayer.vue
-│   │   ├── BrandingLayer.vue
-│   │   ├── VisualDemoLayer.vue
-│   │   └── visuals/
-│   │       └── SystemVisualization.vue
+│   │   └── ui/
+│   │       └── visuals/
+│   │           ├── layers/        # Structural overlays
+│   │           │   ├── AttractModeOverlay.vue
+│   │           │   ├── MetricsLayer.vue
+│   │           │   ├── BrandingLayer.vue
+│   │           │   └── VisualDemoLayer.vue
+│   │           └── visualizations/ # Content renderers
+│   │               └── SystemVisualization2D.vue
 │   ├── ConsoleHeader.vue
 │   ├── LiveMetricsPanel.vue
 │   ├── WorkloadsPanel.vue

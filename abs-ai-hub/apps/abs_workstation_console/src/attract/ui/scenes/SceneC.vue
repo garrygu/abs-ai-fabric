@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
 import { useDemoControlStore } from '@/stores/demoControlStore'
-import { useGPUParticleField } from '@/composables/useGPUParticleField'
+import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const metricsStore = useMetricsStore()

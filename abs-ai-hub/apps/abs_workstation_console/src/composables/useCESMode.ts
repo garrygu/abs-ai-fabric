@@ -1,45 +1,48 @@
-import { ref, computed } from 'vue'
+/**
+ * useCESMode.ts
+ * 
+ * Small reactive hook for CES configuration.
+ * 
+ * Provides reactive access to CES feature flag and computed config values.
+ * The actual config is defined in src/config/ces.ts
+ */
 
-// CES Mode composable - reads from build-time flag
-declare const __CES_MODE__: boolean
+import { ref, computed } from 'vue'
+import { getCESModeFlag, cesConfig, defaultConfig } from '@/config/ces'
 
 export function useCESMode() {
-    // Default to true (CES app) - can be overridden by build-time flag
-    // Try to read the build-time constant, with fallback to true
-    let cesModeValue = true
-    try {
-        // @ts-ignore - __CES_MODE__ is defined at build time by Vite
-        if (typeof __CES_MODE__ !== 'undefined') {
-            // @ts-ignore
-            cesModeValue = __CES_MODE__
-        }
-    } catch (e) {
-        // If not defined, default to true
-        cesModeValue = true
+  // Initialize reactive flag from build-time config
+  const isCESMode = ref(getCESModeFlag())
+  
+  // Debug log (only in development)
+  if (import.meta.env.DEV) {
+    console.log('[CESMode] Initialized:', { 
+      isCESMode: isCESMode.value,
+      buildTimeFlag: getCESModeFlag()
+    })
+  }
+
+  // CES-specific computed values
+  const cesOverlayText = computed(() =>
+    isCESMode.value ? cesConfig.overlayText : defaultConfig.overlayText
+  )
+
+  const fontScale = computed(() => 
+    isCESMode.value ? cesConfig.fontScale : defaultConfig.fontScale
+  )
+
+  // Toggle for development/testing (runtime override)
+  function toggleCESMode() {
+    isCESMode.value = !isCESMode.value
+    if (import.meta.env.DEV) {
+      console.log('[CESMode] CES Mode toggled:', isCESMode.value)
     }
-    
-    const isCESMode = ref(cesModeValue)
-    
-    // Debug log
-    console.log('[CESMode] Initialized:', { isCESMode: isCESMode.value, __CES_MODE__: typeof __CES_MODE__ !== 'undefined' ? __CES_MODE__ : 'undefined' })
+  }
 
-    // CES-specific text overlays
-    const cesOverlayText = computed(() =>
-        isCESMode.value ? 'LIVE AI • NO CLOUD • RTX PRO 6000' : ''
-    )
-
-    // CES-specific font scale
-    const fontScale = computed(() => isCESMode.value ? 1.15 : 1)
-
-    // Toggle for development/testing
-    function toggleCESMode() {
-        isCESMode.value = !isCESMode.value
-    }
-
-    return {
-        isCESMode,
-        cesOverlayText,
-        fontScale,
-        toggleCESMode
-    }
+  return {
+    isCESMode,
+    cesOverlayText,
+    fontScale,
+    toggleCESMode
+  }
 }

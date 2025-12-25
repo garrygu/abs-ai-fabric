@@ -150,3 +150,4 @@ const displayRamTotal = computed(() => metricsStore.memoryTotal.toFixed(0))
   font-size: 3rem;
 }
 </style>
+

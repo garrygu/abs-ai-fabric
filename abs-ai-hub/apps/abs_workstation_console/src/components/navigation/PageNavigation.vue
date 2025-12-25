@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PAGES, type PageConfig } from '@/composables/usePageNavigation'
+import { PAGES, type PageConfig } from '@/navigation/usePageNavigation'
 import { useAllInOneDemoStore } from '@/stores/allInOneDemoStore'
 import { useAttractModeStore } from '@/stores/attractModeStore'
 

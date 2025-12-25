@@ -1,21 +1,45 @@
 <script setup lang="ts">
+/**
+ * AttractModeOverlay.vue
+ * 
+ * ✅ PRIMARY CES ATTRACT MODE PATH ✅
+ * 
+ * This is the main container for the CES showcase Attract Mode.
+ * Uses WebGPU-based high-performance visualizations.
+ * 
+ * ARCHITECTURE:
+ * - WebGPU particle field (100k+ particles) via useWebGPUAttractMode
+ * - Scene-based system (SceneA-E) with auto-advancing rotations
+ * - Real-time telemetry-driven visuals (GPU util, VRAM, model state)
+ * - Bloom effects, flow fields, post-processing
+ * 
+ * FALLBACK PATH:
+ * - VisualDemoLayer + SystemVisualization2D are NOT used here
+ * - SceneA-E scenes use WebGPU directly
+ * - If WebGPU unavailable, scenes gracefully degrade (no fallback to Canvas 2D)
+ * 
+ * DO NOT:
+ * - Import SystemVisualization2D or VisualDemoLayer here
+ * - Mix Canvas 2D fallback with WebGPU scenes
+ */
+
 import { onMounted, onUnmounted, watch, computed, ref } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
 import { useAttractModeStore } from '@/stores/attractModeStore'
 import { useCESMode } from '@/composables/useCESMode'
 import { useWebGPUAttractMode } from '@/composables/useWebGPUAttractMode'
-import SceneA from '../scenes/SceneA.vue'
-import SceneB from '../scenes/SceneB.vue'
-import SceneC from '../scenes/SceneC.vue'
-import SceneD from '../scenes/SceneD.vue'
-import SceneE from '../scenes/SceneE.vue'
+import SceneA from '../../scenes/SceneA.vue'
+import SceneB from '../../scenes/SceneB.vue'
+import SceneC from '../../scenes/SceneC.vue'
+import SceneD from '../../scenes/SceneD.vue'
+import SceneE from '../../scenes/SceneE.vue'
 
 const metricsStore = useMetricsStore()
 const attractStore = useAttractModeStore()
 const { isCESMode } = useCESMode()
 const containerRef = ref<HTMLElement | null>(null)
 
-// Initialize WebGPU visual fabric layer
+// Initialize WebGPU visual fabric layer (primary CES path)
 let webGPU: ReturnType<typeof useWebGPUAttractMode> | null = null
 
 // Scene component mapping

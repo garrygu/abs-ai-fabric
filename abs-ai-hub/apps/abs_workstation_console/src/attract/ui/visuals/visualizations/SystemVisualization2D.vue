@@ -1,13 +1,47 @@
 <script setup lang="ts">
+/**
+ * SystemVisualization2D.vue
+ * 
+ * ⚠️ FALLBACK VISUALIZATION ONLY ⚠️
+ * 
+ * This is a Canvas 2D-based visualization component for demo/fallback use.
+ * 
+ * PRIMARY CES PATH (SceneA-E):
+ * - Uses WebGPU via useWebGPUAttractMode composable
+ * - 100k+ particles, bloom effects, flow fields
+ * - Real-time telemetry-driven visuals
+ * 
+ * THIS COMPONENT (Fallback):
+ * - Canvas 2D API (CPU-bound)
+ * - Max 150 particles (vs 100k+ in WebGPU)
+ * - Simple particle system with connecting lines
+ * 
+ * USAGE:
+ * - Only used by VisualDemoLayer (demo/interactive pages)
+ * - Safe fallback if WebGPU unavailable
+ * - DO NOT use in SceneA-E scenes
+ * 
+ * SceneA-E scenes use WebGPU directly and should never import this component.
+ */
+
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
+
+const props = defineProps<{
+  /**
+   * Visual quality mode
+   * - 'lite': Reduced particle count for low-end machines
+   * - 'pro': Full Canvas 2D effects (still fallback quality)
+   */
+  quality?: 'lite' | 'pro'
+}>()
 
 const metricsStore = useMetricsStore()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let animationId: number | null = null
 let ctx: CanvasRenderingContext2D | null = null
 
-// Particle system for GPU memory visualization
+// Particle system for GPU memory visualization (Canvas 2D fallback)
 interface Particle {
   x: number
   y: number
@@ -19,7 +53,11 @@ interface Particle {
 }
 
 const particles = ref<Particle[]>([])
-const maxParticles = 150
+
+// Adjust particle count based on quality mode
+const maxParticles = computed(() => {
+  return props.quality === 'lite' ? 75 : 150 // Reduced for lite mode
+})
 
 // Colors based on GPU utilization
 const baseHue = computed(() => {
@@ -45,7 +83,8 @@ function createParticle(): Particle {
 
 function initParticles() {
   particles.value = []
-  for (let i = 0; i < maxParticles / 2; i++) {
+  const initialCount = Math.floor(maxParticles.value / 2)
+  for (let i = 0; i < initialCount; i++) {
     const p = createParticle()
     p.y = Math.random() * (canvasRef.value?.height || 600)
     particles.value.push(p)
@@ -56,9 +95,10 @@ function updateParticles() {
   const canvas = canvasRef.value
   if (!canvas) return
   
-  // Add new particles based on GPU utilization
+  // Add new particles based on GPU utilization (respecting quality mode)
   const particlesToAdd = Math.floor(metricsStore.gpuUtilization / 10)
-  for (let i = 0; i < particlesToAdd && particles.value.length < maxParticles; i++) {
+  const maxAllowed = maxParticles.value
+  for (let i = 0; i < particlesToAdd && particles.value.length < maxAllowed; i++) {
     particles.value.push(createParticle())
   }
   
@@ -207,14 +247,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="system-visualization"></canvas>
+  <canvas ref="canvasRef" class="system-visualization-2d"></canvas>
 </template>
 
 <style scoped>
-.system-visualization {
+.system-visualization-2d {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
 </style>
+

@@ -1,3 +1,24 @@
+/**
+ * ⚠️ LEGACY: Canvas 2D Particle Field ⚠️
+ * 
+ * This is a legacy Canvas 2D-based particle field implementation.
+ * 
+ * PRIMARY PATH:
+ * - WebGPU particle field via useWebGPUAttractMode (AttractModeOverlay.vue)
+ * - 100k+ particles, bloom effects, flow fields
+ * - Real-time telemetry-driven visuals
+ * 
+ * THIS COMPONENT (Legacy):
+ * - Canvas 2D/WebGL fallback
+ * - Simpler implementation
+ * - Used in SceneA-E scenes (may be redundant with WebGPU path)
+ * 
+ * STATUS:
+ * - WebGPU particles are shipping as primary path
+ * - This may be removed if WebGPU path is stable
+ * - Kept for fallback/compatibility if needed
+ */
+
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
 import { useDemoControlStore } from '@/stores/demoControlStore'

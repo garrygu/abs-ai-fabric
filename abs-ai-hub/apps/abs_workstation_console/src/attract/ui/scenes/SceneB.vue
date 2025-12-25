@@ -3,7 +3,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useModelsStore } from '@/stores/modelsStore'
 import { useDemoControlStore } from '@/stores/demoControlStore'
 import { useCESMode } from '@/composables/useCESMode'
-import { useGPUParticleField } from '@/composables/useGPUParticleField'
+import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const modelsStore = useModelsStore()

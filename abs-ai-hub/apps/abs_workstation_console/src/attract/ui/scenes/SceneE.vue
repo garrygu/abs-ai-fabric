@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useGPUParticleField } from '@/composables/useGPUParticleField'
+import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const containerRef = ref<HTMLElement | null>(null)

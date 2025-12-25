@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue'
 import { RouterView } from 'vue-router'
-import AttractModeOverlay from '@/attract/ui/visuals/AttractModeOverlay.vue'
+import AttractModeOverlay from '@/attract/ui/visuals/layers/AttractModeOverlay.vue'
 import { useAttractModeStore } from '@/stores/attractModeStore'
 import { useCESMode } from '@/composables/useCESMode'
 
