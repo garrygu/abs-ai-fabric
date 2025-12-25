@@ -4,11 +4,11 @@ import { useMetricsStore } from '@/stores/metricsStore'
 import { useAttractModeStore } from '@/stores/attractModeStore'
 import { useCESMode } from '@/composables/useCESMode'
 import { useWebGPUAttractMode } from '@/composables/useWebGPUAttractMode'
-import SceneA from './scenes/SceneA.vue'
-import SceneB from './scenes/SceneB.vue'
-import SceneC from './scenes/SceneC.vue'
-import SceneD from './scenes/SceneD.vue'
-import SceneE from './scenes/SceneE.vue'
+import SceneA from '../scenes/SceneA.vue'
+import SceneB from '../scenes/SceneB.vue'
+import SceneC from '../scenes/SceneC.vue'
+import SceneD from '../scenes/SceneD.vue'
+import SceneE from '../scenes/SceneE.vue'
 
 const metricsStore = useMetricsStore()
 const attractStore = useAttractModeStore()

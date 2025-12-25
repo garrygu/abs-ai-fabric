@@ -1,108 +1,108 @@
 /**
  * Vue Composable for WebGPU Attract Mode integration
  * 
- * Provides WebGPU-powered visual fabric layer for showcase scenes
+ * Thin Vue adapter that delegates to:
+ * - SceneController (timing + intensity)
+ * - AttractEngine (WebGPU init + rendering)
+ * 
+ * This composable only handles Vue lifecycle + DOM mounting.
  */
 
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { initWebGPU, isWebGPUSupported } from '@/webgpu/engine'
-import { createTelemetryAdapter } from '@/webgpu/telemetry'
-import { createSceneDirector } from '@/webgpu/director'
-import { createWebGPURuntime, WebGPURenderer } from '@/webgpu/runtime'
-import { createWebGPURenderer } from '@/webgpu/renderer'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { createAttractEngine, isWebGPUSupported, type AttractEngine } from '@/attract/engine/attractEngine'
+import { SceneController } from '@/attract/controller/sceneController'
 
 export function useWebGPUAttractMode(container: HTMLElement) {
-  const canvas = ref<HTMLCanvasElement | null>(null)
   const isInitialized = ref(false)
   const isSupported = ref(false)
   const error = ref<string | null>(null)
 
-  let deviceContext: Awaited<ReturnType<typeof initWebGPU>> | null = null
-  let runtime: ReturnType<typeof createWebGPURuntime> | null = null
-  let renderer: WebGPURenderer | null = null
+  let engine: AttractEngine | null = null
+  let controller: SceneController | null = null
+  let offUpdate: (() => void) | null = null
+  let onResize: (() => void) | null = null
 
-  async function initialize() {
+  /**
+   * Resize canvas and renderer to match container
+   */
+  function resizeNow(): void {
+    if (!engine) return
+    const rect = container.getBoundingClientRect()
+    const width = rect.width * window.devicePixelRatio
+    const height = rect.height * window.devicePixelRatio
+    engine.canvas.width = width
+    engine.canvas.height = height
+    engine.canvas.style.width = `${rect.width}px`
+    engine.canvas.style.height = `${rect.height}px`
+    engine.resize(width, height)
+  }
+
+  /**
+   * Initialize engine and controller
+   */
+  async function initialize(): Promise<void> {
+    // Check WebGPU support
     if (!isWebGPUSupported()) {
-      error.value = 'WebGPU not supported'
+      error.value = 'WebGPU not supported in this browser'
       return
     }
 
     try {
-      // Create canvas
-      const canvasEl = document.createElement('canvas')
-      canvasEl.style.position = 'absolute'
-      canvasEl.style.inset = '0'
-      canvasEl.style.pointerEvents = 'none'
-      canvasEl.style.zIndex = '1'
-      canvasEl.style.width = '100%'
-      canvasEl.style.height = '100%'
-      canvasEl.style.opacity = '1'
-      container.appendChild(canvasEl)
-      canvas.value = canvasEl
-      console.log('[WebGPU] Canvas created and added to container')
-
-      // Resize canvas
-      const resizeCanvas = () => {
-        if (!canvas.value) return
-        const rect = container.getBoundingClientRect()
-        const width = rect.width * window.devicePixelRatio
-        const height = rect.height * window.devicePixelRatio
-        canvas.value.width = width
-        canvas.value.height = height
-        canvas.value.style.width = `${rect.width}px`
-        canvas.value.style.height = `${rect.height}px`
-        
-        // Update renderer viewport
-        if (runtime) {
-          runtime.resize(width, height)
-        }
-      }
-      resizeCanvas()
-      window.addEventListener('resize', resizeCanvas)
-
-      // Initialize WebGPU
-      deviceContext = await initWebGPU(canvas.value)
+      // Create engine (handles WebGPU init, canvas creation)
+      engine = await createAttractEngine(container)
       isSupported.value = true
 
-      // Create telemetry adapter
-      const telemetry = createTelemetryAdapter()
+      // Initial resize
+      resizeNow()
 
-      // Create scene director
-      const director = createSceneDirector()
+      // Create scene controller
+      controller = new SceneController()
 
-      // Create renderer (full WebGPU implementation)
-      renderer = createWebGPURenderer(deviceContext)
+      // Subscribe to scene state updates
+      offUpdate = controller.onUpdate((state) => {
+        engine?.applySceneState(state)
+      })
 
-      // Create runtime
-      runtime = createWebGPURuntime(deviceContext, renderer, director, telemetry)
+      // Handle window resize (with cleanup)
+      onResize = () => resizeNow()
+      window.addEventListener('resize', onResize)
+
+      // Start both controller and engine
+      controller.start()
+      engine.start()
 
       isInitialized.value = true
-      console.log('[WebGPU] Successfully initialized renderer')
+      console.log('[Attract Mode] Initialized with controller + engine architecture')
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to initialize WebGPU'
-      console.error('[WebGPU] Initialization error:', err)
-      // Fallback: show error in console but don't break the app
+      error.value = err instanceof Error ? err.message : 'Failed to initialize Attract Mode'
+      console.error('[Attract Mode] Initialization error:', err)
     }
   }
 
-  function start() {
-    if (runtime && isInitialized.value) {
-      runtime.start()
-    }
+  /**
+   * Exposed start method
+   */
+  function start(): void {
+    controller?.start()
+    engine?.start()
   }
 
-  function stop() {
-    if (runtime) {
-      runtime.stop()
-    }
+  /**
+   * Exposed stop method
+   */
+  function stop(): void {
+    controller?.stop()
+    engine?.stop()
   }
 
-  function resize(width: number, height: number) {
-    if (runtime) {
-      runtime.resize(width, height)
-    }
+  /**
+   * Exposed resize method
+   */
+  function resize(width: number, height: number): void {
+    engine?.resize(width, height)
   }
 
+  // Vue lifecycle: mount
   onMounted(() => {
     // Small delay to ensure container is fully mounted
     setTimeout(() => {
@@ -110,15 +110,22 @@ export function useWebGPUAttractMode(container: HTMLElement) {
     }, 50)
   })
 
+  // Vue lifecycle: unmount (with proper cleanup)
   onUnmounted(() => {
-    stop()
-    if (canvas.value && canvas.value.parentNode) {
-      canvas.value.parentNode.removeChild(canvas.value)
+    // Remove resize listener
+    if (onResize) {
+      window.removeEventListener('resize', onResize)
     }
+
+    // Unsubscribe from controller
+    offUpdate?.()
+
+    // Stop and dispose
+    controller?.stop()
+    engine?.dispose()
   })
 
   return {
-    canvas,
     isInitialized,
     isSupported,
     error,
@@ -127,5 +134,3 @@ export function useWebGPUAttractMode(container: HTMLElement) {
     resize
   }
 }
-
-

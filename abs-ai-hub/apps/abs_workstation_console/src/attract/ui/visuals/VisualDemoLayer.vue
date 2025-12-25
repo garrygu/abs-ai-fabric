@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import SystemVisualization from './visuals/SystemVisualization.vue'
+import SystemVisualization from './SystemVisualization.vue'
 
 const props = defineProps<{
   visualType: 'system' | 'image' | 'llm'

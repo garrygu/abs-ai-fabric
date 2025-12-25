@@ -15,7 +15,7 @@ from adapters.vector_store import get_vector_store_adapter
 from adapters.cache_queue import get_cache_queue_adapter
 
 # Import Routers
-from routers import chat, assets, ops, store, inspector
+from routers import chat, assets, ops, store, inspector, attract
 
 # Initialize Logger
 logger = logging.getLogger("gateway")
@@ -67,6 +67,7 @@ app.include_router(assets.router)
 app.include_router(ops.router)
 app.include_router(store.router)
 app.include_router(inspector.router)
+app.include_router(attract.router)
 
 # Health
 @app.get("/health")
