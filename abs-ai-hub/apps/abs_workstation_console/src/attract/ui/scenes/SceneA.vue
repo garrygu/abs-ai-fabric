@@ -270,11 +270,11 @@ const ringGlow = computed(() => getElementGlow('var(--abs-orange)', 1.2))
 
 .gpu-ring-arc {
   transition: stroke-dashoffset 0.8s var(--ease-smooth);
-  filter: drop-shadow(0 0 20px var(--abs-orange-glow)) drop-shadow(0 0 40px rgba(249, 115, 22, 0.4));
+  filter: drop-shadow(0 0 8px var(--abs-orange-glow)) drop-shadow(0 0 15px rgba(249, 115, 22, 0.3));
 }
 
 .gpu-ring-arc--inner {
-  filter: drop-shadow(0 0 25px var(--abs-orange-glow)) drop-shadow(0 0 50px rgba(249, 115, 22, 0.5)) drop-shadow(0 0 15px var(--abs-orange-glow));
+  filter: drop-shadow(0 0 10px var(--abs-orange-glow)) drop-shadow(0 0 20px rgba(249, 115, 22, 0.4));
 }
 
 .gpu-ring-value {
@@ -284,9 +284,8 @@ const ringGlow = computed(() => getElementGlow('var(--abs-orange)', 1.2))
   font-weight: 700;
   color: var(--abs-orange);
   text-shadow: 
-    0 0 30px var(--abs-orange-glow),
-    0 0 60px var(--abs-orange-glow),
-    0 0 90px rgba(249, 115, 22, 0.5);
+    0 0 8px var(--abs-orange-glow),
+    0 0 15px rgba(249, 115, 22, 0.4);
   z-index: 3;
   transition: all 0.3s var(--ease-smooth);
   letter-spacing: -0.02em;
@@ -328,7 +327,7 @@ const ringGlow = computed(() => getElementGlow('var(--abs-orange)', 1.2))
   font-size: 5.5rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5), 0 0 40px rgba(255, 255, 255, 0.2);
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
   transition: all 0.3s var(--ease-smooth);
   letter-spacing: 0.02em;
 }
@@ -338,7 +337,7 @@ const ringGlow = computed(() => getElementGlow('var(--abs-orange)', 1.2))
   font-size: 3rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.25);
 }
 
 .scene-a__top-right {
