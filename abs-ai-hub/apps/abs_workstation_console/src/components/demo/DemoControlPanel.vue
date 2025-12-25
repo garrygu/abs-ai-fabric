@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDemoControlStore, type ActiveModel } from '@/stores/demoControlStore'
+import { useMetricsStore } from '@/stores/metricsStore'
 
 const demoControl = useDemoControlStore()
+const metricsStore = useMetricsStore()
 
-// Panel visibility
-const isVisible = ref(true)
+// Panel state: 'collapsed' | 'compact' | 'expanded'
+type PanelState = 'collapsed' | 'compact' | 'expanded'
+const panelState = ref<PanelState>('expanded')
+const showStateDropdown = ref(false)
+
+// Panel is always visible, just in different states (collapsed/compact/expanded)
 
 // Dragging state
 const panelRef = ref<HTMLElement | null>(null)
+const reopenButtonRef = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const panelPosition = ref({ x: 0, y: 0 })
+const dragOffset = ref({ x: 0, y: 0 })
 
 // Load saved position from localStorage
 function loadPosition() {
@@ -25,13 +33,85 @@ function loadPosition() {
       console.warn('Failed to parse saved panel position', e)
     }
   }
-  // Default position: bottom-right
+  // Default position: bottom-right aligned to viewport
+  // Will be calculated in onMounted based on actual panel width
   panelPosition.value = { x: 0, y: 0 }
+}
+
+// Calculate default right-aligned position
+function calculateDefaultPosition() {
+  if (!panelRef.value) return
+  
+  const rect = panelRef.value.getBoundingClientRect()
+  const panelWidth = rect.width || getPanelWidth(panelState.value)
+  const margin = 24
+  
+  panelPosition.value = {
+    x: window.innerWidth - panelWidth - margin,
+    y: window.innerHeight - (rect.height || 200) - margin
+  }
+  
+  constrainPosition()
+  savePosition()
 }
 
 // Save position to localStorage
 function savePosition() {
   localStorage.setItem('demoControlPanelPosition', JSON.stringify(panelPosition.value))
+}
+
+// Load saved panel state from localStorage
+function loadPanelState() {
+  const saved = localStorage.getItem('demoControlPanelState')
+  if (saved && ['collapsed', 'compact', 'expanded'].includes(saved)) {
+    panelState.value = saved as PanelState
+  } else {
+    panelState.value = 'expanded' // Default to expanded
+  }
+}
+
+// Save panel state to localStorage
+function savePanelState() {
+  localStorage.setItem('demoControlPanelState', panelState.value)
+}
+
+// Toggle panel state
+function setPanelState(state: PanelState) {
+  const oldState = panelState.value
+  panelState.value = state
+  savePanelState()
+  showStateDropdown.value = false
+  
+  // Adjust position when switching to wider states
+  adjustPositionForStateChange(state, oldState)
+}
+
+// Get state label for display
+function getStateLabel(state: PanelState): string {
+  switch (state) {
+    case 'collapsed':
+      return 'Collapsed'
+    case 'compact':
+      return 'Compact'
+    case 'expanded':
+      return 'Expanded'
+  }
+}
+
+// Close dropdown when clicking outside
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (!target.closest('.state-dropdown')) {
+    showStateDropdown.value = false
+  }
+}
+
+// Cycle through states: collapsed -> compact -> expanded -> collapsed
+function cyclePanelState() {
+  const states: PanelState[] = ['collapsed', 'compact', 'expanded']
+  const currentIndex = states.indexOf(panelState.value)
+  const nextIndex = (currentIndex + 1) % states.length
+  setPanelState(states[nextIndex])
 }
 
 // Constrain position to viewport
@@ -46,36 +126,156 @@ function constrainPosition() {
   panelPosition.value.y = Math.max(0, Math.min(panelPosition.value.y, maxY))
 }
 
-// Drag handlers
-function handleMouseDown(e: MouseEvent) {
-  // Only allow dragging from the header, but not from the close button
-  const target = e.target as HTMLElement
-  if (!target.closest('.panel-header')) return
-  if (target.closest('.panel-close')) return // Don't drag when clicking close button
-  
-  isDragging.value = true
-  dragStart.value = {
-    x: e.clientX - panelPosition.value.x,
-    y: e.clientY - panelPosition.value.y
+// Get expected panel width based on state
+function getPanelWidth(state: PanelState): number {
+  switch (state) {
+    case 'collapsed':
+      return 60
+    case 'compact':
+      return 240
+    case 'expanded':
+      return 280
   }
+}
+
+// Adjust position when switching states that increase panel width
+function adjustPositionForStateChange(newState: PanelState, oldState: PanelState) {
+  // Adjust when switching to a wider state (collapsed -> compact/expanded, or compact -> expanded)
+  const oldWidth = getPanelWidth(oldState)
+  const newWidth = getPanelWidth(newState)
+  
+  // Only adjust if new state is wider
+  if (newWidth <= oldWidth) return
+  
+  nextTick(() => {
+    if (!panelRef.value) return
+    
+    const viewportWidth = window.innerWidth
+    const margin = 24
+    
+    // Calculate current right edge position
+    const currentRight = panelPosition.value.x + oldWidth
+    const maxRight = viewportWidth - margin
+    
+    // If panel would overflow viewport, reposition from right edge
+    if (currentRight > maxRight || panelPosition.value.x + newWidth > viewportWidth - margin) {
+      panelPosition.value.x = viewportWidth - newWidth - margin
+    }
+    
+    // Ensure panel stays within bounds
+    constrainPosition()
+    savePosition()
+  })
+}
+
+// Drag handlers - Mouse
+function handleMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  
+  // For collapsed state, allow dragging from anywhere except the button content
+  if (panelState.value === 'collapsed') {
+    if (target.closest('.collapsed-button-content')) {
+      // Don't drag when clicking the button content directly
+      return
+    }
+    startDrag(e.clientX, e.clientY)
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
+  
+  // For compact/expanded states, only allow dragging from the header
+  if (!target.closest('.panel-header')) return
+  // Don't drag when clicking buttons (dropdown, state items, etc.)
+  if (target.closest('button')) return
+  
+  startDrag(e.clientX, e.clientY)
   e.preventDefault()
+  e.stopPropagation()
 }
 
 function handleMouseMove(e: MouseEvent) {
   if (!isDragging.value) return
-  
-  panelPosition.value = {
-    x: e.clientX - dragStart.value.x,
-    y: e.clientY - dragStart.value.y
-  }
-  
-  constrainPosition()
+  updateDragPosition(e.clientX, e.clientY)
+  e.preventDefault()
 }
 
 function handleMouseUp() {
+  endDrag()
+}
+
+// Drag handlers - Touch
+function handleTouchStart(e: TouchEvent) {
+  const target = e.target as HTMLElement
+  
+  // For collapsed state, allow dragging from anywhere except the button content
+  if (panelState.value === 'collapsed') {
+    if (target.closest('.collapsed-button-content')) {
+      return
+    }
+    const touch = e.touches[0]
+    if (touch) {
+      startDrag(touch.clientX, touch.clientY)
+      e.preventDefault()
+    }
+    return
+  }
+  
+  // For compact/expanded states, only allow dragging from the header
+  if (!target.closest('.panel-header')) return
+  // Don't drag when clicking buttons (dropdown, state items, etc.)
+  if (target.closest('button')) return
+  
+  const touch = e.touches[0]
+  if (touch) {
+    startDrag(touch.clientX, touch.clientY)
+    e.preventDefault()
+  }
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (!isDragging.value) return
+  const touch = e.touches[0]
+  if (touch) {
+    updateDragPosition(touch.clientX, touch.clientY)
+    e.preventDefault()
+  }
+}
+
+function handleTouchEnd() {
+  endDrag()
+}
+
+// Common drag logic
+function startDrag(clientX: number, clientY: number) {
+  if (!panelRef.value) return
+  
+  isDragging.value = true
+  const rect = panelRef.value.getBoundingClientRect()
+  dragOffset.value = {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  }
+  
+  // Prevent text selection during drag
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'grabbing'
+}
+
+function updateDragPosition(clientX: number, clientY: number) {
+  panelPosition.value = {
+    x: clientX - dragOffset.value.x,
+    y: clientY - dragOffset.value.y
+  }
+  constrainPosition()
+}
+
+function endDrag() {
   if (isDragging.value) {
     isDragging.value = false
     savePosition()
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
   }
 }
 
@@ -86,9 +286,13 @@ function handleResize() {
 
 onMounted(() => {
   loadPosition()
+  loadPanelState()
   window.addEventListener('mousemove', handleMouseMove)
   window.addEventListener('mouseup', handleMouseUp)
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', handleTouchEnd)
   window.addEventListener('resize', handleResize)
+  window.addEventListener('click', handleClickOutside)
   
   // Check for already-loaded models on mount
   demoControl.checkLoadedModels()
@@ -96,18 +300,20 @@ onMounted(() => {
   // Calculate initial position from bottom-right if not saved
   if (panelPosition.value.x === 0 && panelPosition.value.y === 0) {
     nextTick(() => {
-      if (panelRef.value) {
-        const rect = panelRef.value.getBoundingClientRect()
-        panelPosition.value = {
-          x: window.innerWidth - rect.width - 24,
-          y: window.innerHeight - rect.height - 24
-        }
-        savePosition()
-      }
+      calculateDefaultPosition()
     })
   } else {
     nextTick(() => {
-      constrainPosition()
+      if (panelRef.value) {
+        // Ensure saved position aligns to right if it's too far left
+        const panelWidth = panelRef.value.getBoundingClientRect().width || getPanelWidth(panelState.value)
+        const minX = window.innerWidth - panelWidth - 24
+        if (panelPosition.value.x < minX) {
+          panelPosition.value.x = minX
+          savePosition()
+        }
+        constrainPosition()
+      }
     })
   }
 })
@@ -115,7 +321,13 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', handleMouseUp)
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', handleTouchEnd)
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('click', handleClickOutside)
+  // Clean up any lingering drag state
+  document.body.style.userSelect = ''
+  document.body.style.cursor = ''
 })
 
 function activateModel(model: ActiveModel) {
@@ -165,72 +377,248 @@ const activeModelDisplayName = computed(() => {
 function showPromptKiosk() {
   window.dispatchEvent(new CustomEvent('show-prompt-kiosk'))
 }
+
+// Get GPU metric style based on utilization (for visual feedback)
+function getGpuMetricStyle(utilization: number) {
+  const intensity = Math.min(utilization / 100, 1)
+  const glowIntensity = intensity > 0.1 ? intensity * 0.6 : 0
+  
+  return {
+    color: `hsl(${15 + intensity * 15}, 100%, ${65 - intensity * 15}%)`, // Orange to brighter orange
+    textShadow: glowIntensity > 0 
+      ? `0 0 ${8 * glowIntensity}px rgba(249, 115, 22, ${0.4 * glowIntensity}), 0 0 ${16 * glowIntensity}px rgba(249, 115, 22, ${0.2 * glowIntensity})`
+      : 'none',
+    transition: 'color 0.3s ease, text-shadow 0.3s ease'
+  }
+}
+
 </script>
 
 <template>
-  <!-- Floating reopen button (shown when panel is closed) -->
+  <!-- COLLAPSED STATE: Single vertical button -->
   <Transition name="fade">
-    <button
-      v-if="!isVisible && demoControl.isActive"
-      class="panel-reopen-button"
-      @click="isVisible = true"
-      title="Show Live Playground panel"
+    <div
+      v-if="panelState === 'collapsed'"
+      ref="panelRef"
+      class="demo-control-panel demo-control-panel--collapsed"
+      :class="{ 'is-running': demoControl.isRunning, 'is-dragging': isDragging }"
+      :style="{
+        left: `${panelPosition.x}px`,
+        top: `${panelPosition.y}px`,
+        right: 'auto',
+        bottom: 'auto',
+        transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+      }"
+      @mousedown="handleMouseDown"
+      @touchstart="handleTouchStart"
     >
-      <span class="reopen-icon">⚡</span>
-      <span class="reopen-text">LIVE</span>
-    </button>
+      <button
+        class="collapsed-button-content"
+        @click.stop="setPanelState('compact')"
+        title="Expand Playground"
+      >
+        <span class="collapsed-icon">⚡</span>
+        <span class="collapsed-text">Playground</span>
+        <span class="collapsed-arrow">▶</span>
+      </button>
+    </div>
   </Transition>
 
-  <!-- Main panel -->
+  <!-- COMPACT & EXPANDED STATES: Full panel -->
   <div 
-    v-if="isVisible"
+    v-if="panelState === 'compact' || panelState === 'expanded'"
     ref="panelRef"
     class="demo-control-panel"
-    :class="{ 'is-dragging': isDragging, 'is-running': demoControl.isRunning }"
+    :class="{ 
+      'is-dragging': isDragging, 
+      'is-running': demoControl.isRunning,
+      'panel-state--compact': panelState === 'compact',
+      'panel-state--expanded': panelState === 'expanded'
+    }"
     :style="{
       left: `${panelPosition.x}px`,
       top: `${panelPosition.y}px`,
       right: 'auto',
-      bottom: 'auto'
+      bottom: 'auto',
+      transition: isDragging ? 'none' : 'transform 0.2s ease-out'
     }"
     @mousedown="handleMouseDown"
+    @touchstart="handleTouchStart"
   >
     <div class="panel-header">
-      <div class="panel-title">LIVE PLAYGROUND</div>
-      <div class="header-right">
-        <div class="status-indicator" :style="{ color: getStatusColor() }">
-          <span class="status-dot" :style="{ backgroundColor: getStatusColor() }"></span>
-          {{ statusLabel }}
+      <!-- Top row: Drag handle + Status/Controls -->
+      <div class="header-top-row">
+        <div class="drag-handle" :class="{ 'is-dragging': isDragging }">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="4" cy="4" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="4" r="1.5" fill="currentColor"/>
+            <circle cx="4" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="8" r="1.5" fill="currentColor"/>
+            <circle cx="4" cy="12" r="1.5" fill="currentColor"/>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          </svg>
         </div>
-        <button class="panel-close" @click="isVisible = false" title="Close panel">×</button>
+        <div class="header-right">
+          <div class="status-indicator" :style="{ color: getStatusColor() }">
+            <span class="status-dot" :style="{ backgroundColor: getStatusColor() }"></span>
+            {{ statusLabel }}
+          </div>
+          
+          <!-- Control buttons group - Top Right -->
+          <div class="header-controls">
+            <!-- State dropdown menu -->
+            <div class="state-dropdown" v-if="panelState !== 'collapsed'">
+            <button 
+              class="state-dropdown-trigger"
+              @click.stop="showStateDropdown = !showStateDropdown"
+              :title="`Current: ${getStateLabel(panelState)}`"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="2" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none" rx="1"/>
+                <rect v-if="panelState === 'expanded'" x="4" y="4" width="6" height="6" stroke="currentColor" stroke-width="1" fill="none" rx="0.5"/>
+              </svg>
+              <span class="state-dropdown-label">{{ getStateLabel(panelState) }}</span>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" class="dropdown-arrow" :class="{ 'is-open': showStateDropdown }">
+                <path d="M2 3 L5 6 L8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            
+            <!-- Dropdown menu -->
+            <Transition name="dropdown">
+              <div v-if="showStateDropdown" class="state-dropdown-menu">
+                <button
+                  class="state-dropdown-item"
+                  :class="{ 'active': panelState === 'expanded' }"
+                  @click.stop="setPanelState('expanded')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="1" y="1" width="12" height="12" stroke="currentColor" stroke-width="1.5" fill="none" rx="1"/>
+                    <rect x="3" y="3" width="8" height="8" stroke="currentColor" stroke-width="1" fill="none" rx="0.5"/>
+                  </svg>
+                  <div class="state-dropdown-content">
+                    <span class="state-name">Expanded</span>
+                    <span class="state-description">Full console with all controls</span>
+                  </div>
+                </button>
+                
+                <button
+                  class="state-dropdown-item"
+                  :class="{ 'active': panelState === 'compact' }"
+                  @click.stop="setPanelState('compact')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="2" y="2" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none" rx="1"/>
+                  </svg>
+                  <div class="state-dropdown-content">
+                    <span class="state-name">Compact</span>
+                    <span class="state-description">Active model + metrics</span>
+                  </div>
+                </button>
+                
+                <button
+                  class="state-dropdown-item"
+                  :class="{ 'active': panelState === 'collapsed' }"
+                  @click.stop="setPanelState('collapsed')"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 7 L11 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                  <div class="state-dropdown-content">
+                    <span class="state-name">Collapsed</span>
+                    <span class="state-description">Minimal button only</span>
+                  </div>
+                </button>
+              </div>
+            </Transition>
+          </div>
+        </div>
+      </div>
+      </div>
+      
+      <!-- Bottom row: Title -->
+      <div class="header-title-row">
+        <div class="panel-title">LIVE PLAYGROUND</div>
       </div>
     </div>
     
     <!-- ============================================== -->
-    <!-- ACTIVE MODEL SECTION (shown when running) -->
+    <!-- COMPACT STATE: Active Model + Try It + Metrics -->
     <!-- ============================================== -->
-    <div v-if="demoControl.isRunning" class="active-model-section">
-      <div class="active-model-label">ACTIVE MODEL</div>
-      <div class="active-model-name">{{ activeModelDisplayName }}</div>
+    <template v-if="panelState === 'compact'">
+      <!-- Active Model Section - Always shown in compact mode -->
+      <div class="active-model-section active-model-section--compact">
+        <div class="active-model-label">ACTIVE MODEL</div>
+        <div class="active-model-name" :class="{ 'no-model': !demoControl.isRunning }">
+          {{ activeModelDisplayName }}
+        </div>
+        
+        <!-- Try It Button - Only shown when running -->
+        <button 
+          v-if="demoControl.isRunning" 
+          class="try-it-button try-it-button--compact"
+          @click="showPromptKiosk"
+        >
+          ⚡ Try It Yourself
+        </button>
+        
+        <!-- Quick activate button when idle -->
+        <button 
+          v-if="!demoControl.isRunning" 
+          class="quick-activate-button"
+          @click="setPanelState('expanded')"
+          title="Select model to activate"
+        >
+          Select Model →
+        </button>
+      </div>
       
-      <!-- Try It Button - Always prominent when running -->
-      <button class="try-it-button" @click="showPromptKiosk">
-        ⚡ Try It Yourself
-      </button>
-      
-      <button
-        class="deactivate-button"
-        @click="demoControl.deactivateModelManually"
-        title="Unload model and free VRAM"
-      >
-        Deactivate Model
-      </button>
-    </div>
+      <!-- Key Metrics (Compact) - Always shown -->
+      <div class="compact-metrics">
+        <div class="compact-metric">
+          <div class="compact-metric-label">GPU</div>
+          <div 
+            class="compact-metric-value compact-metric-value--gpu"
+            :style="getGpuMetricStyle(metricsStore.gpuUtilization)"
+          >
+            {{ Math.round(metricsStore.gpuUtilization) }}%
+          </div>
+        </div>
+        <div class="compact-metric">
+          <div class="compact-metric-label">VRAM</div>
+          <div class="compact-metric-value">{{ metricsStore.vramUsed.toFixed(1) }} / {{ metricsStore.vramTotal.toFixed(0) }} GB</div>
+        </div>
+        <div class="compact-metric">
+          <div class="compact-metric-label">CPU</div>
+          <div class="compact-metric-value">{{ Math.round(metricsStore.cpuUtilization) }}%</div>
+        </div>
+      </div>
+    </template>
     
     <!-- ============================================== -->
-    <!-- MODEL SELECTOR SECTION -->
+    <!-- EXPANDED STATE: Full Console -->
     <!-- ============================================== -->
-    <div class="model-selector-section">
+    <template v-if="panelState === 'expanded'">
+      <!-- Active Model Section -->
+      <div v-if="demoControl.isRunning" class="active-model-section">
+        <div class="active-model-label">ACTIVE MODEL</div>
+        <div class="active-model-name">{{ activeModelDisplayName }}</div>
+        
+        <!-- Try It Button -->
+        <button class="try-it-button" @click="showPromptKiosk">
+          ⚡ Try It Yourself
+        </button>
+        
+        <button
+          class="deactivate-button"
+          @click="demoControl.deactivateModelManually"
+          title="Unload model and free VRAM"
+        >
+          Unload model
+        </button>
+      </div>
+      
+      <!-- Model Selector Section -->
+      <div class="model-selector-section">
       <div v-if="demoControl.isRunning" class="section-label">SWITCH MODEL</div>
       <div v-else class="section-label">SELECT MODEL TO ACTIVATE</div>
       
@@ -282,31 +670,32 @@ function showPromptKiosk() {
       </div>
     </div>
     
-    <!-- Loading Progress -->
-    <div v-if="demoControl.isWarming" class="loading-section">
-      <div class="loading-stage">
-        <span>{{ demoControl.loadingStage }}</span>
-        <span v-if="demoControl.loadingElapsedFormatted" class="loading-time">{{ demoControl.loadingElapsedFormatted }}</span>
+      <!-- Loading Progress -->
+      <div v-if="demoControl.isWarming" class="loading-section">
+        <div class="loading-stage">
+          <span>{{ demoControl.loadingStage }}</span>
+          <span v-if="demoControl.loadingElapsedFormatted" class="loading-time">{{ demoControl.loadingElapsedFormatted }}</span>
+        </div>
+        <div class="loading-bar">
+          <div class="loading-bar-fill" :style="{ width: `${demoControl.loadingProgress}%` }"></div>
+        </div>
       </div>
-      <div class="loading-bar">
-        <div class="loading-bar-fill" :style="{ width: `${demoControl.loadingProgress}%` }"></div>
+      
+      <!-- Pending Request Status -->
+      <div v-if="demoControl.pendingRequest" class="pending-request-status">
+        <div class="pending-message">
+          <span class="pending-icon">⏳</span>
+          <span>Switching model...</span>
+        </div>
+        <button 
+          class="cancel-pending-button"
+          @click="demoControl.cancelPendingRequest"
+          title="Cancel pending request"
+        >
+          Cancel
+        </button>
       </div>
-    </div>
-    
-    <!-- Pending Request Status -->
-    <div v-if="demoControl.pendingRequest" class="pending-request-status">
-      <div class="pending-message">
-        <span class="pending-icon">⏳</span>
-        <span>Switching model...</span>
-      </div>
-      <button 
-        class="cancel-pending-button"
-        @click="demoControl.cancelPendingRequest"
-        title="Cancel pending request"
-      >
-        Cancel
-      </button>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -318,99 +707,353 @@ function showPromptKiosk() {
   width: 280px;
   padding: 20px;
   background: var(--abs-card);
-  border: 1px solid var(--border-subtle);
+  border: 2px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 
+    var(--shadow-lg),
+    0 0 0 1px rgba(249, 115, 22, 0.1),
+    0 0 20px rgba(249, 115, 22, 0.05);
   z-index: 150;
   backdrop-filter: blur(10px);
   user-select: none;
+  transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  overflow: visible;
+  box-sizing: border-box;
+  animation: subtleBorderPulse 4s ease-in-out infinite;
+}
+
+/* Enhanced border visual effects - subtle animated glow when idle */
+
+@keyframes subtleBorderPulse {
+  0%, 100% {
+    box-shadow: 
+      var(--shadow-lg),
+      0 0 0 1px rgba(249, 115, 22, 0.1),
+      0 0 20px rgba(249, 115, 22, 0.05);
+  }
+  50% {
+    box-shadow: 
+      var(--shadow-lg),
+      0 0 0 1px rgba(249, 115, 22, 0.2),
+      0 0 30px rgba(249, 115, 22, 0.1);
+  }
+}
+
+/* Collapsed state */
+.demo-control-panel--collapsed {
+  width: 60px;
+  height: auto;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.demo-control-panel--collapsed:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.3);
+}
+
+.collapsed-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.collapsed-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+}
+
+.collapsed-arrow {
+  font-size: 12px;
+  color: var(--abs-orange);
+  line-height: 1;
+}
+
+.collapsed-button-content {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
+}
+
+.demo-control-panel--collapsed {
+  cursor: grab;
+}
+
+.demo-control-panel--collapsed.is-dragging {
+  cursor: grabbing;
+}
+
+/* Compact state */
+.panel-state--compact {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+}
+
+/* Expanded state */
+.panel-state--expanded {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
 }
 
 .demo-control-panel.is-dragging {
   cursor: grabbing;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transform: scale(1.02);
+  z-index: 200;
 }
 
 .panel-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  width: 100%;
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.header-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-left: 0;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.drag-handle:hover {
+  color: var(--text-primary);
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.drag-handle.is-dragging {
+  color: var(--abs-orange);
+  opacity: 1;
+  cursor: grabbing;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-.panel-close {
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+/* State Dropdown */
+.state-dropdown {
+  position: relative;
+  z-index: 10;
+}
+
+.state-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: fit-content;
+}
+
+.state-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.state-dropdown-label {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  opacity: 0.7;
+}
+
+.dropdown-arrow.is-open {
+  transform: rotate(180deg);
+}
+
+.state-dropdown-trigger:hover .dropdown-arrow {
+  opacity: 1;
+}
+
+.state-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 200px;
+  min-width: 180px;
+  background: var(--abs-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+/* For compact mode, make dropdown narrower to fit within panel */
+.panel-state--compact .state-dropdown-menu {
+  width: 180px;
+  min-width: 160px;
+}
+
+.state-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
   background: transparent;
   border: none;
-  color: var(--abs-text-muted);
-  font-size: 24px;
-  line-height: 1;
+  color: var(--text-primary);
   cursor: pointer;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  transition: all 0.2s ease;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.state-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.state-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.state-dropdown-item.active {
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--abs-orange);
+}
+
+.state-dropdown-item.active svg {
+  color: var(--abs-orange);
+}
+
+.state-dropdown-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  text-align: left;
+}
+
+.state-name {
+  font-family: var(--font-label);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.state-description {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.state-dropdown-item.active .state-name {
+  color: var(--abs-orange);
+}
+
+.state-dropdown-item.active .state-description {
+  color: var(--abs-orange);
+  opacity: 0.9;
+}
+
+/* Dropdown animation */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+
+.header-title-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.panel-close:hover {
-  color: var(--abs-text-primary);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* Reopen button (shown when panel is closed) */
-.panel-reopen-button {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background: var(--abs-orange);
-  color: var(--abs-black);
-  border: none;
-  border-radius: 8px;
-  padding: 12px 16px;
-  font-family: var(--font-display);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
-  transition: all 0.2s ease;
-  z-index: 1000;
-}
-
-.panel-reopen-button:hover {
-  background: linear-gradient(135deg, var(--abs-orange), #ff9f43);
-  box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4);
-  transform: translateY(-2px);
-}
-
-.reopen-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.reopen-text {
-  line-height: 1;
-}
-
-.panel-header:active {
-  cursor: grabbing;
+  width: 100%;
+  padding-left: 0;
 }
 
 .panel-title {
@@ -420,6 +1063,10 @@ function showPromptKiosk() {
   color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: visible;
+  flex-shrink: 0;
+  width: 100%;
 }
 
 .status-indicator {
@@ -430,6 +1077,10 @@ function showPromptKiosk() {
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-subtle);
+  margin-right: 0;
+  margin-left: auto;
 }
 
 .status-dot {
@@ -698,8 +1349,27 @@ function showPromptKiosk() {
 /* ============================================== */
 
 .demo-control-panel.is-running {
-  border-color: var(--status-success);
-  box-shadow: 0 0 30px rgba(34, 197, 94, 0.2), var(--shadow-lg);
+  border-color: var(--abs-orange);
+  border-width: 2px;
+  animation: runningBorderGlow 2s ease-in-out infinite;
+  /* Override subtle pulse when running */
+}
+
+@keyframes runningBorderGlow {
+  0%, 100% {
+    box-shadow: 
+      var(--shadow-lg),
+      0 0 0 2px rgba(249, 115, 22, 0.4),
+      0 0 20px rgba(249, 115, 22, 0.3),
+      0 0 40px rgba(249, 115, 22, 0.15);
+  }
+  50% {
+    box-shadow: 
+      var(--shadow-lg),
+      0 0 0 2px rgba(249, 115, 22, 0.6),
+      0 0 30px rgba(249, 115, 22, 0.5),
+      0 0 60px rgba(249, 115, 22, 0.25);
+  }
 }
 
 /* Active Model Section */
@@ -726,6 +1396,47 @@ function showPromptKiosk() {
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 16px;
+}
+
+.active-model-name.no-model {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.active-model-section--compact {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.try-it-button--compact {
+  margin-top: 12px;
+  padding: 12px 16px;
+  font-size: 0.8rem;
+}
+
+.quick-activate-button {
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--abs-orange);
+  border-radius: 8px;
+  color: var(--abs-orange);
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.quick-activate-button:hover {
+  background: rgba(249, 115, 22, 0.1);
+  border-color: var(--abs-orange);
+  color: var(--abs-orange);
+  transform: translateY(-1px);
 }
 
 /* Model Selector Section */
@@ -833,6 +1544,76 @@ function showPromptKiosk() {
   background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05));
   border-color: var(--abs-orange);
   transform: none;
+}
+
+/* Compact state styles */
+.compact-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 12px;
+}
+
+.compact-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.compact-metric:last-child {
+  border-bottom: none;
+}
+
+.compact-metric-label {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.compact-metric-value {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.compact-metric-value--gpu {
+  /* Base color will be overridden by inline style based on utilization */
+  color: var(--abs-orange);
+}
+
+.compact-metric-value--gpu {
+  /* Base color - will be enhanced by inline style based on utilization */
+  color: var(--abs-orange);
+}
+
+.collapse-button {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.collapse-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
 }
 </style>
 
