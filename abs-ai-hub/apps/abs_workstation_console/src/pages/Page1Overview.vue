@@ -1,13 +1,56 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
+import { useDemoControlStore } from '@/stores/demoControlStore'
 import { useCESMode } from '@/composables/useCESMode'
 
 const metricsStore = useMetricsStore()
+const demoControlStore = useDemoControlStore()
 const { isCESMode } = useCESMode()
 
+// GPU utilization (enhanced when model is running)
+const gpuUtilization = computed(() => {
+  if (demoControlStore.isWarming || demoControlStore.isRunning) {
+    return Math.min(100, metricsStore.gpuUtilization + (demoControlStore.isRunning ? 30 : 45))
+  }
+  return metricsStore.gpuUtilization
+})
+
+// Active model name
+const activeModelName = computed(() => {
+  if (demoControlStore.activeModel === 'deepseek-r1-70b') return 'DeepSeek R1 70B'
+  if (demoControlStore.activeModel === 'llama3-70b') return 'llama3-70b'
+  if (demoControlStore.activeModel === 'dual') return 'Dual 70B'
+  return null
+})
+
+// Performance metrics
+const tokensPerSec = computed(() => {
+  return demoControlStore.liveMetrics.tokensPerSec || (demoControlStore.isRunning ? Math.round(gpuUtilization.value * 0.5 + 10) : 0)
+})
+
+const ttft = computed(() => {
+  const ttftMs = demoControlStore.liveMetrics.timeToFirstToken
+  if (ttftMs > 0) {
+    return ttftMs < 1000 ? `${ttftMs}ms` : `${(ttftMs / 1000).toFixed(1)}s`
+  }
+  return demoControlStore.isRunning ? '<1s' : '—'
+})
+
+const latency = computed(() => {
+  const lat = demoControlStore.liveMetrics.latency
+  if (lat > 0) {
+    return lat < 1000 ? `${lat}ms` : `${(lat / 1000).toFixed(1)}s`
+  }
+  return demoControlStore.isRunning ? '<1s' : '—'
+})
+
+const contextWindow = computed(() => {
+  return demoControlStore.liveMetrics.contextWindow || (demoControlStore.isRunning ? '128k' : '—')
+})
+
 // Headroom-focused metrics (CES-friendly framing)
-const gpuHeadroom = computed(() => 100 - Math.round(metricsStore.gpuUtilization))
+const gpuHeadroom = computed(() => 100 - Math.round(gpuUtilization.value))
 const ramAvailable = computed(() => 
   (metricsStore.memoryTotal - metricsStore.memoryUsed).toFixed(0)
 )
@@ -44,40 +87,128 @@ function goToModels() {
       Live • Local • Enterprise
     </div>
 
-    <!-- Hero GPU Tile -->
-    <div class="hero-gpu-card">
-      <div class="gpu-icon">⚡</div>
-      <h2 class="gpu-model">{{ metricsStore.gpuModel }}</h2>
-      
-      <!-- Configuration Badge -->
-      <div class="config-badge">
-        <span class="config-tier">Enterprise Configuration</span>
-        <span class="config-note">Multiple GPU & Memory options available</span>
-      </div>
-      
-      <!-- Use Case Context -->
-      <div class="use-cases">
-        Designed for: Enterprise AI • On-Prem Inference • Regulated & Air-Gapped Environments
-      </div>
-      
-      <div class="gpu-metrics">
-        <div class="gpu-metric">
-          <span class="metric-label">GPU Headroom</span>
-          <span class="metric-value">{{ gpuHeadroom }}<span class="metric-unit">%</span></span>
+    <!-- Three-Panel Connected Layout -->
+    <div class="three-panel-layout">
+      <!-- Left Panel: VRAM/RAM Usage -->
+      <div class="panel panel-left">
+        <div class="panel-header">
+          <span class="panel-title">SYSTEM RESOURCES</span>
         </div>
-        <div class="gpu-divider"></div>
-        <div class="gpu-metric">
-          <span class="metric-label">VRAM Available</span>
-          <span class="metric-value">{{ vramAvailable }}<span class="metric-unit"> GB</span></span>
+        <div class="panel-content">
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">GPU VRAM</span>
+            </div>
+            <div class="resource-value">
+              {{ metricsStore.vramUsed.toFixed(0) }}<span class="resource-unit"> GB</span>
+              <span class="resource-total">/ {{ metricsStore.vramTotal }} GB</span>
+            </div>
+            <div v-if="activeModelName" class="resource-allocated">
+              ALLOCATED BY: <span class="model-name">{{ activeModelName }}</span>
+            </div>
+            <div class="resource-bar">
+              <div class="resource-bar-fill" :style="{ width: `${metricsStore.vramPercent}%` }"></div>
+            </div>
+          </div>
+          
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">RAM</span>
+            </div>
+            <div class="resource-value">
+              {{ metricsStore.memoryUsed.toFixed(0) }}<span class="resource-unit"> GB</span>
+              <span class="resource-total">/ {{ metricsStore.memoryTotal }} GB</span>
+            </div>
+            <div class="resource-bar">
+              <div class="resource-bar-fill resource-bar-fill--ram" :style="{ width: `${metricsStore.memoryPercent}%` }"></div>
+            </div>
+          </div>
+          
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">UPTIME</span>
+            </div>
+            <div class="resource-value resource-value--mono">
+              {{ metricsStore.uptimeFormatted }}
+            </div>
+          </div>
         </div>
       </div>
-      
-      <!-- Current State Micro-Copy -->
-      <div class="current-state">
-        Current State: Idle · Standing By · Ready for On-Demand AI
+
+      <!-- Center Panel: GPU Ring -->
+      <div class="panel panel-center">
+        <div class="gpu-ring-container">
+          <svg class="gpu-ring" width="200" height="200" viewBox="0 0 200 200">
+            <circle
+              cx="100"
+              cy="100"
+              r="85"
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.1)"
+              stroke-width="8"
+            />
+            <circle
+              cx="100"
+              cy="100"
+              r="85"
+              fill="none"
+              stroke="var(--abs-orange)"
+              stroke-width="8"
+              stroke-linecap="round"
+              :stroke-dasharray="534"
+              :stroke-dashoffset="534 - (534 * gpuUtilization / 100)"
+              transform="rotate(-90 100 100)"
+              class="gpu-ring-fill"
+            />
+          </svg>
+          <div class="gpu-ring-center">
+            <div class="gpu-ring-value">{{ Math.round(gpuUtilization) }}<span class="gpu-ring-unit">%</span></div>
+            <div class="gpu-ring-label">GPU</div>
+          </div>
+        </div>
+        <div class="gpu-ring-subtitle">
+          {{ demoControlStore.isRunning || demoControlStore.isWarming ? 'ACTIVE INFERENCE' : 'INFERENCE LOAD' }}
+        </div>
+        <div class="gpu-model-name">{{ metricsStore.gpuModel }}</div>
       </div>
-      <div class="gpu-bar">
-        <div class="gpu-bar__fill" :style="{ width: `${100 - gpuHeadroom}%` }"></div>
+
+      <!-- Right Panel: Model Status & Performance -->
+      <div class="panel panel-right">
+        <div class="panel-header">
+          <span class="panel-title">PERFORMANCE</span>
+        </div>
+        <div class="panel-content">
+          <div v-if="activeModelName || demoControlStore.isRunning" class="performance-item">
+            <div class="performance-header">
+              <span class="performance-status" :class="{ 'performance-status--active': demoControlStore.isRunning }">
+                {{ demoControlStore.isRunning ? 'RUNNING' : 'READY' }}
+              </span>
+            </div>
+            <div class="performance-model">{{ activeModelName || 'No Model Active' }}</div>
+          </div>
+          
+          <div class="performance-metrics">
+            <div class="performance-metric">
+              <span class="performance-metric-label">Tokens/sec</span>
+              <span class="performance-metric-value">{{ tokensPerSec }}</span>
+            </div>
+            
+            <div class="performance-metric">
+              <span class="performance-metric-label">TTFT</span>
+              <span class="performance-metric-value">{{ ttft }}</span>
+            </div>
+            
+            <div class="performance-metric">
+              <span class="performance-metric-label">LAT</span>
+              <span class="performance-metric-value">{{ latency }}</span>
+            </div>
+            
+            <div class="performance-metric">
+              <span class="performance-metric-label">CTX</span>
+              <span class="performance-metric-value">{{ contextWindow }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -151,7 +282,17 @@ function goToModels() {
   justify-content: center;
   min-height: calc(100vh - 140px);
   padding: 40px 24px;
-  gap: 24px;
+  gap: 32px;
+}
+
+/* Three-Panel Layout */
+.three-panel-layout {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 32px;
+  width: 100%;
+  max-width: 1400px;
+  align-items: start;
 }
 
 .live-badge {
@@ -183,17 +324,270 @@ function goToModels() {
   50% { opacity: 0.4; }
 }
 
-.hero-gpu-card {
-  width: 100%;
-  max-width: 600px;
-  padding: 40px 36px;
-  background: linear-gradient(135deg, var(--abs-card) 0%, var(--abs-elevated) 100%);
+/* Panel Styles */
+.panel {
+  background: var(--abs-card);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  text-align: center;
-  position: relative;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+}
+
+.panel-left {
+  min-width: 280px;
+}
+
+.panel-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  min-width: 240px;
+}
+
+.panel-right {
+  min-width: 280px;
+}
+
+.panel-header {
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-title {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Left Panel: Resources */
+.resource-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resource-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resource-label {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.resource-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.resource-value--mono {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+.resource-unit {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.resource-total {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.resource-allocated {
+  font-family: var(--font-label);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: -4px;
+}
+
+.resource-allocated .model-name {
+  color: var(--abs-orange);
+  font-weight: 600;
+}
+
+.resource-bar {
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 2px;
   overflow: hidden;
-  box-shadow: var(--shadow-lg), 0 0 60px rgba(249, 115, 22, 0.1);
+  margin-top: 4px;
+}
+
+.resource-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--abs-orange), #ff9f43);
+  transition: width var(--duration-slow) var(--ease-smooth);
+}
+
+.resource-bar-fill--ram {
+  background: linear-gradient(90deg, var(--electric-indigo), #818cf8);
+}
+
+/* Center Panel: GPU Ring */
+.gpu-ring-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.gpu-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.gpu-ring-fill {
+  transition: stroke-dashoffset var(--duration-slow) var(--ease-smooth);
+  filter: drop-shadow(0 0 8px var(--abs-orange-glow));
+}
+
+.gpu-ring-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.gpu-ring-value {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--abs-orange);
+  line-height: 1;
+}
+
+.gpu-ring-unit {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.gpu-ring-label {
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+
+.gpu-ring-subtitle {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--abs-orange);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 8px;
+}
+
+.gpu-model-name {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Right Panel: Performance */
+.performance-item {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.performance-header {
+  margin-bottom: 8px;
+}
+
+.performance-status {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 6px;
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--electric-indigo);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.performance-status--active {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: var(--status-success);
+}
+
+.performance-model {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.performance-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.performance-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.performance-metric-label {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.performance-metric-value {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .gpu-icon {
@@ -532,13 +926,68 @@ function goToModels() {
   font-size: 3rem;
 }
 
+/* Visual Connections (Arrows) */
+.three-panel-layout::before,
+.three-panel-layout::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 24px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--abs-orange));
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.three-panel-layout {
+  position: relative;
+}
+
+.three-panel-layout::before {
+  left: calc(33.33% - 12px);
+  transform: translateY(-50%);
+}
+
+.three-panel-layout::after {
+  right: calc(33.33% - 12px);
+  transform: translateY(-50%);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .three-panel-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    max-width: 600px;
+  }
+  
+  .panel-center {
+    order: -1;
+  }
+  
+  .three-panel-layout::before,
+  .three-panel-layout::after {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   .capability-row {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .secondary-metrics {
-    flex-direction: column;
+  .panel-left,
+  .panel-right {
+    min-width: auto;
+  }
+  
+  .gpu-ring-container {
+    width: 160px;
+    height: 160px;
+  }
+  
+  .gpu-ring-value {
+    font-size: 2rem;
   }
 }
 </style>

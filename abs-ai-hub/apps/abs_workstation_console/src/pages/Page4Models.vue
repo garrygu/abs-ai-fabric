@@ -92,6 +92,96 @@ function isModelActive(modelId: string): boolean {
   return false
 }
 
+// Track actual running models from Ollama (to override backend status)
+const ollamaRunningModels = ref<Set<string>>(new Set())
+let ollamaCheckInterval: ReturnType<typeof setInterval> | null = null
+
+// Check Ollama for actually running models
+async function checkOllamaRunningModels() {
+  try {
+    const response = await fetch('http://localhost:11434/api/ps')
+    if (!response.ok) {
+      ollamaRunningModels.value.clear()
+      return
+    }
+
+    const data = await response.json()
+    const runningModels = data.models || []
+    const runningSet = new Set<string>()
+    
+    // Normalize model names (handle tags like "model:latest" or "model:70b")
+    for (const model of runningModels) {
+      const name = model.name || ''
+      if (name) {
+        runningSet.add(name.toLowerCase())
+        // Also add base name without tag
+        if (name.includes(':')) {
+          runningSet.add(name.split(':')[0].toLowerCase())
+        }
+        // Also add with :latest tag
+        if (!name.includes(':')) {
+          runningSet.add(`${name.toLowerCase()}:latest`)
+        }
+      }
+    }
+    
+    ollamaRunningModels.value = runningSet
+  } catch (error) {
+    console.log('[Page4Models] Error checking Ollama running models:', error)
+    ollamaRunningModels.value.clear()
+  }
+}
+
+// Get actual model status (checks Ollama if not managed by demoControl)
+function getActualModelStatus(modelId: string): 'ready' | 'idle' {
+  // First check if managed by demoControl (70B models)
+  const loadingStatus = getModelLoadingStatus(modelId)
+  if (loadingStatus === 'ready' || loadingStatus === 'running') {
+    return 'ready'
+  }
+  
+  // For other models, check Ollama directly
+  const modelIdLower = modelId.toLowerCase()
+  
+  // Special case: Ollama runtime itself
+  if (modelIdLower.includes('ollama')) {
+    // Ollama runtime is "ready" if any models are running
+    return ollamaRunningModels.value.size > 0 ? 'ready' : 'idle'
+  }
+  
+  // Normalize model ID for matching (remove common prefixes/suffixes)
+  const normalizeForMatch = (name: string) => {
+    return name.toLowerCase()
+      .replace(/[:_-]/g, '')  // Remove separators
+      .replace(/latest$/, '')   // Remove :latest tag
+      .replace(/^model-/, '')   // Remove model- prefix if any
+      .trim()
+  }
+  
+  const normalizedId = normalizeForMatch(modelId)
+  
+  // Check if model is in Ollama's running list
+  for (const runningModel of ollamaRunningModels.value) {
+    const normalizedRunning = normalizeForMatch(runningModel)
+    
+    // Check for exact match or substring match
+    if (normalizedId === normalizedRunning || 
+        normalizedId.includes(normalizedRunning) || 
+        normalizedRunning.includes(normalizedId)) {
+      return 'ready'
+    }
+    
+    // Also check base name without tag (e.g., "llama3:70b" -> "llama3")
+    const baseRunning = runningModel.split(':')[0].toLowerCase().replace(/[_-]/g, '')
+    const baseId = modelIdLower.split(':')[0].replace(/[_-]/g, '')
+    if (baseId === baseRunning || baseId.includes(baseRunning) || baseRunning.includes(baseId)) {
+      return 'ready'
+    }
+  }
+  
+  return 'idle'
+}
+
 // Auto Highlight Tour state (CES-only)
 const highlightedCardId = ref<string | null>(null)
 const tourCaption = ref<string>('')
@@ -225,8 +315,8 @@ const sortedModels = computed(() => {
     if (aIsHero && !bIsHero) return -1
     if (!aIsHero && bIsHero) return 1
     
-    const aIsReady = a.serving_status === 'ready'
-    const bIsReady = b.serving_status === 'ready'
+    const aIsReady = getActualModelStatus(a.model_id) === 'ready'
+    const bIsReady = getActualModelStatus(b.model_id) === 'ready'
     if (aIsReady && !bIsReady) return -1
     if (!aIsReady && bIsReady) return 1
     
@@ -267,7 +357,8 @@ function getStatusTip(model: any): string {
   if (loadingStatus === 'cooling') {
     return 'Model is cooling down after use. It will return to idle shortly.'
   }
-  if (model.serving_status === 'ready') {
+  const actualStatus = getActualModelStatus(model.model_id)
+  if (actualStatus === 'ready') {
     return 'Model is loaded into VRAM and ready to serve requests immediately. No loading delay.'
   }
   // Idle
@@ -463,6 +554,10 @@ onMounted(() => {
     workloadsStore.fetchWorkloads()
   }
   
+  // Check Ollama running models immediately and then periodically
+  checkOllamaRunningModels()
+  ollamaCheckInterval = setInterval(checkOllamaRunningModels, 3000) // Check every 3 seconds
+  
   // Start idle detection
   idleTimer = setTimeout(checkIdle, IDLE_THRESHOLD_MS)
   
@@ -477,6 +572,10 @@ onUnmounted(() => {
   stopTour()
   if (idleTimer) {
     clearTimeout(idleTimer)
+  }
+  if (ollamaCheckInterval) {
+    clearInterval(ollamaCheckInterval)
+    ollamaCheckInterval = null
   }
   window.removeEventListener('mousemove', recordActivity)
   window.removeEventListener('click', recordActivity)
@@ -531,7 +630,7 @@ watch(() => attractStore.isActive, (isActive) => {
         :data-model-id="model.model_id"
         class="model-card"
         :class="{ 
-          'model-card--ready': model.serving_status === 'ready',
+          'model-card--ready': getActualModelStatus(model.model_id) === 'ready',
           'model-card--hero': heroModelIds.includes(model.model_id),
           'model-card--highlighted': isTourActive && highlightedCardId === model.model_id
         }"
@@ -548,10 +647,10 @@ watch(() => attractStore.isActive, (isActive) => {
               <span 
                 class="model-status" 
                 :class="[
-                  model.serving_status,
+                  getActualModelStatus(model.model_id),
                   { 
                     'model-status--warming': getModelLoadingStatus(model.model_id) === 'warming',
-                    'model-status--ready': getModelLoadingStatus(model.model_id) === 'ready',
+                    'model-status--ready': getModelLoadingStatus(model.model_id) === 'ready' || getActualModelStatus(model.model_id) === 'ready',
                     'model-status--running': getModelLoadingStatus(model.model_id) === 'running',
                     'model-status--cooling': getModelLoadingStatus(model.model_id) === 'cooling'
                   }
@@ -561,7 +660,7 @@ watch(() => attractStore.isActive, (isActive) => {
                 <span v-else-if="getModelLoadingStatus(model.model_id) === 'running'">● Running</span>
                 <span v-else-if="getModelLoadingStatus(model.model_id) === 'ready'">● Ready</span>
                 <span v-else-if="getModelLoadingStatus(model.model_id) === 'cooling'">❄ Cooling</span>
-                <span v-else-if="model.serving_status === 'ready'">● Ready</span>
+                <span v-else-if="getActualModelStatus(model.model_id) === 'ready'">● Ready</span>
                 <span v-else>○ Idle</span>
               </span>
               <div class="status-tooltip">{{ getStatusTip(model) }}</div>

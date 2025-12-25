@@ -188,21 +188,48 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     loadingDuration.value = null
     loadingElapsedTime.value = 0
 
-    // Start elapsed time timer
+    // Start elapsed time timer and update progress
     if (loadingElapsedTimer) {
       clearInterval(loadingElapsedTimer)
     }
     loadingElapsedTimer = setInterval(() => {
       if (loadingStartTime.value && modelStatus.value === 'warming') {
-        loadingElapsedTime.value = (Date.now() - loadingStartTime.value) / 1000
+        const elapsed = (Date.now() - loadingStartTime.value) / 1000
+        loadingElapsedTime.value = elapsed
+        
+        // Calculate progress based on elapsed time with smooth curve
+        // Typical loading takes 30-60 seconds, simulate over 50 seconds
+        // Use easing function for smooth acceleration/deceleration
+        const totalTime = 50 // seconds
+        const normalizedTime = Math.min(1, elapsed / totalTime)
+        
+        // Ease-in-out cubic curve for smooth progress
+        let easedProgress = 0
+        if (normalizedTime < 0.5) {
+          easedProgress = 4 * normalizedTime * normalizedTime * normalizedTime
+        } else {
+          const t = normalizedTime - 1
+          easedProgress = 1 + 4 * t * t * t
+        }
+        
+        // Scale to 0-95% (never reaches 100% until actually ready)
+        const simulatedProgress = easedProgress * 95
+        
+        // Always update progress (round to nearest integer)
+        const newProgress = Math.round(simulatedProgress)
+        // Ensure progress increases smoothly and never goes backwards
+        if (newProgress > loadingProgress.value || loadingProgress.value === 0) {
+          loadingProgress.value = newProgress
+        }
       }
-    }, 100) // Update every 100ms for smooth display
+    }, 200) // Update every 200ms for smooth display
 
     try {
       // Actually request/load the model via API
       if (model === 'dual') {
         // For dual mode, load both models in parallel
         loadingStage.value = 'Loading dual 70B models...'
+        // Progress will be updated by timer based on elapsed time
         await Promise.all([
           requestModel('deepseek-r1-70b'),
           requestModel('llama3-70b')
@@ -210,6 +237,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
 
         // Warmup inference to force models into VRAM
         loadingStage.value = 'Warming up models...'
+        // Progress will be updated by timer based on elapsed time
         await Promise.all([
           warmupModel('deepseek-r1-70b'),
           warmupModel('llama3-70b')
@@ -217,10 +245,12 @@ export const useDemoControlStore = defineStore('demoControl', () => {
       } else {
         // Single model
         loadingStage.value = 'Loading model...'
+        // Progress will be updated by timer based on elapsed time
         await requestModel(model)
 
         // Warmup inference to force model into VRAM
         loadingStage.value = 'Warming up model...'
+        // Progress will be updated by timer based on elapsed time
         await warmupModel(model)
       }
 
@@ -656,6 +686,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     currentDocument,
     modelOutput,
     isProcessing,
+    isKioskOpen,
 
     // Computed
     isActive,
