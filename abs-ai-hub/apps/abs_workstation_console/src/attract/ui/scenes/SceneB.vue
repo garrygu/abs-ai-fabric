@@ -3,7 +3,6 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useModelsStore } from '@/stores/modelsStore'
 import { useDemoControlStore } from '@/stores/demoControlStore'
 import { useCESMode } from '@/composables/useCESMode'
-import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const modelsStore = useModelsStore()
@@ -12,17 +11,9 @@ const { isCESMode } = useCESMode()
 const containerRef = ref<HTMLElement | null>(null)
 const { getElementGlow } = useBloomEffect()
 
-// Initialize particle field (particles bend toward highlighted cards)
-let particleField: ReturnType<typeof useGPUParticleField> | null = null
+// WebGPU particle field is rendered globally via AttractModeOverlay
+// (removed legacy Canvas 2D fallback)
 
-onMounted(() => {
-  if (containerRef.value) {
-    particleField = useGPUParticleField({
-      container: containerRef.value,
-      particleCount: 80000
-    })
-  }
-})
 
 // Auto-expand right panel after a delay
 const isRightPanelExpanded = ref(false)

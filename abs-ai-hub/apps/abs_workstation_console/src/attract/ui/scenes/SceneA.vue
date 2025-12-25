@@ -2,7 +2,6 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
 import { useCESMode } from '@/composables/useCESMode'
-import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const metricsStore = useMetricsStore()
@@ -10,17 +9,8 @@ const { isCESMode } = useCESMode()
 const containerRef = ref<HTMLElement | null>(null)
 const { getElementGlow } = useBloomEffect()
 
-// Initialize particle field
-let particleField: ReturnType<typeof useGPUParticleField> | null = null
-
-onMounted(() => {
-  if (containerRef.value) {
-    particleField = useGPUParticleField({
-      container: containerRef.value,
-      particleCount: 100000
-    })
-  }
-})
+// WebGPU particle field is rendered globally via AttractModeOverlay
+// (removed legacy Canvas 2D fallback)
 
 // Animated GPU utilization (starts at 8%, can spike)
 const animatedGpuUtil = ref(8)

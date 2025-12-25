@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useMetricsStore } from '@/stores/metricsStore'
 import { useDemoControlStore } from '@/stores/demoControlStore'
-import { useGPUParticleField } from '@/attract/engine/legacy/useGPUParticleField'
 import { useBloomEffect } from '@/composables/useBloomEffect'
 
 const metricsStore = useMetricsStore()
@@ -10,17 +9,9 @@ const demoControlStore = useDemoControlStore()
 const containerRef = ref<HTMLElement | null>(null)
 const { getElementGlow } = useBloomEffect()
 
-// Initialize particle field (will collapse inward during spin-up)
-let particleField: ReturnType<typeof useGPUParticleField> | null = null
+// WebGPU particle field is rendered globally via AttractModeOverlay
+// (removed legacy Canvas 2D fallback)
 
-onMounted(() => {
-  if (containerRef.value) {
-    particleField = useGPUParticleField({
-      container: containerRef.value,
-      particleCount: 120000
-    })
-  }
-})
 
 // GPU utilization animation: 8% → 45% → 72%
 const animatedGpuUtil = ref(8)
