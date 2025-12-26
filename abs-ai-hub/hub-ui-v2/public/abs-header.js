@@ -85,11 +85,37 @@ class ABSUnifiedHeader extends HTMLElement {
 
   async loadApps() {
     try {
-      const response = await fetch(`${this.config.gatewayUrl}/v1/assets?class=app`);
-      if (!response.ok) throw new Error('Failed to fetch apps');
+      // Fetch only applications (exclude services and models)
+      const appsResponse = await fetch(`${this.config.gatewayUrl}/v1/assets?class=app`).catch(() => null);
 
-      const data = await response.json();
-      this.state.apps = Array.isArray(data) ? data : (data.assets || []);
+      const allApps = [];
+      
+      // Process apps - explicitly exclude models and services
+      if (appsResponse && appsResponse.ok) {
+        const appsData = await appsResponse.json();
+        const apps = Array.isArray(appsData) ? appsData : (appsData.assets || []);
+        // Filter out models and services - only include actual applications
+        const filteredApps = apps.filter(app => {
+          const assetClass = app.class || app.asset_class || '';
+          const interfaceType = app.interface || '';
+          // Exclude models
+          if (assetClass === 'model') return false;
+          // Exclude services
+          if (assetClass === 'service') return false;
+          // Only include apps (not models, services, or other asset types)
+          return assetClass === 'app' || assetClass === 'application' || 
+                 interfaceType === 'application' || interfaceType === 'ui';
+        });
+        allApps.push(...filteredApps.map(app => ({
+          ...app,
+          metadata: {
+            ...app.metadata,
+            category: app.metadata?.category || 'Application'
+          }
+        })));
+      }
+
+      this.state.apps = allApps.length > 0 ? allApps : this.getFallbackApps();
       this.state.loading = false;
       this.render();
     } catch (error) {
@@ -102,10 +128,13 @@ class ABSUnifiedHeader extends HTMLElement {
 
   getFallbackApps() {
     return [
+      // Applications only (no services or models)
       { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
+      { id: 'deposition-summarizer', display_name: 'Deposition Summarizer', metadata: { url: 'http://localhost:7860', category: 'Legal Apps' } },
       { id: 'legal-assistant', display_name: 'Legal Assistant', metadata: { url: 'http://localhost:7862', category: 'Legal Apps' } },
       { id: 'onyx-assistant', display_name: 'Onyx AI Assistant', metadata: { url: 'http://localhost:8000', category: 'AI Assistants' } },
-      { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } }
+      { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } },
+      { id: 'abs-workstation-console', display_name: 'Workstation Console', metadata: { url: 'http://localhost:5173', category: 'AI Platforms' } }
     ];
   }
 
@@ -222,6 +251,14 @@ class ABSUnifiedHeader extends HTMLElement {
           display: flex;
           align-items: center;
           gap: 0.5rem;
+          cursor: pointer;
+          padding: 0.25rem 0.5rem;
+          border-radius: 6px;
+          transition: background 0.2s;
+        }
+        
+        .app-info:hover {
+          background: rgba(255, 255, 255, 0.1);
         }
         
         .app-icon {
@@ -468,6 +505,8 @@ class ABSUnifiedHeader extends HTMLElement {
         .app-tile-icon.legal { background: #dbeafe; }
         .app-tile-icon.ai { background: #fae8ff; }
         .app-tile-icon.platform { background: #dcfce7; }
+        .app-tile-icon.platform { background: #dcfce7; }
+        .app-tile-icon[class*="core"] { background: #fef3c7; }
         
         .app-tile-name {
           font-size: 0.7rem;
@@ -529,7 +568,7 @@ class ABSUnifiedHeader extends HTMLElement {
       <header class="header">
         <div class="left-section">
           <button class="launcher-btn" title="App Launcher">⋮⋮⋮</button>
-          <div class="app-info">
+          <div class="app-info" onclick="this.getRootNode().host.goToHub()" title="Return to ABS AI Fabric">
             <span class="app-icon">${this.config.appIcon}</span>
             <div class="app-details">
               <h1>${this.config.appName}</h1>
@@ -550,7 +589,7 @@ class ABSUnifiedHeader extends HTMLElement {
             </div>
           </div>
           ${this.config.settingsUrl ? `<button class="icon-btn settings" onclick="this.getRootNode().host.goToSettings()" title="Settings">⚙️</button>` : ''}
-          <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to AI Fabric</button>
+          <button class="hub-btn" onclick="this.getRootNode().host.goToHub()">🏠 Return to ABS AI Fabric</button>
         </div>
       </header>
       
@@ -569,7 +608,7 @@ class ABSUnifiedHeader extends HTMLElement {
         </div>
         <div class="launcher-footer">
           <button class="return-hub-btn" onclick="this.getRootNode().host.goToHub()">
-            🏠 Return to AI Fabric Hub
+            🏠 Return to ABS AI Fabric
           </button>
         </div>
       </div>

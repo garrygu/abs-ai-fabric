@@ -279,7 +279,19 @@ export async function fetchSystemMetrics(): Promise<SystemMetrics> {
         return transformed
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        console.error('[API] Gateway unavailable, using simulated metrics. Error:', errorMessage)
+        
+        // Check if it's a network error (not just a bad response)
+        const isNetworkError = error instanceof TypeError || 
+                             errorMessage.includes('Failed to fetch') ||
+                             errorMessage.includes('NetworkError') ||
+                             errorMessage.includes('aborted')
+        
+        if (isNetworkError) {
+            console.warn('[API] Network error detected, Gateway may be offline. Using simulated metrics.')
+        } else {
+            console.error('[API] Gateway unavailable, using simulated metrics. Error:', errorMessage)
+        }
+        
         // Still return simulated metrics so the UI doesn't break
         const simulated = simulateMetrics(realGpuData)
         console.log('[API] Returning simulated metrics:', simulated)

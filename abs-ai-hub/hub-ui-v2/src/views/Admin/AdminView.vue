@@ -12,6 +12,9 @@
       {{ toastMessage }}
     </div>
 
+    <!-- CES Mode Banner -->
+    <CESModeBanner />
+
     <!-- Tab Navigation -->
     <div class="admin-tabs">
       <button 
@@ -41,7 +44,12 @@
           <span class="action-label">Reload Assets</span>
           <span class="action-desc">Re-scan asset registry</span>
         </button>
-        <button class="action-card warning" @click="clearCache" :disabled="loading.cache">
+        <button 
+          class="action-card warning" 
+          @click="clearCache" 
+          :disabled="loading.cache || !canControlServices"
+          :title="!canControlServices ? 'Disabled in CES demo mode' : 'Clear document & embedding cache'"
+        >
           <span class="action-icon">🗑️</span>
           <span class="action-label">Clear Cache</span>
           <span class="action-desc">Clear document & embedding cache</span>
@@ -56,7 +64,12 @@
           <span class="action-label">Create Snapshot</span>
           <span class="action-desc">Save current system state</span>
         </button>
-        <button class="action-card" @click="showRestoreModal = true">
+        <button 
+          class="action-card" 
+          @click="showRestoreModal = true"
+          :disabled="!canControlServices"
+          :title="!canControlServices ? 'Disabled in CES demo mode' : 'Restore from previous snapshot'"
+        >
           <span class="action-icon">📥</span>
           <span class="action-label">Restore Snapshot</span>
           <span class="action-desc">Restore from previous snapshot</span>
@@ -169,7 +182,8 @@
               v-if="!service.running && service.name !== 'gateway'"
               class="btn btn-sm btn-success"
               @click="startService(service)"
-              :disabled="service.loading"
+              :disabled="service.loading || !canControlServices"
+              :title="!canControlServices ? 'Disabled in CES demo mode' : 'Start service'"
             >
               ▶ Start
             </button>
@@ -177,7 +191,8 @@
               v-if="service.running && service.name !== 'gateway'"
               class="btn btn-sm btn-warning"
               @click="stopService(service)"
-              :disabled="service.loading"
+              :disabled="service.loading || !canControlServices"
+              :title="!canControlServices ? 'Disabled in CES demo mode' : 'Stop service'"
             >
               ⏹ Stop
             </button>
@@ -185,7 +200,8 @@
               v-if="service.name !== 'gateway'"
               class="btn btn-sm"
               @click="restartService(service)"
-              :disabled="service.loading"
+              :disabled="service.loading || !canControlServices"
+              :title="!canControlServices ? 'Disabled in CES demo mode' : 'Restart service'"
             >
               🔄 Restart
             </button>
@@ -260,7 +276,8 @@
                   type="checkbox" 
                   :checked="service.idleSleepEnabled"
                   @change="updateAutoSleep(service, $event)"
-                  :disabled="service.policyLoading"
+                  :disabled="service.policyLoading || !canControlServices"
+                  :title="!canControlServices ? 'Disabled in CES demo mode' : 'Automatically suspend when idle'"
                 />
                 <span>Enable auto-sleep</span>
               </label>
@@ -274,7 +291,8 @@
                   type="number" 
                   :value="service.idleTimeout || globalIdleTimeout"
                   @change="updateIdleTimeout(service, $event)"
-                  :disabled="!service.idleSleepEnabled || service.policyLoading"
+                  :disabled="!service.idleSleepEnabled || service.policyLoading || !canControlServices"
+                  :title="!canControlServices ? 'Disabled in CES demo mode' : 'Time before auto-suspend'"
                   min="1"
                   max="1440"
                   class="policy-input"
@@ -295,7 +313,8 @@
               v-if="service.running"
               class="btn btn-sm btn-warning"
               @click="suspendService(service)"
-              :disabled="service.policyLoading"
+              :disabled="service.policyLoading || !canControlServices"
+              :title="!canControlServices ? 'Disabled in CES demo mode' : 'Suspend service now'"
             >
               ⏸️ Suspend now
             </button>
@@ -633,7 +652,8 @@
               <button 
                 class="btn btn-sm btn-danger" 
                 @click="deleteModel(model)"
-                :disabled="loadingModels[model.name] || deletingModels[model.name]"
+                :disabled="loadingModels[model.name] || deletingModels[model.name] || !canDelete"
+                :title="!canDelete ? 'Disabled in CES demo mode' : 'Delete model'"
               >
                 {{ deletingModels[model.name] ? 'Deleting...' : '🗑️ Delete' }}
               </button>
@@ -821,7 +841,9 @@
             <button 
               @click="confirmClearCache" 
               class="btn btn-danger" 
-              :disabled="loading.cache || (!cacheSelection.documents && !cacheSelection.embeddings && !cacheSelection.cache)">
+              :disabled="loading.cache || (!cacheSelection.documents && !cacheSelection.embeddings && !cacheSelection.cache) || !canControlServices"
+              :title="!canControlServices ? 'Disabled in CES demo mode' : 'Clear selected cache'"
+            >
               {{ loading.cache ? 'Clearing...' : '🗑️ Clear Selected' }}
             </button>
           </div>
@@ -837,11 +859,14 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAssetStore } from '@/stores/assetStore'
 import { useSystemHealthStore } from '@/stores/systemHealthStore'
 import { gateway } from '@/services/gateway'
+import { useCESRestrictions } from '@/composables/useCESRestrictions'
+import CESModeBanner from '@/components/CESModeBanner.vue'
 
 const router = useRouter()
 const route = useRoute()
 const assetStore = useAssetStore()
 const systemHealth = useSystemHealthStore()
+const { canControlServices, canDelete } = useCESRestrictions()
 
 // Tab state
 const tabs = [
@@ -1108,6 +1133,11 @@ function clearCache() {
 }
 
 async function confirmClearCache() {
+  if (!canControlServices.value) {
+    showToast('⚠️ Cache clearing is disabled in CES demo mode', 'error')
+    showClearCacheModal.value = false
+    return
+  }
   showClearCacheModal.value = false
   loading.cache = true
   try {
@@ -1144,6 +1174,10 @@ async function checkHealth() {
 
 // Services - now using Gateway API
 async function startService(service: any) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Service control is disabled in CES demo mode', 'error')
+    return
+  }
   serviceLoading[service.name] = true
   try {
     const result = await gateway.startAsset(service.name) // Use raw name
@@ -1162,6 +1196,10 @@ async function startService(service: any) {
 }
 
 async function stopService(service: any) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Service control is disabled in CES demo mode', 'error')
+    return
+  }
   serviceLoading[service.name] = true
   try {
     const result = await gateway.stopAsset(service.name)
@@ -1179,6 +1217,10 @@ async function stopService(service: any) {
 }
 
 async function restartService(service: any) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Service control is disabled in CES demo mode', 'error')
+    return
+  }
   serviceLoading[service.name] = true
   try {
     const result = await gateway.restartAsset(service.name)
@@ -1252,6 +1294,10 @@ function formatIdleDuration(seconds: number): string {
 }
 
 async function updateAutoSleep(service: any, event: Event) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Policy updates are disabled in CES demo mode', 'error')
+    return
+  }
   const target = event.target as HTMLInputElement
   service.policyLoading = true
   try {
@@ -1270,6 +1316,10 @@ async function updateAutoSleep(service: any, event: Event) {
 }
 
 async function updateIdleTimeout(service: any, event: Event) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Policy updates are disabled in CES demo mode', 'error')
+    return
+  }
   const target = event.target as HTMLInputElement
   const timeout = parseInt(target.value)
   if (isNaN(timeout) || timeout < 1) return
@@ -1291,6 +1341,10 @@ async function updateIdleTimeout(service: any, event: Event) {
 }
 
 async function suspendService(service: any) {
+  if (!canControlServices.value) {
+    showToast('⚠️ Service control is disabled in CES demo mode', 'error')
+    return
+  }
   service.policyLoading = true
   try {
     const result = await gateway.suspendService(service.name)
@@ -1657,6 +1711,10 @@ async function loadModel(model: any) {
 }
 
 async function deleteModel(model: any) {
+  if (!canDelete.value) {
+    showToast('⚠️ Model deletion is disabled in CES demo mode', 'error')
+    return
+  }
   if (!confirm(`Are you sure you want to delete model "${model.name}"?\n\nThis action cannot be undone.`)) {
     return
   }

@@ -33,7 +33,7 @@ export interface SceneManifestItem {
  * 
  * DEV_MODE: Set to true for faster testing (3s per scene)
  */
-export const DEV_MODE = true  // Toggle for faster testing
+export const DEV_MODE = false  // Toggle for faster testing
 
 /** Duration multiplier for dev mode */
 const DURATION_MULT = DEV_MODE ? 0.33 : 1.0  // ~3x faster in dev mode

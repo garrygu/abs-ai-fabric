@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import HeroContextLayer from '@/components/explore/HeroContextLayer.vue'
+import ContactInfo from '@/components/ContactInfo.vue'
 import { useCESMode } from '@/composables/useCESMode'
 import { useAttractModeStore } from '@/stores/attractModeStore'
 import { useWorkloadsStore } from '@/stores/workloadsStore'
 import { useModelsStore } from '@/stores/modelsStore'
+import { useNetworkStore } from '@/stores/networkStore'
 
 const { isCESMode } = useCESMode()
 const attractStore = useAttractModeStore()
 const workloadsStore = useWorkloadsStore()
 const modelsStore = useModelsStore()
+const networkStore = useNetworkStore()
 
 const activeTab = ref<'models' | 'solutions'>('models')
 
@@ -493,6 +496,11 @@ const solutions = [
 ]
 
 function openNewegg(modelId: string) {
+  // If offline, show contact info instead
+  if (!networkStore.hasInternet) {
+    return
+  }
+  
   const model = workstationModels.find(m => m.id === modelId)
   if (model?.neweggUrl) {
     window.open(model.neweggUrl + '?utm_source=console&utm_campaign=explore', '_blank')
@@ -500,6 +508,11 @@ function openNewegg(modelId: string) {
 }
 
 function openContact() {
+  // If offline, contact links won't work, but we show contact info inline
+  if (!networkStore.hasInternet) {
+    return
+  }
+  
   window.open('https://absworkstation.com/contact?utm_source=console&utm_campaign=explore', '_blank')
 }
 
@@ -546,7 +559,12 @@ function getModelById(id: string) {
 
     <!-- Models Tab -->
     <div v-if="activeTab === 'models'" class="tab-content">
-      <div class="models-grid">
+      <!-- Show contact info when offline -->
+      <div v-if="!networkStore.hasInternet" class="offline-contact-section">
+        <ContactInfo />
+      </div>
+      
+      <div class="models-grid" :class="{ 'models-grid--offline': !networkStore.hasInternet }">
         <div 
           v-for="model in workstationModels" 
           :key="model.id"
@@ -643,18 +661,24 @@ function getModelById(id: string) {
           </div>
 
           <div class="model-actions">
-            <button 
-              class="action-button action-button--primary"
-              @click="openNewegg(model.id)"
-            >
-              View on Newegg
-            </button>
-            <button 
-              class="action-button action-button--secondary"
-              @click="openContact"
-            >
-              Get Quote
-            </button>
+            <!-- Show contact info inline when offline -->
+            <div v-if="!networkStore.hasInternet" class="model-contact-info">
+              <ContactInfo class="contact-info--compact" />
+            </div>
+            <template v-else>
+              <button 
+                class="action-button action-button--primary"
+                @click="openNewegg(model.id)"
+              >
+                View on Newegg
+              </button>
+              <button 
+                class="action-button action-button--secondary"
+                @click="openContact"
+              >
+                Get Quote
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -662,7 +686,12 @@ function getModelById(id: string) {
 
     <!-- Solutions Tab -->
     <div v-if="activeTab === 'solutions'" class="tab-content">
-      <div class="solutions-grid">
+      <!-- Show contact info when offline -->
+      <div v-if="!networkStore.hasInternet" class="offline-contact-section">
+        <ContactInfo />
+      </div>
+      
+      <div class="solutions-grid" :class="{ 'solutions-grid--offline': !networkStore.hasInternet }">
         <div 
           v-for="solution in solutions" 
           :key="solution.id"
@@ -832,7 +861,11 @@ function getModelById(id: string) {
 
     <!-- CTA Section -->
     <div class="cta-section">
-      <button class="cta-button" @click="openContact">
+      <!-- Show contact info when offline, otherwise show CTA button -->
+      <div v-if="!networkStore.hasInternet" class="offline-contact-section">
+        <ContactInfo />
+      </div>
+      <button v-else class="cta-button" @click="openContact">
         Contact Our Team for Custom Configuration
         <span class="cta-arrow">→</span>
       </button>
@@ -1810,5 +1843,22 @@ function getModelById(id: string) {
 .fade-in-leave-from {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Offline contact section */
+.offline-contact-section {
+  margin-bottom: 32px;
+  animation: fade-in 0.5s ease-in-out;
+}
+
+.models-grid--offline,
+.solutions-grid--offline {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.model-contact-info {
+  width: 100%;
+  margin-top: 16px;
 }
 </style>
