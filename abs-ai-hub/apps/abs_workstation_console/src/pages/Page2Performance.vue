@@ -98,6 +98,22 @@ const activeIntelligenceCards = computed(() => {
       subtitle: `Loading into VRAM... ${Math.round(demoControlStore.loadingProgress)}%`,
       state: 'Warming'
     })
+  } else if (demoControlStore.isProcessing && cards.length === 0) {
+    // Model is actively processing a request
+    let modelName = 'Model'
+    if (demoControlStore.activeModel === 'deepseek-r1-70b') {
+      modelName = 'DeepSeek R1 70B'
+    } else if (demoControlStore.activeModel === 'llama3-70b') {
+      modelName = 'LLaMA-3 70B'
+    } else if (demoControlStore.activeModel === 'dual') {
+      modelName = 'Dual 70B Models'
+    }
+    cards.push({
+      icon: '🧠',
+      title: 'Processing Request',
+      subtitle: `${modelName} · Generating response`,
+      state: 'Running'
+    })
   } else if (demoControlStore.isRunning && cards.length === 0) {
     // Model is loaded and running (but no active workloads yet)
     let modelName = 'Model'
@@ -322,7 +338,7 @@ onUnmounted(() => {
 <template>
   <div class="page page-performance-v2">
     <!-- Subtle labels for each line (positioned above chart) -->
-    <div class="flow-labels">
+    <div class="flow-labels" :class="{ 'flow-labels--hidden': demoControlStore.isKioskOpen }">
       <div class="flow-label flow-label--gpu">GPU</div>
       <div class="flow-label flow-label--vram">VRAM</div>
       <div class="flow-label flow-label--ram">RAM</div>
@@ -648,6 +664,12 @@ onUnmounted(() => {
   gap: 28px;
   z-index: 1000;
   align-items: center;
+  transition: opacity 0.3s ease;
+}
+
+.flow-labels--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .flow-label {

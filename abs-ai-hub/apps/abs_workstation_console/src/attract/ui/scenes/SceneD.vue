@@ -12,10 +12,20 @@ const currentMessageIndex = ref(0)
 const currentMessage = ref(messages[0])
 let messageInterval: ReturnType<typeof setInterval> | null = null
 
-// Cloud destruction effect (for "ZERO CLOUD DEPENDENCY")
+// Visual effects for each message
 const showCloudDestruction = ref(false)
 const cloudParticles = ref<Array<{ x: number; y: number; vx: number; vy: number; opacity: number }>>([])
 let cloudAnimationFrame: ReturnType<typeof requestAnimationFrame> | null = null
+
+// Unity effect for "ONE WORKSTATION" - particles converging to center
+const showUnityEffect = ref(false)
+const unityParticles = ref<Array<{ x: number; y: number; targetX: number; targetY: number; opacity: number }>>([])
+let unityAnimationFrame: ReturnType<typeof requestAnimationFrame> | null = null
+
+// Multiplicity effect for "MULTIPLE AI MINDS" - particles spreading outward
+const showMultiplicityEffect = ref(false)
+const multiplicityParticles = ref<Array<{ x: number; y: number; vx: number; vy: number; opacity: number }>>([])
+let multiplicityAnimationFrame: ReturnType<typeof requestAnimationFrame> | null = null
 
 // Subtext line-by-line reveal
 const visibleSubtextLines = ref<string[]>([])
@@ -28,8 +38,15 @@ onMounted(() => {
     currentMessageIndex.value = (currentMessageIndex.value + 1) % messages.length
     currentMessage.value = messages[currentMessageIndex.value]
     
-    // Trigger cloud destruction for "ZERO CLOUD DEPENDENCY"
-    if (currentMessageIndex.value === 2 && prevIndex !== 2) {
+    // Trigger visual effects based on message
+    if (currentMessageIndex.value === 0 && prevIndex !== 0) {
+      // "ONE WORKSTATION" - unity effect
+      triggerUnityEffect()
+    } else if (currentMessageIndex.value === 1 && prevIndex !== 1) {
+      // "MULTIPLE AI MINDS" - multiplicity effect
+      triggerMultiplicityEffect()
+    } else if (currentMessageIndex.value === 2 && prevIndex !== 2) {
+      // "ZERO CLOUD DEPENDENCY" - cloud destruction
       triggerCloudDestruction()
     }
     
@@ -46,6 +63,88 @@ onMounted(() => {
     }
   }, 2500)
 })
+
+function triggerUnityEffect() {
+  showUnityEffect.value = true
+  
+  // Create particles starting from edges, converging to center
+  unityParticles.value = []
+  for (let i = 0; i < 40; i++) {
+    const angle = (Math.PI * 2 * i) / 40
+    const radius = 40 + Math.random() * 10
+    unityParticles.value.push({
+      x: 50 + Math.cos(angle) * radius,
+      y: 50 + Math.sin(angle) * radius,
+      targetX: 50,
+      targetY: 50,
+      opacity: 0.8 + Math.random() * 0.2
+    })
+  }
+  
+  // Animate particles converging
+  const animate = () => {
+    unityParticles.value = unityParticles.value.map(particle => {
+      const dx = particle.targetX - particle.x
+      const dy = particle.targetY - particle.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      
+      if (dist < 2) {
+        return null // Remove when reached center
+      }
+      
+      return {
+        ...particle,
+        x: particle.x + dx * 0.1,
+        y: particle.y + dy * 0.1,
+        opacity: particle.opacity * 0.99
+      }
+    }).filter(p => p !== null) as typeof unityParticles.value
+    
+    if (unityParticles.value.length > 0) {
+      unityAnimationFrame = requestAnimationFrame(animate)
+    } else {
+      showUnityEffect.value = false
+    }
+  }
+  animate()
+}
+
+function triggerMultiplicityEffect() {
+  showMultiplicityEffect.value = true
+  
+  // Create particles starting from center, spreading outward
+  multiplicityParticles.value = []
+  for (let i = 0; i < 30; i++) {
+    const angle = (Math.PI * 2 * i) / 30
+    multiplicityParticles.value.push({
+      x: 50,
+      y: 50,
+      vx: Math.cos(angle) * 0.8,
+      vy: Math.sin(angle) * 0.8,
+      opacity: 0.7 + Math.random() * 0.3
+    })
+  }
+  
+  // Animate particles spreading
+  const animate = () => {
+    multiplicityParticles.value = multiplicityParticles.value.map(particle => ({
+      ...particle,
+      x: particle.x + particle.vx * 0.5,
+      y: particle.y + particle.vy * 0.5,
+      opacity: particle.opacity * 0.97
+    })).filter(p => {
+      const dist = Math.sqrt((p.x - 50) ** 2 + (p.y - 50) ** 2)
+      return p.opacity > 0.05 && dist < 50
+    })
+    
+    if (multiplicityParticles.value.length > 0) {
+      multiplicityAnimationFrame = requestAnimationFrame(animate)
+    } else {
+      showMultiplicityEffect.value = false
+    }
+  }
+  animate()
+}
 
 function triggerCloudDestruction() {
   showCloudDestruction.value = true
@@ -90,6 +189,14 @@ onUnmounted(() => {
     cancelAnimationFrame(cloudAnimationFrame)
     cloudAnimationFrame = null
   }
+  if (unityAnimationFrame !== null) {
+    cancelAnimationFrame(unityAnimationFrame)
+    unityAnimationFrame = null
+  }
+  if (multiplicityAnimationFrame !== null) {
+    cancelAnimationFrame(multiplicityAnimationFrame)
+    multiplicityAnimationFrame = null
+  }
 })
 </script>
 
@@ -98,8 +205,34 @@ onUnmounted(() => {
     <!-- Dark background -->
     <div class="scene-d__background"></div>
     
-    <!-- Cloud destruction particles -->
-    <svg v-if="showCloudDestruction" class="cloud-particles" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <!-- Unity effect particles (ONE WORKSTATION) -->
+    <svg v-if="showUnityEffect" class="effect-particles" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <circle
+        v-for="(particle, index) in unityParticles"
+        :key="index"
+        :cx="particle.x"
+        :cy="particle.y"
+        r="1.2"
+        :fill="`rgba(249, 115, 22, ${particle.opacity})`"
+        class="effect-particle"
+      />
+    </svg>
+    
+    <!-- Multiplicity effect particles (MULTIPLE AI MINDS) -->
+    <svg v-if="showMultiplicityEffect" class="effect-particles" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <circle
+        v-for="(particle, index) in multiplicityParticles"
+        :key="index"
+        :cx="particle.x"
+        :cy="particle.y"
+        r="1.2"
+        :fill="`rgba(249, 115, 22, ${particle.opacity})`"
+        class="effect-particle"
+      />
+    </svg>
+    
+    <!-- Cloud destruction particles (ZERO CLOUD DEPENDENCY) -->
+    <svg v-if="showCloudDestruction" class="effect-particles" viewBox="0 0 100 100" preserveAspectRatio="none">
       <circle
         v-for="(particle, index) in cloudParticles"
         :key="index"
@@ -107,7 +240,7 @@ onUnmounted(() => {
         :cy="particle.y"
         r="1.5"
         :fill="`rgba(255, 255, 255, ${particle.opacity})`"
-        class="cloud-particle"
+        class="effect-particle"
       />
     </svg>
     
@@ -194,7 +327,7 @@ onUnmounted(() => {
   letter-spacing: 0.1em;
 }
 
-.cloud-particles {
+.effect-particles {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -203,7 +336,7 @@ onUnmounted(() => {
   z-index: 5;
 }
 
-.cloud-particle {
+.effect-particle {
   transition: all 0.1s linear;
 }
 

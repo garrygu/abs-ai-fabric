@@ -123,17 +123,31 @@ function isModelRunning(modelId: string): boolean {
   return false
 }
 
-function getModelStatus(modelId: string): 'RUNNING' | 'READY' | null {
-  if (isModelRunning(modelId) && demoControlStore.modelStatus === 'running') {
-    return 'RUNNING'
+function getModelStatus(modelId: string): 'RUNNING' | 'READY' | 'LOADING' | null {
+  // Check if this model is part of the active model set
+  if (!isModelRunning(modelId)) {
+    return null // Model not active, no badge
   }
-  // Check if model is in ready state (simplified - would need to check actual lifecycle)
-  return 'READY'
+  
+  // Check model status from demoControlStore
+  if (demoControlStore.modelStatus === 'warming') {
+    return 'LOADING'
+  }
+  
+  if (demoControlStore.modelStatus === 'running') {
+    // If actively processing, show RUNNING, otherwise READY
+    return demoControlStore.isProcessing ? 'RUNNING' : 'READY'
+  }
+  
+  // Model is idle or cooling, no badge
+  return null
 }
 
 function getModelDisplayName(modelId: string): string {
   const model = modelsStore.models.find(m => m.model_id === modelId)
-  return model?.display_name || modelId
+  const displayName = model?.display_name || modelId
+  // Remove "70B" from display name since we show it separately in the size field
+  return displayName.replace(/\s*70[Bb]\s*/gi, '').trim()
 }
 
 // Get card transform style
@@ -161,6 +175,7 @@ function isCardHighlighted(modelId: string): boolean {
         class="model-card"
         :class="{ 
           'model-card--running': getModelStatus(model.model_id) === 'RUNNING',
+          'model-card--loading': getModelStatus(model.model_id) === 'LOADING',
           'model-card--highlighted': isCardHighlighted(model.model_id)
         }"
         :style="{ 
@@ -173,8 +188,12 @@ function isCardHighlighted(modelId: string): boolean {
         
         <div class="model-card__badge" 
              v-if="getModelStatus(model.model_id)"
-             :class="{ 'model-card__badge--running': getModelStatus(model.model_id) === 'RUNNING' }"
-             :style="getModelStatus(model.model_id) === 'RUNNING' ? { ...getElementGlow('var(--status-success)', 1), background: 'var(--status-success)' } : {}">
+             :class="{ 
+               'model-card__badge--running': getModelStatus(model.model_id) === 'RUNNING',
+               'model-card__badge--loading': getModelStatus(model.model_id) === 'LOADING'
+             }"
+             :style="getModelStatus(model.model_id) === 'RUNNING' ? { ...getElementGlow('var(--abs-orange)', 1), background: 'var(--abs-orange)' } : 
+                     getModelStatus(model.model_id) === 'LOADING' ? { ...getElementGlow('var(--abs-orange)', 0.6), background: 'rgba(249, 115, 22, 0.3)' } : {}">
           {{ getModelStatus(model.model_id) }}
         </div>
         <div class="model-card__name">{{ getModelDisplayName(model.model_id) }}</div>
@@ -234,6 +253,21 @@ function isCardHighlighted(modelId: string): boolean {
 .model-card--running {
   border-color: var(--abs-orange);
   background: rgba(249, 115, 22, 0.1);
+}
+
+.model-card--loading {
+  border-color: var(--abs-orange);
+  background: rgba(249, 115, 22, 0.08);
+  animation: loading-pulse 2s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .model-card--highlighted {

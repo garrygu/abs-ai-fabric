@@ -34,8 +34,13 @@ const coldStartTime = ref<number | null>(null)
 const elapsedTime = ref(0)
 
 onMounted(() => {
-  // Simulate cold start time (randomized between 8-15 seconds)
-  coldStartTime.value = Math.floor(Math.random() * 7) + 8
+  // Simulate cold start time based on active model
+  // Single 70B: 15-30 seconds, Dual 70B: 30-100 seconds
+  if (demoControlStore.activeModel === 'dual') {
+    coldStartTime.value = Math.floor(Math.random() * 70) + 30 // 30-100 seconds
+  } else {
+    coldStartTime.value = Math.floor(Math.random() * 15) + 15 // 15-30 seconds
+  }
   
   // Start animation sequence
   setTimeout(() => {
@@ -78,8 +83,8 @@ onMounted(() => {
   // Subtle ongoing animation
   animationInterval = setInterval(() => {
     if (animationPhase.value === 'locked') {
-      // Slight variation around peak
-      animatedGpuUtil.value = 100 + (Math.random() * 2 - 1)
+      // Slight variation around peak (keep within 99-100% to avoid showing 101%)
+      animatedGpuUtil.value = 99 + Math.random() // 99-100 range
     }
   }, 500)
   

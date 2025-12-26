@@ -234,7 +234,7 @@ const centerLabel = computed(() => {
     case 'LIVE_INFERENCE':
       return `GPU ${display.value.gpuUtilPct}%`
     default:
-      // Trust rule: if VRAM high + GPU low = PRELOADED
+      // Consistent terminology: READY = models loaded, IDLE = not loaded
       return display.value.statusLabel
   }
 })
@@ -242,6 +242,10 @@ const centerLabel = computed(() => {
 const centerSublabel = computed(() => {
   switch (display.value.state) {
     case 'LOADING_70B':
+      // Check if loading dual models
+      if (demoControlStore.activeModel === 'dual') {
+        return 'LOADING DUAL 70B'
+      }
       return 'LOADING 70B'
     case 'LIVE_INFERENCE':
       return display.value.activeModel || 'INFERENCE'
@@ -252,10 +256,18 @@ const centerSublabel = computed(() => {
 
 // Inference load label (below ring)
 const inferenceLoadLabel = computed(() => {
-  if (display.value.state === 'LIVE_INFERENCE' || display.value.state === 'LOADING_70B') {
-    return 'ACTIVE INFERENCE'
+  // Hide label when showing "GPU X%" (already indicates active inference)
+  if (display.value.state === 'LIVE_INFERENCE') {
+    return null
   }
-  return 'INFERENCE LOAD'
+  if (display.value.state === 'LOADING_70B') {
+    return null // Hide label when loading (not inference yet)
+  }
+  // When ready (models loaded), show "INFERENCE READY", otherwise hide label
+  if (display.value.statusLabel === 'READY') {
+    return 'INFERENCE READY'
+  }
+  return null // Hide label when IDLE
 })
 
 // Active model name for VRAM allocation label
@@ -398,7 +410,7 @@ const performanceMetrics = computed(() => {
       </div>
       
       <!-- Inference Load Label (below ring) -->
-      <div class="gpu-ring-inference-label">
+      <div v-if="inferenceLoadLabel" class="gpu-ring-inference-label">
         {{ inferenceLoadLabel }}
       </div>
     </div>
@@ -447,7 +459,9 @@ const performanceMetrics = computed(() => {
       <!-- LOADING: Phase card -->
       <div v-if="display.state === 'LOADING_70B'" class="phase-card">
         <div class="phase-card__title">{{ display.loadPhase?.toUpperCase() || 'LOADING' }}</div>
-        <div class="phase-card__subtitle">Preparing 70B for instant inference</div>
+        <div class="phase-card__subtitle">
+          {{ demoControlStore.activeModel === 'dual' ? 'Preparing Dual 70B for instant inference' : 'Preparing 70B for instant inference' }}
+        </div>
         <div class="phase-card__progress">
           <div class="phase-card__progress-bar" :style="{ width: `${display.loadProgressPct}%` }"></div>
         </div>
@@ -558,7 +572,6 @@ const performanceMetrics = computed(() => {
 }
 
 .gpu-ring-value {
-  /* No position: absolute - let flex container handle layout */
   font-family: var(--font-mono);
   font-size: 7.5rem; /* Slightly smaller to fit better in larger ring */
   font-weight: 700;
@@ -568,6 +581,8 @@ const performanceMetrics = computed(() => {
     0 0 15px rgba(249, 115, 22, 0.4);
   transition: all 0.3s var(--ease-smooth);
   letter-spacing: -0.02em;
+  text-align: center;
+  line-height: 1;
 }
 
 .scene-a__left-rail {
@@ -713,16 +728,16 @@ const performanceMetrics = computed(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #4ade80;
-  text-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+  color: var(--abs-orange);
+  text-shadow: 0 0 6px var(--abs-orange-glow);
 }
 
 .live-indicator__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 8px #4ade80;
+  background: var(--abs-orange);
+  box-shadow: 0 0 8px var(--abs-orange-glow);
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
 
@@ -816,8 +831,8 @@ const performanceMetrics = computed(() => {
 }
 
 .hero-bar__dot--live_inference {
-  background: #4ade80;
-  box-shadow: 0 0 8px #4ade80;
+  background: var(--abs-orange);
+  box-shadow: 0 0 8px var(--abs-orange-glow);
   animation: pulse-dot 0.8s ease-in-out infinite;
 }
 
@@ -839,25 +854,30 @@ const performanceMetrics = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px; /* Large gap between sublabel and value */
+  justify-content: center;
+  gap: 24px; /* Gap between value and sublabel */
   z-index: 3;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .gpu-ring-sublabel {
   font-family: var(--font-label);
-  font-size: 1.25rem; /* Slightly smaller */
+  font-size: 1rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: rgba(255, 255, 255, 0.5);
-  /* Sublabel now positioned above value */
+  text-align: center;
+  margin-bottom: 16px; /* Add space below to prevent overlap with inference label */
 }
 
 /* Inference Load Label (below ring) */
 .gpu-ring-inference-label {
-  margin-top: 32px;
+  margin-top: 64px; /* Increased spacing to prevent overlap with LOCAL AI */
   font-family: var(--font-label);
-  font-size: 1.5rem;
+  font-size: 1rem; /* Smaller font size */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -867,6 +887,7 @@ const performanceMetrics = computed(() => {
   transition: all 0.3s var(--ease-smooth);
   position: relative;
   z-index: 16;
+  text-align: center;
 }
 
 /* ============================================== */
@@ -965,10 +986,11 @@ const performanceMetrics = computed(() => {
 
 /* Performance Card (Live) */
 .performance-card {
-  background: rgba(74, 222, 128, 0.08);
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.3);
   border-radius: 16px;
-  padding: 32px;
+  padding: 24px;
+  overflow: hidden; /* Prevent content from overflowing */
 }
 
 .performance-card__header {
@@ -977,7 +999,7 @@ const performanceMetrics = computed(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #4ade80;
+  color: var(--abs-orange);
   margin-bottom: 8px;
 }
 
@@ -991,26 +1013,31 @@ const performanceMetrics = computed(() => {
 
 .performance-card__metrics {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
 }
 
 .perf-metric {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0; /* Allow flex shrinking */
+  flex: 1 1 auto; /* Allow wrapping */
 }
 
 .perf-metric__value {
   font-family: var(--font-mono);
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--abs-orange);
   text-shadow: 0 0 8px var(--abs-orange-glow);
+  white-space: nowrap;
 }
 
 .perf-metric__label {
   font-family: var(--font-label);
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -1019,12 +1046,13 @@ const performanceMetrics = computed(() => {
 
 .performance-card__meta {
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-family: var(--font-label);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.4);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -1050,8 +1078,8 @@ const performanceMetrics = computed(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #4ade80;
-  text-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+  color: var(--abs-orange);
+  text-shadow: 0 0 8px var(--abs-orange-glow);
   z-index: 20;
 }
 
@@ -1059,8 +1087,8 @@ const performanceMetrics = computed(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 12px #4ade80;
+  background: var(--abs-orange);
+  box-shadow: 0 0 12px var(--abs-orange-glow);
   animation: pulse-dot 1s ease-in-out infinite;
 }
 

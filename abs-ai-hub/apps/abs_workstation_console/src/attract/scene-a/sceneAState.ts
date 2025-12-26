@@ -167,11 +167,12 @@ export function createSceneAController() {
     function getStatusLabel(s: SceneAState, t: SceneATelemetry | null): string {
         switch (s) {
             case 'IDLE_READY':
-                // CES trust rule: high VRAM + low GPU = PRELOADED
+                // Consistent terminology: READY = models loaded into VRAM, IDLE = not loaded
+                // Trust rule: high VRAM + low GPU = models loaded into VRAM
                 if (t && t.vramUsedGB > 30 && t.gpuUtilPct < 10) {
-                    return 'PRELOADED'
+                    return 'READY'
                 }
-                return 'READY'
+                return 'IDLE'
             case 'LOADING_70B':
                 const phase = t?.loadPhase ?? 'loading'
                 const phaseLabelMap: Record<string, string> = {

@@ -198,9 +198,9 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         loadingElapsedTime.value = elapsed
         
         // Calculate progress based on elapsed time with smooth curve
-        // Typical loading takes 30-60 seconds, simulate over 50 seconds
+        // Single 70B: 15-30 seconds, Dual 70B: 30-100 seconds
         // Use easing function for smooth acceleration/deceleration
-        const totalTime = 50 // seconds
+        const totalTime = activeModel.value === 'dual' ? 100 : 30 // seconds (use max time for smooth progress)
         const normalizedTime = Math.min(1, elapsed / totalTime)
         
         // Ease-in-out cubic curve for smooth progress
