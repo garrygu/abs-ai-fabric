@@ -185,6 +185,51 @@ class ABSUnifiedHeader extends HTMLElement {
     window.location.href = `${this.config.hubUrl}/workspace/default/apps`;
   }
 
+  goToAppHome() {
+    // If we're in hub-ui-v2 itself, go to hub homepage
+    const currentOrigin = window.location.origin;
+    let hubOrigin;
+    try {
+      hubOrigin = new URL(this.config.hubUrl).origin;
+    } catch (e) {
+      // If hubUrl is relative or invalid, assume we're in hub
+      hubOrigin = currentOrigin;
+    }
+    
+    if (currentOrigin === hubOrigin || this.config.appId === 'hub-ui-v2' || this.config.appId === 'abs-ai-fabric') {
+      // We're in hub-ui-v2, go to apps page (hub homepage)
+      this.goToHub();
+    } else {
+      // We're in an external app, go to app's home page
+      // Try to find the current app by matching origin or app ID
+      const currentApp = this.state.apps.find(app => {
+        if (app.id === this.config.appId) return true;
+        try {
+          const appUrl = app.metadata?.url || '';
+          if (appUrl) {
+            const appOrigin = new URL(appUrl).origin;
+            return appOrigin === currentOrigin;
+          }
+        } catch (e) {
+          // Invalid URL, skip
+        }
+        return false;
+      });
+      
+      if (currentApp && currentApp.metadata?.url) {
+        window.location.href = currentApp.metadata.url;
+      } else if (this.config.appId && this.config.appId !== 'unknown') {
+        // Try to construct app URL from appId if we have it
+        // This is a fallback for apps that might not be in the list yet
+        const appUrl = `${currentOrigin}/`;
+        window.location.href = appUrl;
+      } else {
+        // Final fallback: go to hub
+        this.goToHub();
+      }
+    }
+  }
+
   goToSettings() {
     if (this.config.settingsUrl) {
       window.location.href = this.config.settingsUrl;
@@ -568,7 +613,7 @@ class ABSUnifiedHeader extends HTMLElement {
       <header class="header">
         <div class="left-section">
           <button class="launcher-btn" title="App Launcher">⋮⋮⋮</button>
-          <div class="app-info" onclick="this.getRootNode().host.goToHub()" title="Return to ABS AI Fabric">
+          <div class="app-info" onclick="this.getRootNode().host.goToAppHome()" title="Go to Home">
             <span class="app-icon">${this.config.appIcon}</span>
             <div class="app-details">
               <h1>${this.config.appName}</h1>
@@ -626,6 +671,13 @@ class ABSUnifiedHeader extends HTMLElement {
       e.stopPropagation();
       this.state.showLauncher = !this.state.showLauncher;
       this.render();
+    });
+
+    // App info / Logo click - navigate to app home or hub home
+    shadow.querySelector('.app-info')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.goToAppHome();
     });
 
     // Close button
