@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { sendChatCompletion, requestModel, warmupModel } from '@/services/api'
+import { sendChatCompletionWithMetrics, requestModel, warmupModel, type InferenceMetrics } from '@/services/api'
 import { useModelsStore } from './modelsStore'
 
 export type ModelStatus = 'idle' | 'warming' | 'running' | 'cooling'
@@ -196,13 +196,13 @@ export const useDemoControlStore = defineStore('demoControl', () => {
       if (loadingStartTime.value && modelStatus.value === 'warming') {
         const elapsed = (Date.now() - loadingStartTime.value) / 1000
         loadingElapsedTime.value = elapsed
-        
+
         // Calculate progress based on elapsed time with smooth curve
         // Single 70B: 15-30 seconds, Dual 70B: 30-100 seconds
         // Use easing function for smooth acceleration/deceleration
         const totalTime = activeModel.value === 'dual' ? 100 : 30 // seconds (use max time for smooth progress)
         const normalizedTime = Math.min(1, elapsed / totalTime)
-        
+
         // Ease-in-out cubic curve for smooth progress
         let easedProgress = 0
         if (normalizedTime < 0.5) {
@@ -211,10 +211,10 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           const t = normalizedTime - 1
           easedProgress = 1 + 4 * t * t * t
         }
-        
+
         // Scale to 0-95% (never reaches 100% until actually ready)
         const simulatedProgress = easedProgress * 95
-        
+
         // Always update progress (round to nearest integer)
         const newProgress = Math.round(simulatedProgress)
         // Ensure progress increases smoothly and never goes backwards
@@ -506,15 +506,29 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           // Dual model: only generate both outputs if it's a comparison challenge
           if (challengeType === 'compare') {
             const [reasonedResult, explainedResult] = await Promise.all([
-              sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch(err => {
+              sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch((err: Error) => {
                 console.error('[DemoControl] DeepSeek error:', err)
-                return `Error: ${err.message}`
+                return { content: `Error: ${err.message}`, metrics: { tokensPerSec: 0, timeToFirstToken: 0, latency: 0, contextTokens: 0, promptTokens: 0, completionTokens: 0 } }
               }),
-              sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType).catch(err => {
+              sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType).catch((err: Error) => {
                 console.error('[DemoControl] LLaMA error:', err)
-                return `Error: ${err.message}`
+                return { content: `Error: ${err.message}`, metrics: { tokensPerSec: 0, timeToFirstToken: 0, latency: 0, contextTokens: 0, promptTokens: 0, completionTokens: 0 } }
               })
             ])
+
+            // Update live metrics with average of both models
+            const avgTokensPerSec = Math.round((reasonedResult.metrics.tokensPerSec + explainedResult.metrics.tokensPerSec) / 2)
+            const avgTtft = Math.round((reasonedResult.metrics.timeToFirstToken + explainedResult.metrics.timeToFirstToken) / 2)
+            const avgLatency = Math.round((reasonedResult.metrics.latency + explainedResult.metrics.latency) / 2)
+            const totalContext = reasonedResult.metrics.contextTokens + explainedResult.metrics.contextTokens
+
+            liveMetrics.value = {
+              tokensPerSec: avgTokensPerSec,
+              timeToFirstToken: avgTtft,
+              activeModel: 'Dual 70B',
+              contextWindow: `${Math.round(totalContext / 1000)}k`,
+              latency: avgLatency
+            }
 
             // Check if model was deactivated during API call
             if (activeModel.value === null) {
@@ -523,25 +537,54 @@ export const useDemoControlStore = defineStore('demoControl', () => {
             }
 
             modelOutput.value = {
-              reasoned: reasonedResult,
-              explained: explainedResult
+              reasoned: reasonedResult.content,
+              explained: explainedResult.content
             }
           } else if (challengeType === 'reasoning') {
             // Even in dual mode, if it's a reasoning challenge, just use DeepSeek
-            const result = await sendChatCompletion('deepseek-r1-70b', fullPrompt, undefined, challengeType)
+            const result = await sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType)
+
+            // Update live metrics
+            liveMetrics.value = {
+              tokensPerSec: result.metrics.tokensPerSec,
+              timeToFirstToken: result.metrics.timeToFirstToken,
+              activeModel: 'DeepSeek R1 70B',
+              contextWindow: `${Math.round(result.metrics.contextTokens / 1000)}k`,
+              latency: result.metrics.latency
+            }
+
             if (activeModel.value !== null) {
-              modelOutput.value = { reasoned: result }
+              modelOutput.value = { reasoned: result.content }
             }
           } else {
             // For other challenges (explanation, etc.), use LLaMA-3 70B
-            const result = await sendChatCompletion('llama3-70b', fullPrompt, undefined, challengeType)
+            const result = await sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType)
+
+            // Update live metrics
+            liveMetrics.value = {
+              tokensPerSec: result.metrics.tokensPerSec,
+              timeToFirstToken: result.metrics.timeToFirstToken,
+              activeModel: 'LLaMA-3 70B',
+              contextWindow: `${Math.round(result.metrics.contextTokens / 1000)}k`,
+              latency: result.metrics.latency
+            }
+
             if (activeModel.value !== null) {
-              modelOutput.value = { explained: result }
+              modelOutput.value = { explained: result.content }
             }
           }
         } else if (activeModel.value === 'deepseek-r1-70b') {
           // Reasoning challenge - use DeepSeek
-          const result = await sendChatCompletion(activeModel.value, fullPrompt, undefined, challengeType)
+          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType)
+
+          // Update live metrics
+          liveMetrics.value = {
+            tokensPerSec: result.metrics.tokensPerSec,
+            timeToFirstToken: result.metrics.timeToFirstToken,
+            activeModel: 'DeepSeek R1 70B',
+            contextWindow: `${Math.round(result.metrics.contextTokens / 1000)}k`,
+            latency: result.metrics.latency
+          }
 
           // Check if model was deactivated during API call
           if (activeModel.value === null) {
@@ -550,11 +593,20 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
 
           modelOutput.value = {
-            reasoned: result
+            reasoned: result.content
           }
         } else if (activeModel.value === 'llama3-70b') {
           // Executive explanation or summarization challenge
-          const result = await sendChatCompletion(activeModel.value, fullPrompt, undefined, challengeType)
+          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType)
+
+          // Update live metrics
+          liveMetrics.value = {
+            tokensPerSec: result.metrics.tokensPerSec,
+            timeToFirstToken: result.metrics.timeToFirstToken,
+            activeModel: 'LLaMA-3 70B',
+            contextWindow: `${Math.round(result.metrics.contextTokens / 1000)}k`,
+            latency: result.metrics.latency
+          }
 
           // Check if model was deactivated during API call
           if (activeModel.value === null) {
@@ -563,7 +615,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
 
           modelOutput.value = {
-            explained: result
+            explained: result.content
           }
         }
 

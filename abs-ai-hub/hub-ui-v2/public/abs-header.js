@@ -186,6 +186,12 @@ class ABSUnifiedHeader extends HTMLElement {
   }
 
   goToAppHome() {
+    console.log('[ABS Header] goToAppHome called', {
+      currentOrigin: window.location.origin,
+      hubUrl: this.config.hubUrl,
+      appId: this.config.appId
+    });
+    
     // If we're in hub-ui-v2 itself, go to hub homepage
     const currentOrigin = window.location.origin;
     let hubOrigin;
@@ -198,6 +204,7 @@ class ABSUnifiedHeader extends HTMLElement {
     
     if (currentOrigin === hubOrigin || this.config.appId === 'hub-ui-v2' || this.config.appId === 'abs-ai-fabric') {
       // We're in hub-ui-v2, go to apps page (hub homepage)
+      console.log('[ABS Header] Navigating to hub homepage');
       this.goToHub();
     } else {
       // We're in an external app, go to app's home page
@@ -217,14 +224,17 @@ class ABSUnifiedHeader extends HTMLElement {
       });
       
       if (currentApp && currentApp.metadata?.url) {
+        console.log('[ABS Header] Navigating to app:', currentApp.metadata.url);
         window.location.href = currentApp.metadata.url;
       } else if (this.config.appId && this.config.appId !== 'unknown') {
         // Try to construct app URL from appId if we have it
         // This is a fallback for apps that might not be in the list yet
         const appUrl = `${currentOrigin}/`;
+        console.log('[ABS Header] Navigating to app root:', appUrl);
         window.location.href = appUrl;
       } else {
         // Final fallback: go to hub
+        console.log('[ABS Header] Fallback: navigating to hub');
         this.goToHub();
       }
     }
@@ -300,10 +310,17 @@ class ABSUnifiedHeader extends HTMLElement {
           padding: 0.25rem 0.5rem;
           border-radius: 6px;
           transition: background 0.2s;
+          text-decoration: none;
+          color: inherit;
         }
         
         .app-info:hover {
           background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .app-info:focus {
+          outline: 2px solid rgba(255, 255, 255, 0.5);
+          outline-offset: 2px;
         }
         
         .app-icon {
@@ -613,13 +630,13 @@ class ABSUnifiedHeader extends HTMLElement {
       <header class="header">
         <div class="left-section">
           <button class="launcher-btn" title="App Launcher">⋮⋮⋮</button>
-          <div class="app-info" onclick="this.getRootNode().host.goToAppHome()" title="Go to Home">
+          <a href="#" class="app-info" title="Go to Home">
             <span class="app-icon">${this.config.appIcon}</span>
             <div class="app-details">
               <h1>${this.config.appName}</h1>
               <p>ABS AI Fabric</p>
             </div>
-          </div>
+          </a>
         </div>
         
         <div class="right-section">
@@ -674,11 +691,30 @@ class ABSUnifiedHeader extends HTMLElement {
     });
 
     // App info / Logo click - navigate to app home or hub home
-    shadow.querySelector('.app-info')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.goToAppHome();
-    });
+    const appInfo = shadow.querySelector('.app-info');
+    if (appInfo) {
+      // Remove any existing listeners by cloning and replacing
+      const newAppInfo = appInfo.cloneNode(true);
+      appInfo.parentNode.replaceChild(newAppInfo, appInfo);
+      
+      // Add click listener
+      newAppInfo.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[ABS Header] Logo clicked, navigating...');
+        this.goToAppHome();
+      });
+      
+      // Also add mousedown as backup
+      newAppInfo.addEventListener('mousedown', (e) => {
+        if (e.button === 0) { // Left click only
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('[ABS Header] Logo mousedown, navigating...');
+          this.goToAppHome();
+        }
+      });
+    }
 
     // Close button
     shadow.querySelector('#close-launcher')?.addEventListener('click', () => {

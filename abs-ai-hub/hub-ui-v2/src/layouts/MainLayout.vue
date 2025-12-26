@@ -3,8 +3,10 @@
     <!-- Top Navigation -->
     <nav class="main-nav">
       <div class="nav-brand">
-        <img src="/logos/abs-logo-orange.png" alt="ABS Logo" class="brand-logo" />
-        <span class="brand-text">AI Fabric</span>
+        <router-link :to="`/workspace/${workspaceId}/apps`" class="brand-link">
+          <img src="/logos/abs-logo-orange.png" alt="ABS Logo" class="brand-logo" />
+          <span class="brand-text">AI Fabric</span>
+        </router-link>
       </div>
       
       <div class="nav-tabs">
@@ -119,6 +121,19 @@ const workspaceId = computed(() =>
 .brand-logo {
   height: 32px;
   width: auto;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-link:hover {
+  text-decoration: none;
+  opacity: 0.85;
 }
 
 .nav-tabs {

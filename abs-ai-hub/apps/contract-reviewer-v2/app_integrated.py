@@ -803,6 +803,121 @@ async def get_analysis(document_id: str):
         logger.error(f"❌ Error getting analysis for document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/export/{session_id}")
+async def export_analysis(
+    session_id: str,
+    format: str = Query("json", description="Export format: json or pdf")
+):
+    """
+    Export analysis results as a downloadable file.
+    
+    The session_id can be either an analysis_id or a document_id.
+    """
+    try:
+        if not doc_service:
+            raise HTTPException(status_code=500, detail="Document service not initialized")
+        
+        logger.info(f"📦 Exporting analysis for session: {session_id}")
+        
+        # Try to find analysis by ID first, then by document_id
+        analysis = None
+        document = None
+        
+        # Try to get analysis directly by ID
+        try:
+            analysis_results = await doc_service.get_analysis_results_by_document(
+                document_id=session_id,
+                analysis_type="comprehensive"
+            )
+            if analysis_results:
+                analysis = analysis_results[0]
+                document = await doc_service.get_document_by_id(session_id)
+        except Exception:
+            pass
+        
+        # If not found, try session_id as the actual document_id
+        if not analysis:
+            try:
+                # Search for analysis with this ID pattern
+                all_docs = await doc_service.list_documents(limit=100, offset=0)
+                for doc in all_docs.get("documents", []):
+                    doc_analysis = await doc_service.get_analysis_results_by_document(
+                        document_id=doc["id"],
+                        analysis_type="comprehensive"
+                    )
+                    if doc_analysis:
+                        for a in doc_analysis:
+                            if a["id"] == session_id or str(a.get("analysis_id")) == session_id:
+                                analysis = a
+                                document = doc
+                                break
+                    if analysis:
+                        break
+            except Exception as e:
+                logger.warning(f"Error searching for analysis: {e}")
+        
+        if not analysis:
+            raise HTTPException(status_code=404, detail=f"Analysis not found for session: {session_id}")
+        
+        # Parse analysis_data if it's a string
+        analysis_data = analysis.get("analysis_data", {})
+        if isinstance(analysis_data, str):
+            try:
+                analysis_data = json.loads(analysis_data)
+            except json.JSONDecodeError:
+                analysis_data = {}
+        
+        # Build export data
+        export_data = {
+            "export_metadata": {
+                "exported_at": datetime.now().isoformat(),
+                "format": format,
+                "version": "2.0.0"
+            },
+            "document": {
+                "id": document["id"] if document else session_id,
+                "filename": document.get("original_filename", "Unknown") if document else "Unknown",
+                "file_size": document.get("file_size", 0) if document else 0,
+                "upload_timestamp": document.get("upload_timestamp") if document else None
+            },
+            "analysis": {
+                "analysis_id": analysis["id"],
+                "analysis_type": analysis.get("analysis_type", "comprehensive"),
+                "analysis_timestamp": analysis.get("analysis_timestamp"),
+                "model_used": analysis.get("model_used"),
+                "processing_time_ms": analysis.get("processing_time_ms"),
+                "confidence_score": analysis.get("confidence_score", 0.0),
+                "status": analysis.get("status", "completed")
+            },
+            "results": {
+                "summary": analysis_data.get("summary", {}),
+                "risks": analysis_data.get("risks", []),
+                "recommendations": analysis_data.get("recommendations", []),
+                "citations": analysis_data.get("citations", []),
+                "compliance": analysis_data.get("compliance", {})
+            }
+        }
+        
+        # Return as JSON file download
+        from fastapi.responses import Response
+        
+        filename = f"contract-analysis-{document['original_filename'] if document else session_id}.json"
+        content = json.dumps(export_data, indent=2, default=str)
+        
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error exporting analysis for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/documents/{document_id}/content")
 async def get_document_content(document_id: str):
     """Get the text content of a document for display in the document viewer"""

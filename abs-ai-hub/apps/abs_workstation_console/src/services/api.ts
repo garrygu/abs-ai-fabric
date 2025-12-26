@@ -279,19 +279,19 @@ export async function fetchSystemMetrics(): Promise<SystemMetrics> {
         return transformed
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        
+
         // Check if it's a network error (not just a bad response)
-        const isNetworkError = error instanceof TypeError || 
-                             errorMessage.includes('Failed to fetch') ||
-                             errorMessage.includes('NetworkError') ||
-                             errorMessage.includes('aborted')
-        
+        const isNetworkError = error instanceof TypeError ||
+            errorMessage.includes('Failed to fetch') ||
+            errorMessage.includes('NetworkError') ||
+            errorMessage.includes('aborted')
+
         if (isNetworkError) {
             console.warn('[API] Network error detected, Gateway may be offline. Using simulated metrics.')
         } else {
             console.error('[API] Gateway unavailable, using simulated metrics. Error:', errorMessage)
         }
-        
+
         // Still return simulated metrics so the UI doesn't break
         const simulated = simulateMetrics(realGpuData)
         console.log('[API] Returning simulated metrics:', simulated)
@@ -427,6 +427,16 @@ export interface ChatCompletionResponse {
         completion_tokens: number
         total_tokens: number
     }
+}
+
+// Inference metrics for real-time performance display
+export interface InferenceMetrics {
+    tokensPerSec: number      // Tokens generated per second
+    timeToFirstToken: number  // Time in ms to first token (TTFT)
+    latency: number           // Total response time in ms
+    contextTokens: number     // Total tokens used (prompt + completion)
+    promptTokens: number      // Input tokens
+    completionTokens: number  // Output tokens
 }
 
 // Map demo model IDs to actual model names used by gateway
@@ -579,12 +589,31 @@ export async function warmupModel(modelId: string | null): Promise<void> {
     }
 }
 
+// Result type for chat completion with metrics
+export interface ChatCompletionResult {
+    content: string
+    metrics: InferenceMetrics
+}
+
 export async function sendChatCompletion(
     modelId: string | null,
     prompt: string,
     systemPrompt?: string,
     challengeType?: string
 ): Promise<string> {
+    const result = await sendChatCompletionWithMetrics(modelId, prompt, systemPrompt, challengeType)
+    return result.content
+}
+
+// Send chat completion and return both content and performance metrics
+export async function sendChatCompletionWithMetrics(
+    modelId: string | null,
+    prompt: string,
+    systemPrompt?: string,
+    challengeType?: string
+): Promise<ChatCompletionResult> {
+    const startTime = performance.now()
+
     try {
         // Map model ID to gateway model name
         const gatewayModel = mapModelIdToGatewayModel(modelId)
@@ -641,6 +670,10 @@ export async function sendChatCompletion(
             body: JSON.stringify(request)
         })
 
+        // Calculate time to first response (approximation - actual TTFT requires streaming)
+        const responseReceivedTime = performance.now()
+        const ttft = responseReceivedTime - startTime
+
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Chat completion failed: ${response.status}`, errorText)
@@ -650,13 +683,53 @@ export async function sendChatCompletion(
         const data: ChatCompletionResponse = await response.json()
         const content = data.choices?.[0]?.message?.content || 'No response generated'
 
-        console.log('[API] Chat completion success, response length:', content.length)
+        // Calculate total latency
+        const endTime = performance.now()
+        const totalLatency = endTime - startTime
 
-        return content
+        // Extract usage data for token metrics
+        const promptTokens = data.usage?.prompt_tokens || 0
+        const completionTokens = data.usage?.completion_tokens || 0
+        const totalTokens = data.usage?.total_tokens || (promptTokens + completionTokens)
+
+        // Calculate tokens per second (completion tokens / generation time in seconds)
+        // Generation time = total time - TTFT (approximation)
+        const generationTimeMs = totalLatency - ttft
+        const generationTimeSec = Math.max(0.1, generationTimeMs / 1000) // Minimum 0.1s to avoid division issues
+        const tokensPerSec = completionTokens > 0 ? Math.round(completionTokens / generationTimeSec) : 0
+
+        const metrics: InferenceMetrics = {
+            tokensPerSec,
+            timeToFirstToken: Math.round(ttft),
+            latency: Math.round(totalLatency),
+            contextTokens: totalTokens,
+            promptTokens,
+            completionTokens
+        }
+
+        console.log('[API] Chat completion success with metrics:', {
+            responseLength: content.length,
+            ...metrics
+        })
+
+        return { content, metrics }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('[API] Chat completion error:', errorMessage)
-        throw error
+
+        // Return error with zeroed metrics
+        const endTime = performance.now()
+        return {
+            content: `Error: ${errorMessage}`,
+            metrics: {
+                tokensPerSec: 0,
+                timeToFirstToken: Math.round(endTime - startTime),
+                latency: Math.round(endTime - startTime),
+                contextTokens: 0,
+                promptTokens: 0,
+                completionTokens: 0
+            }
+        }
     }
 }
 

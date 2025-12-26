@@ -12,6 +12,19 @@ const modelsStore = useModelsStore()
 const demoControlStore = useDemoControlStore()
 const { isCESMode } = useCESMode()
 
+// Helper functions for formatting inference metrics
+function formatTtft(ms: number): string {
+  if (!ms || ms === 0) return '<1s'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function formatLatency(ms: number): string {
+  if (!ms || ms === 0) return '<1s'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
 // Enhanced GPU utilization when model is warming/running
 const enhancedGpuUtilization = computed(() => {
   if (demoControlStore.isWarming) {
@@ -533,11 +546,11 @@ onUnmounted(() => {
         <div class="live-metrics-grid">
           <div class="live-metric">
             <span class="live-metric-label">Tokens/sec</span>
-            <span class="live-metric-value">{{ demoControlStore.liveMetrics.tokensPerSec || aiOutcomes.tokensPerSec }}</span>
+            <span class="live-metric-value">{{ demoControlStore.liveMetrics.tokensPerSec > 0 ? demoControlStore.liveMetrics.tokensPerSec : aiOutcomes.tokensPerSec }}</span>
           </div>
           <div class="live-metric">
             <span class="live-metric-label">Time to first token</span>
-            <span class="live-metric-value">{{ demoControlStore.liveMetrics.timeToFirstToken || '<1s' }}</span>
+            <span class="live-metric-value">{{ formatTtft(demoControlStore.liveMetrics.timeToFirstToken) }}</span>
           </div>
           <div class="live-metric">
             <span class="live-metric-label">Active model</span>
@@ -549,7 +562,7 @@ onUnmounted(() => {
           </div>
           <div class="live-metric">
             <span class="live-metric-label">Latency (local)</span>
-            <span class="live-metric-value">{{ demoControlStore.liveMetrics.latency || '<1s' }}</span>
+            <span class="live-metric-value">{{ formatLatency(demoControlStore.liveMetrics.latency) }}</span>
           </div>
         </div>
         <!-- Annotation for why GPU spiked -->

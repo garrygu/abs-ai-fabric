@@ -84,8 +84,9 @@ class DocumentProcessingService:
             doc = fitz.open(file_path)
             text_content = ""
             page_texts = []
+            page_count = doc.page_count  # Save page count before closing
             
-            for page_num in range(doc.page_count):
+            for page_num in range(page_count):
                 page = doc[page_num]
                 page_text = page.get_text()
                 text_content += page_text + "\n"
@@ -99,7 +100,7 @@ class DocumentProcessingService:
             
             return {
                 "text": text_content.strip(),
-                "page_count": doc.page_count,
+                "page_count": page_count,
                 "page_texts": page_texts,
                 "word_count": len(text_content.split()),
                 "character_count": len(text_content),
