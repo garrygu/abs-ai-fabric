@@ -578,6 +578,10 @@
         <h2>🧠 Model Management</h2>
       </div>
 
+      <div v-if="!modelsGatewayReachable" class="gateway-unreachable-banner">
+        ⚠️ Gateway unreachable (localhost:8081). Start core (e.g. <code>core\start-core.ps1</code>) to list installed models and pull new ones. Showing registry models only.
+      </div>
+
       <div class="models-grid">
         <div 
           v-for="model in models" 
@@ -602,9 +606,9 @@
             <!-- Status Badge -->
             <span 
               class="model-status-badge" 
-              :class="model.installed ? 'status-installed' : 'status-available'"
+              :class="model.running ? 'status-running' : (model.installed ? 'status-installed' : 'status-available')"
             >
-              {{ model.installed ? '✅ INSTALLED' : '📦 AVAILABLE' }}
+              {{ model.running ? '✅ RUNNING' : (model.installed ? '✅ INSTALLED' : '📦 AVAILABLE TO PULL') }}
             </span>
             
             <!-- Type Badge -->
@@ -638,21 +642,22 @@
             </span>
           </div>
           
-          <!-- Conditional Actions -->
+          <!-- Conditional Actions (aligned across all cards) -->
           <div class="model-actions">
-            <!-- For installed: Load & Delete -->
+            <!-- For installed: Load/Unload & Delete -->
             <template v-if="model.installed">
               <button 
                 class="btn btn-sm" 
-                @click="loadModel(model)"
-                :disabled="loadingModels[model.name] || deletingModels[model.name]"
+                :class="{ 'btn-primary': model.running }"
+                @click="model.running ? unloadModel(model) : loadModel(model)"
+                :disabled="loadingModels[model.name] || unloadingModels[model.name] || deletingModels[model.name]"
               >
-                {{ loadingModels[model.name] ? 'Loading...' : '📥 Load' }}
+                {{ loadingModels[model.name] ? 'Loading...' : (unloadingModels[model.name] ? 'Unloading...' : (model.running ? '📤 Unload' : '📥 Load')) }}
               </button>
               <button 
                 class="btn btn-sm btn-danger" 
                 @click="deleteModel(model)"
-                :disabled="loadingModels[model.name] || deletingModels[model.name] || !canDelete"
+                :disabled="loadingModels[model.name] || unloadingModels[model.name] || deletingModels[model.name] || !canDelete"
                 :title="!canDelete ? 'Disabled in CES demo mode' : 'Delete model'"
               >
                 {{ deletingModels[model.name] ? 'Deleting...' : '🗑️ Delete' }}
@@ -661,8 +666,17 @@
             
             <!-- For available: Pull -->
             <template v-else>
+              <div v-if="pullingModels[model.name]" class="pull-progress">
+                <div class="pull-progress-status">{{ pullProgress[model.name]?.status || 'Pulling...' }}</div>
+                <div v-if="pullProgress[model.name]?.total != null && pullProgress[model.name]?.total > 0" class="pull-progress-bar-wrap">
+                  <div 
+                    class="pull-progress-bar" 
+                    :style="{ width: Math.min(100, ((pullProgress[model.name]?.completed ?? 0) / (pullProgress[model.name]?.total ?? 1)) * 100) + '%' }"
+                  />
+                </div>
+              </div>
               <button 
-                class="btn btn-sm btn-primary btn-block" 
+                class="btn btn-sm btn-primary model-action-pull" 
                 @click="pullModelDirect(model.name)"
                 :disabled="pullingModels[model.name]"
               >
@@ -1020,8 +1034,10 @@ const showPullModal = ref(false)
 const pullModelName = ref('')
 const pulling = ref(false)
 const loadingModels = reactive<Record<string, boolean>>({})
+const unloadingModels = reactive<Record<string, boolean>>({})
 const deletingModels = reactive<Record<string, boolean>>({})
 const pullingModels = reactive<Record<string, boolean>>({})
+const pullProgress = reactive<Record<string, { status?: string; completed?: number; total?: number }>>({})
 
 // Clear Cache Modal
 const showClearCacheModal = ref(false)
@@ -1603,58 +1619,68 @@ onUnmounted(() => {
   }
 })
 
-// Models
+// Models – gateway reachable so we can show a banner when it's down
+const modelsGatewayReachable = ref(true)
+
 async function loadModels() {
+  let ollamaModels: any[] = []
   try {
-    // Get Ollama models (what's installed)
     const data = await gateway.listModels()
-    const ollamaModels = data.models || []
-    
-    // Get asset registry (what's available)
-    await assetStore.fetchAssets() // Ensure assets are loaded
+    ollamaModels = data.models || []
+    modelsGatewayReachable.value = true
+  } catch (e) {
+    console.warn('Gateway unreachable, showing registry models only:', e)
+    modelsGatewayReachable.value = false
+  }
+
+  try {
+    // Get asset registry (what's available) – works from assets API or cached
+    await assetStore.fetchAssets().catch(() => {}) // May fail if gateway down
     const allAssets = assetStore.filteredAssets
-    
-    // Filter to only model assets
     const modelAssets = allAssets.filter((a: any) => a.class === 'model')
-    
-    // Build merged list
+
     const mergedModels: any[] = []
-    
-    // Track which models we've already added (to avoid duplicates)
     const addedModels = new Set<string>()
-    
-    // 1. Add installed models (from Ollama) with enrichment  
+
+    // 1. Add installed models (from Ollama) when gateway responded; include running state (synced with Assets page)
     for (const ollamaModel of ollamaModels) {
       const enriched = enrichModelWithInterfaceType(ollamaModel, modelAssets)
       enriched.installed = true
+      enriched.running = !!ollamaModel.running
       enriched.size = ollamaModel.size
       enriched.modified_at = ollamaModel.modified_at
       enriched.details = ollamaModel.details
       mergedModels.push(enriched)
       addedModels.add(ollamaModel.name.toLowerCase())
     }
-    
-    // 2. Add available models from registry
+
+    // 2. Add available models from registry (always show these so list isn't empty when gateway is down)
     for (const asset of modelAssets) {
       const servedModels = asset.policy?.served_models || []
-      for (const modelName of servedModels) {
-        if (!addedModels.has(modelName.toLowerCase())) {
+      const namesToAdd = servedModels.length > 0 ? servedModels : [asset.id]
+      for (const modelName of namesToAdd) {
+        const name = typeof modelName === 'string' ? modelName : asset.id
+        const key = name.toLowerCase()
+        if (!addedModels.has(key)) {
           mergedModels.push({
-            name: modelName,
+            name,
             interfaceType: asset.interface,
             assetName: asset.name,
             assetId: asset.id,
             installed: false,
             displayName: asset.display_name,
             description: asset.description,
-            metadata: asset.metadata  // Include technical specs
+            metadata: asset.metadata
           })
-          addedModels.add(modelName.toLowerCase())
+          addedModels.add(key)
         }
       }
     }
-    
+
     models.value = mergedModels
+    if (!modelsGatewayReachable.value && mergedModels.length > 0) {
+      showToast('Gateway unreachable — showing models from registry. Start core (e.g. start-core.ps1) to pull models.', 'warning')
+    }
   } catch (e) {
     console.error('Failed to load models:', e)
     showToast(`❌ Failed to load models: ${e}`, 'error')
@@ -1683,9 +1709,21 @@ async function pullModel() {
 
 async function pullModelDirect(modelName: string) {
   pullingModels[modelName] = true
+  pullProgress[modelName] = {}
   try {
-    const result = await gateway.pullModel(modelName)
-    showToast(`✅ ${result.message}`, 'success')
+    await gateway.pullModelWithProgress(modelName, (event) => {
+      if (event.error) {
+        pullProgress[modelName] = { status: event.error }
+        return
+      }
+      pullProgress[modelName] = {
+        status: event.status,
+        completed: event.completed,
+        total: event.total
+      }
+    })
+    showToast(`✅ Model ${modelName} pulled successfully`, 'success')
+    pullProgress[modelName] = {}
     // Wait a moment for Ollama to register the model before refreshing
     await new Promise(resolve => setTimeout(resolve, 1000))
     await loadModels() // Refresh to show as installed
@@ -1693,6 +1731,7 @@ async function pullModelDirect(modelName: string) {
     showToast(`❌ Failed to pull model: ${e.message || e}`, 'error')
   } finally {
     pullingModels[modelName] = false
+    pullProgress[modelName] = {}
   }
 }
 
@@ -1701,12 +1740,24 @@ async function loadModel(model: any) {
   try {
     const result = await gateway.loadModel(model.name)
     showToast(`✅ ${result.message}`, 'success')
-    // Refresh models to update status
     await loadModels()
   } catch (e: any) {
     showToast(`❌ Failed to load model: ${e.message || e}`, 'error')
   } finally {
     loadingModels[model.name] = false
+  }
+}
+
+async function unloadModel(model: any) {
+  unloadingModels[model.name] = true
+  try {
+    const result = await gateway.unloadModel(model.name)
+    showToast(`✅ ${result.message}`, 'success')
+    await loadModels()
+  } catch (e: any) {
+    showToast(`❌ Failed to unload model: ${e.message || e}`, 'error')
+  } finally {
+    unloadingModels[model.name] = false
   }
 }
 
@@ -2579,6 +2630,8 @@ function formatLogTime(date: Date): string {
 }
 
 .model-card {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-tertiary);
   border-radius: 10px;
   padding: 1.25rem;
@@ -2617,8 +2670,27 @@ function formatLogTime(date: Date): string {
 }
 
 .model-actions {
+  margin-top: auto;
+  min-height: 44px;
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.model-actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-action-pull {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-actions .pull-progress {
+  width: 100%;
+  margin-bottom: 0.25rem;
 }
 
 /* Logs */
@@ -3163,6 +3235,12 @@ input:checked + .slider:before {
   letter-spacing: 0.5px;
 }
 
+.model-status-badge.status-running {
+  background: rgba(34, 197, 94, 0.2);
+  color: rgb(34, 197, 94);
+  font-weight: 600;
+}
+
 .model-status-badge.status-installed {
   background: rgba(34, 197, 94, 0.1);
   color: rgb(34, 197, 94);
@@ -3177,6 +3255,43 @@ input:checked + .slider:before {
 
 .btn-block {
   width: 100%;
+}
+
+.pull-progress {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.pull-progress-status {
+  margin-bottom: 0.25rem;
+}
+.pull-progress-bar-wrap {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.pull-progress-bar {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.gateway-unreachable-banner {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+.gateway-unreachable-banner code {
+  font-size: 0.85em;
+  padding: 0.1rem 0.35rem;
+  background: var(--bg-secondary);
+  border-radius: 4px;
 }
 
 .model-description {
@@ -3232,12 +3347,27 @@ input:checked + .slider:before {
 }
 
 .model-actions {
+  margin-top: auto;
+  min-height: 44px;
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .model-actions .btn {
   flex: 1;
+  min-width: 0;
+}
+
+.model-action-pull {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-actions .pull-progress {
+  width: 100%;
+  margin-bottom: 0.25rem;
 }
 
 .empty-state {

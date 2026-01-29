@@ -1,4 +1,6 @@
-cd C:\ABS\core
+# Run from repo root (.\core\stop-core.ps1) or from core (.\stop-core.ps1)
+$CoreDir = $PSScriptRoot
+Set-Location $CoreDir
 
 # Stop GPU Metrics Server if running
 Write-Host "Stopping GPU Metrics Server..."
@@ -12,13 +14,21 @@ if ($gpuJob) {
 }
 
 # Also kill any orphaned python processes running the metrics server
-$gpuProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | 
-    Where-Object { $_.CommandLine -like "*gpu_metrics_server*" }
-if ($gpuProcess) {
-    $gpuProcess | Stop-Process -Force
-    Write-Host "Killed orphaned GPU metrics server process."
-}
+#$gpuProcess = Get-Process -Name "python" -ErrorAction SilentlyContinue | 
+#   Where-Object { $_.CommandLine -like "*gpu_metrics_server*" }
+#if ($gpuProcess) {
+#    $gpuProcess | Stop-Process -Force
+#    Write-Host "Killed orphaned GPU metrics server process."
+#}
+
+# If you started GPU metrics manually in another terminal, close that window or run:
+#   Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq '' } | Stop-Process -Force
 
 Write-Host "`nStopping Docker services..."
-docker compose -f docker-compose.yml --env-file .env down
+$envFile = Join-Path $CoreDir ".env"
+if (Test-Path $envFile) {
+    docker compose -f docker-compose.yml --env-file .env down
+} else {
+    docker compose -f docker-compose.yml down
+}
 Write-Host "ABS Core stopped."

@@ -11,18 +11,14 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Create shared data directory
-echo 📁 Creating shared data directory...
-if not exist "C:\abs-shared-data\postgres" mkdir "C:\abs-shared-data\postgres"
-
-REM Create ABS network if it doesn't exist
+REM Create ABS network if it doesn't exist (use same name as .env ABS_NETWORK, e.g. abs-net)
 echo 🌐 Creating ABS network...
-docker network create abs-network >nul 2>&1 || echo Network abs-network already exists
+docker network create abs-net >nul 2>&1 || echo Network abs-net already exists
 
-REM Start PostgreSQL container
+REM Start PostgreSQL container (from core/ where docker-compose.yml lives)
 echo 🐘 Starting PostgreSQL container...
 cd /d "%~dp0\.."
-docker-compose -f core.yml up -d postgresql
+docker compose -f docker-compose.yml up -d postgresql
 
 REM Wait for PostgreSQL to be ready
 echo ⏳ Waiting for PostgreSQL to be ready...

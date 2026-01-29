@@ -129,6 +129,29 @@ Edit `c:\ABS\core\gateway\registry.json`:
 - **Provider Mappings**: How each provider identifies the model
 - **Consistent Naming**: Use descriptive, version-specific names
 
+### 2.1 Model status verification (pulled vs not) and pull flow
+
+**How “pulled” is verified**
+
+- **Source of truth:** Ollama’s `GET /api/tags` lists only models that are **pulled** (downloaded) on the host.
+- **Gateway:** The Hub Gateway exposes this via:
+  - `GET /v1/models` — returns each model with `status`: `"running"` (loaded in memory), `"available"` (pulled, in api/tags), or `"unavailable"` (in catalog/registry but not in api/tags).
+  - `GET /v1/admin/models/list` — returns the raw Ollama `api/tags` list (pulled models only).
+- **Admin > Models:** The Admin Models page uses `/v1/admin/models/list` and the catalog to show “INSTALLED” (pulled) vs “AVAILABLE TO PULL” (in catalog but not pulled).
+
+**How pull is triggered**
+
+- **Admin > Models:** Use “Pull” on a model that is “AVAILABLE TO PULL”. The gateway calls Ollama `POST /api/pull` (or `POST /v1/admin/models/pull` / `POST /v1/admin/models/pull/stream` for streaming progress).
+- **Live Playground:** Selecting a model does **not** trigger a pull. It calls the **load** endpoint (`POST /v1/admin/models/{model}/load`), which asks Ollama to load the model into memory. If the model is **not** pulled, Ollama returns an error and the gateway returns a non-2xx response. The Workstation Console then shows: *“Model not installed. Pull it from Admin > Models first.”* and does not show “Ready” until the model is actually loaded.
+
+**Summary**
+
+| Action | Verification | If not pulled |
+|--------|---------------|----------------|
+| List models | Gateway merges `api/tags` (pulled) with catalog/registry | Model appears as “unavailable” or “AVAILABLE TO PULL” |
+| Load model (Live Playground) | Gateway calls Ollama load/generate | Load fails; UI shows “Model not installed. Pull from Admin > Models first.” |
+| Pull model | Admin > Models > Pull → gateway `POST /api/pull` | User must pull from Admin; no auto-pull from Live Playground |
+
 ### 3. Update Asset Catalog
 
 Edit `c:\ABS\core\gateway\catalog.json` to add the model to specific apps:

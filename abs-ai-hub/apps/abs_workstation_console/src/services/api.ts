@@ -508,8 +508,35 @@ export async function unloadModel(modelId: string | null): Promise<void> {
     }
 }
 
-// Request/load a model into memory
-export async function requestModel(modelId: string | null): Promise<void> {
+// Pull status from gateway (for syncing Live Playground when Admin is pulling a model)
+export interface PullStatus {
+    in_progress: boolean
+    model: string | null
+    started_at: string | null
+}
+
+export async function getPullStatus(): Promise<PullStatus> {
+    try {
+        const response = await fetch(`${GATEWAY_URL}/v1/admin/models/pull/status`, {
+            headers: { 'Accept': 'application/json' }
+        })
+        if (!response.ok) return { in_progress: false, model: null, started_at: null }
+        const data = await response.json()
+        return {
+            in_progress: !!data.in_progress,
+            model: data.model ?? null,
+            started_at: data.started_at ?? null
+        }
+    } catch {
+        return { in_progress: false, model: null, started_at: null }
+    }
+}
+
+// Result of requestModel: ok and optional status for error handling (504 = timeout, 404 = not found)
+export type RequestModelResult = { ok: true } | { ok: false; status?: number }
+
+// Request/load a model into memory. Returns { ok: true } or { ok: false, status } so UI can show timeout vs not-installed.
+export async function requestModel(modelId: string | null): Promise<RequestModelResult> {
     try {
         const gatewayModel = mapModelIdToGatewayModel(modelId)
 
@@ -519,10 +546,7 @@ export async function requestModel(modelId: string | null): Promise<void> {
 
         console.log('[API] Requesting model load:', gatewayModel)
 
-        // URL encode the model name (handles colons and special characters)
         const encodedModelName = encodeURIComponent(gatewayModel)
-
-        // Call the model load endpoint to pre-load the model into VRAM
         const response = await fetch(`${GATEWAY_URL}/v1/admin/models/${encodedModelName}/load`, {
             method: 'POST',
             headers: {
@@ -534,17 +558,15 @@ export async function requestModel(modelId: string | null): Promise<void> {
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Model load failed: ${response.status}`, errorText)
-            // Don't throw - model might already be loaded, or will load on first use
-            console.log('[API] Model may already be loaded or will load on first use')
-        } else {
-            const data = await response.json()
-            console.log('[API] Model load success:', data)
+            return { ok: false, status: response.status }
         }
+        const data = await response.json()
+        console.log('[API] Model load success:', data)
+        return { ok: true }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('[API] Model load error:', errorMessage)
-        // Don't throw - model will be loaded on first chat completion request anyway
-        console.log('[API] Model will be loaded automatically on first use')
+        return { ok: false }
     }
 }
 

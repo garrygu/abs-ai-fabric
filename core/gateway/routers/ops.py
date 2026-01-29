@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
+import json
 import time
 import psutil
 import asyncio
@@ -22,6 +24,10 @@ from services.docker_service import docker_service
 from config import AUTO_WAKE_SETTINGS, SERVICE_DEPENDENCIES, SERVICE_STARTUP_ORDER, CONTAINER_MAP, MODEL_REGISTRY, OLLAMA_BASE
 
 router = APIRouter()
+
+# Active pull state for sync with Live Playground (and other UIs)
+_pull_state: dict = {"model": None, "started_at": None}
+_pull_lock = asyncio.Lock()
 
 # Pydantic Models
 class KeepWarmRequest(BaseModel):
@@ -68,20 +74,38 @@ async def get_admin_models():
 
 @router.get("/v1/admin/models/list")
 async def list_ollama_models():
-    """List all models from Ollama with detailed information."""
+    """List all models from Ollama with detailed information and running state (synced with Assets page)."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
+            # Get running models from api/ps (loaded in memory)
+            running = set()
+            try:
+                r = await client.get(f"{OLLAMA_BASE.rstrip('/')}/api/ps")
+                if r.status_code == 200:
+                    for m in r.json().get("models", []):
+                        n = m.get("name")
+                        if n:
+                            running.add(n)
+                            if n.endswith(":latest"):
+                                running.add(n[:-7])
+                            else:
+                                running.add(f"{n}:latest")
+            except Exception:
+                pass
+
             response = await client.get(f"{OLLAMA_BASE.rstrip('/')}/api/tags")
             if response.status_code == 200:
                 data = response.json()
                 models = data.get("models", [])
-                # Format models with additional details
                 formatted_models = []
                 for model in models:
+                    name = model.get("name", "")
+                    is_running = name in running or (name.endswith(":latest") and name[:-7] in running) or (f"{name}:latest" in running)
                     formatted_models.append({
-                        "name": model.get("name", ""),
+                        "name": name,
                         "size": model.get("size", 0),
                         "modified_at": model.get("modified_at", ""),
+                        "running": is_running,
                         "details": {
                             "parameter_size": model.get("details", {}).get("parameter_size", ""),
                             "quantization_level": model.get("details", {}).get("quantization_level", ""),
@@ -96,13 +120,28 @@ async def list_ollama_models():
     except Exception as e:
         raise HTTPException(500, f"Failed to list models: {str(e)}")
 
+@router.get("/v1/admin/models/pull/status")
+async def get_pull_status():
+    """Return current pull-in-progress state so UIs (e.g. Live Playground) can sync status."""
+    async with _pull_lock:
+        return {
+            "in_progress": _pull_state["model"] is not None,
+            "model": _pull_state["model"],
+            "started_at": _pull_state["started_at"],
+        }
+
+
 @router.post("/v1/admin/models/pull")
 async def pull_model(request: dict):
     """Pull a model from Ollama."""
     model_name = request.get("name")
     if not model_name:
         raise HTTPException(400, "Model name is required")
-    
+
+    async with _pull_lock:
+        _pull_state["model"] = model_name
+        _pull_state["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:  # Long timeout for large models
             response = await client.post(
@@ -121,12 +160,56 @@ async def pull_model(request: dict):
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to pull model: {str(e)}")
+    finally:
+        async with _pull_lock:
+            if _pull_state["model"] == model_name:
+                _pull_state["model"] = None
+                _pull_state["started_at"] = None
+
+
+async def _stream_pull_from_ollama(model_name: str):
+    """Stream Ollama pull progress (NDJSON) to the client."""
+    async with _pull_lock:
+        _pull_state["model"] = model_name
+        _pull_state["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    try:
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            async with client.stream(
+                "POST",
+                f"{OLLAMA_BASE.rstrip('/')}/api/pull",
+                json={"name": model_name, "stream": True},
+            ) as response:
+                if response.status_code != 200:
+                    yield json.dumps({"status": "error", "error": response.text or f"HTTP {response.status_code}"}) + "\n"
+                    return
+                async for line in response.aiter_lines():
+                    if line:
+                        yield line + "\n"
+    finally:
+        async with _pull_lock:
+            if _pull_state["model"] == model_name:
+                _pull_state["model"] = None
+                _pull_state["started_at"] = None
+
+
+@router.post("/v1/admin/models/pull/stream")
+async def pull_model_stream(request: dict):
+    """Pull a model from Ollama and stream progress (NDJSON: status, completed, total, etc.)."""
+    model_name = request.get("name")
+    if not model_name:
+        raise HTTPException(400, "Model name is required")
+    return StreamingResponse(
+        _stream_pull_from_ollama(model_name),
+        media_type="application/x-ndjson",
+    )
+
 
 @router.post("/v1/admin/models/{model_name}/load")
 async def load_model(model_name: str):
-    """Load a model into Ollama memory."""
+    """Load a model into Ollama memory. Uses long timeout for large models (70B+ can take several minutes)."""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:  # 5 min for 70B+ load into VRAM
             # Use generate endpoint with keep_alive to load model
             response = await client.post(
                 f"{OLLAMA_BASE.rstrip('/')}/api/generate",
@@ -154,7 +237,7 @@ async def load_model(model_name: str):
                 error_text = response.text
                 raise HTTPException(response.status_code, f"Failed to load model: {error_text}")
     except httpx.TimeoutException:
-        raise HTTPException(504, "Timeout loading model")
+        raise HTTPException(504, "Timeout loading model (large models can take several minutes)")
     except HTTPException:
         raise
     except Exception as e:

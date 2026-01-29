@@ -345,6 +345,69 @@ class GatewayService {
         return response.json()
     }
 
+    /**
+     * Pull a model with streaming progress (NDJSON). onProgress receives { status?, completed?, total?, error? }.
+     * If the stream endpoint returns 404 (old gateway), falls back to non-streaming pull so Pull still works.
+     */
+    async pullModelWithProgress(
+        modelName: string,
+        onProgress: (event: { status?: string; completed?: number; total?: number; error?: string; done?: boolean }) => void
+    ): Promise<void> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/pull/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: modelName })
+        })
+        if (response.status === 404) {
+            // Old gateway without /pull/stream — use non-streaming pull so Pull still works
+            onProgress({ status: 'Pulling (no progress stream)...' })
+            const result = await this.pullModel(modelName)
+            onProgress({ status: result.message || 'Done', done: true })
+            return
+        }
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: response.statusText }))
+            onProgress({ error: err.detail || 'Failed to start pull' })
+            throw new Error(err.detail || 'Failed to pull model')
+        }
+        const reader = response.body?.getReader()
+        if (!reader) {
+            onProgress({ error: 'No response body' })
+            throw new Error('No response body')
+        }
+        const decoder = new TextDecoder()
+        let buffer = ''
+        try {
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() ?? ''
+                for (const line of lines) {
+                    if (!line.trim()) continue
+                    try {
+                        const data = JSON.parse(line)
+                        if (data.error) {
+                            onProgress({ error: data.error })
+                            throw new Error(data.error)
+                        }
+                        onProgress({
+                            status: data.status,
+                            completed: data.completed,
+                            total: data.total,
+                            done: data.status === 'success'
+                        })
+                    } catch (e) {
+                        if (e instanceof Error && e.message !== line) throw e
+                    }
+                }
+            }
+        } finally {
+            reader.releaseLock()
+        }
+    }
+
     async loadModel(modelName: string): Promise<{ status: string, message: string }> {
         const response = await fetch(`${this.baseUrl}/v1/admin/models/${encodeURIComponent(modelName)}/load`, {
             method: 'POST',
@@ -353,6 +416,18 @@ class GatewayService {
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: response.statusText }))
             throw new Error(error.detail || 'Failed to load model')
+        }
+        return response.json()
+    }
+
+    async unloadModel(modelName: string): Promise<{ status: string, message: string }> {
+        const response = await fetch(`${this.baseUrl}/v1/admin/models/${encodeURIComponent(modelName)}/unload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }))
+            throw new Error(error.detail || 'Failed to unload model')
         }
         return response.json()
     }

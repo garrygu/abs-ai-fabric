@@ -363,7 +363,6 @@ class AssetManager:
                 BINDINGS_PATH,
                 os.path.join(os.getcwd(), "..", "bindings.yaml"),
                 "/app/bindings.yaml",
-                "C:/ABS/core/bindings.yaml"  # Dev fallback
             ]
             
             for path in paths_to_try:
@@ -391,7 +390,6 @@ class AssetManager:
             registry_paths = [
                 REGISTRY_PATH,
                 os.path.join(os.getcwd(), "..", "..", "..", "assets", "registry", "assets.json"),
-                "C:/ABS/assets/registry/assets.json"  # Dev fallback
             ]
             
             for reg_path in registry_paths:

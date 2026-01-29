@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { sendChatCompletionWithMetrics, requestModel, warmupModel, type InferenceMetrics } from '@/services/api'
+import { sendChatCompletionWithMetrics, requestModel, warmupModel, getPullStatus, type InferenceMetrics } from '@/services/api'
 import { useModelsStore } from './modelsStore'
 
 export type ModelStatus = 'idle' | 'warming' | 'running' | 'cooling'
@@ -29,6 +29,13 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   const loadingDurationTimer = ref<ReturnType<typeof setTimeout> | null>(null)
   const loadingDurationDisplayTime = 5000 // 5 seconds
 
+  // Load error when model is not pulled (gateway load returns 404/error)
+  const loadError = ref<string | null>(null)
+
+  // Model currently being pulled via gateway (Admin > Models) — sync from GET /v1/admin/models/pull/status
+  const pullingModel = ref<ActiveModel | null>(null)
+  let pullStatusPollTimer: ReturnType<typeof setInterval> | null = null
+
   // Live inference metrics
   const liveMetrics = ref({
     tokensPerSec: 0,
@@ -45,6 +52,33 @@ export const useDemoControlStore = defineStore('demoControl', () => {
   const isProcessing = ref(false) // Track if model is processing a prompt
   const currentDocument = ref<string | null>(null) // Store current document for summarization
   const isKioskOpen = ref(false) // Track if the "Try It Yourself" kiosk is open
+
+  function gatewayModelToDemoId(name: string | null): ActiveModel | null {
+    if (!name) return null
+    const n = name.toLowerCase()
+    if (n.includes('deepseek') && (n.includes('70b') || n.includes('r1'))) return 'deepseek-r1-70b'
+    if (n.includes('llama') && n.includes('70b')) return 'llama3-70b'
+    return null
+  }
+
+  function startPullStatusPolling() {
+    if (pullStatusPollTimer) return
+    const poll = async () => {
+      const status = await getPullStatus()
+      const demoId = status.in_progress && status.model ? gatewayModelToDemoId(status.model) : null
+      pullingModel.value = demoId
+    }
+    poll()
+    pullStatusPollTimer = setInterval(poll, 3000)
+  }
+
+  function stopPullStatusPolling() {
+    if (pullStatusPollTimer) {
+      clearInterval(pullStatusPollTimer)
+      pullStatusPollTimer = null
+    }
+    pullingModel.value = null
+  }
 
   const isActive = computed(() => activeModel.value !== null && modelStatus.value !== 'idle')
   const isWarming = computed(() => modelStatus.value === 'warming')
@@ -182,6 +216,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
 
     activeModel.value = model
     modelStatus.value = 'warming'
+    loadError.value = null
     loadingProgress.value = 0
     loadingStage.value = 'Requesting model...'
     loadingStartTime.value = Date.now()
@@ -225,48 +260,57 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     }, 200) // Update every 200ms for smooth display
 
     try {
-      // Actually request/load the model via API
+      let loadOk = false
+      let loadFailureStatus: number | undefined
       if (model === 'dual') {
-        // For dual mode, load both models in parallel
         loadingStage.value = 'Loading dual 70B models...'
-        // Progress will be updated by timer based on elapsed time
-        await Promise.all([
+        const [r1, r2] = await Promise.all([
           requestModel('deepseek-r1-70b'),
           requestModel('llama3-70b')
         ])
-
-        // Warmup inference to force models into VRAM
-        loadingStage.value = 'Warming up models...'
-        // Progress will be updated by timer based on elapsed time
-        await Promise.all([
-          warmupModel('deepseek-r1-70b'),
-          warmupModel('llama3-70b')
-        ])
+        loadOk = r1.ok && r2.ok
+        if (!r1.ok) loadFailureStatus = r1.status
+        else if (!r2.ok) loadFailureStatus = r2.status
+        if (loadOk) {
+          loadingStage.value = 'Warming up models...'
+          await Promise.all([
+            warmupModel('deepseek-r1-70b'),
+            warmupModel('llama3-70b')
+          ])
+        }
       } else {
-        // Single model
         loadingStage.value = 'Loading model...'
-        // Progress will be updated by timer based on elapsed time
-        await requestModel(model)
-
-        // Warmup inference to force model into VRAM
-        loadingStage.value = 'Warming up model...'
-        // Progress will be updated by timer based on elapsed time
-        await warmupModel(model)
+        const result = await requestModel(model)
+        loadOk = result.ok
+        if (!result.ok) loadFailureStatus = result.status
+        if (loadOk) {
+          loadingStage.value = 'Warming up model...'
+          await warmupModel(model)
+        }
       }
 
-      // Update progress to show model is ready
+      if (!loadOk) {
+        loadError.value = loadFailureStatus === 504
+          ? 'Load timed out. Large models take several minutes; try again in a minute.'
+          : 'Model not installed. Pull it from Admin > Models first.'
+        modelStatus.value = 'idle'
+        activeModel.value = null
+        loadingProgress.value = 0
+        loadingStage.value = ''
+        if (loadingElapsedTimer) {
+          clearInterval(loadingElapsedTimer)
+          loadingElapsedTimer = null
+        }
+        return
+      }
+
       loadingProgress.value = 100
       loadingStage.value = 'Ready'
-
-      // Small delay to show "Ready" state
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      // Calculate loading duration
       if (loadingStartTime.value) {
-        const elapsed = (Date.now() - loadingStartTime.value) / 1000 // Convert to seconds
-        loadingDuration.value = Math.round(elapsed * 10) / 10 // Round to 1 decimal place
-
-        // Auto-hide loading duration after display time
+        const elapsed = (Date.now() - loadingStartTime.value) / 1000
+        loadingDuration.value = Math.round(elapsed * 10) / 10
         if (loadingDurationTimer.value) {
           clearTimeout(loadingDurationTimer.value)
         }
@@ -276,56 +320,34 @@ export const useDemoControlStore = defineStore('demoControl', () => {
         }, loadingDurationDisplayTime)
       }
 
-      // Mark as running
       modelStatus.value = 'running'
       loadingStage.value = ''
-
-      // Stop elapsed time timer
       if (loadingElapsedTimer) {
         clearInterval(loadingElapsedTimer)
         loadingElapsedTimer = null
       }
 
-      // Refresh models store to pick up updated lifecycle state from Gateway
-      // This ensures the assets page and models page show the correct status
       setTimeout(() => {
         modelsStore.fetchModels().catch(err => {
           console.warn('[DemoControl] Failed to refresh models after activation:', err)
         })
-      }, 1000) // Small delay to allow Gateway to update lifecycle state
-
-      // Session timer disabled - user can manually deactivate or wait for auto-sleep
-      // startSessionTimer()
-
-      // Don't start auto-sleep timer immediately - wait until kiosk is closed
+      }, 1000)
     } catch (error) {
       console.error('[DemoControl] Error activating model:', error)
-      // Even if load fails, mark as running - model will load on first use
-      modelStatus.value = 'running'
+      loadError.value = 'Failed to load model. Pull it from Admin > Models if not installed.'
+      modelStatus.value = 'idle'
+      activeModel.value = null
+      loadingProgress.value = 0
       loadingStage.value = ''
-      loadingProgress.value = 100
-
-      if (loadingStartTime.value) {
-        const elapsed = (Date.now() - loadingStartTime.value) / 1000
-        loadingDuration.value = Math.round(elapsed * 10) / 10
-      }
-
-      // Stop elapsed time timer
       if (loadingElapsedTimer) {
         clearInterval(loadingElapsedTimer)
         loadingElapsedTimer = null
       }
-
-      // Refresh models store to pick up updated lifecycle state
       setTimeout(() => {
         modelsStore.fetchModels().catch(err => {
           console.warn('[DemoControl] Failed to refresh models after activation (error case):', err)
         })
       }, 1000)
-
-      // Session timer disabled - user can manually deactivate or wait for auto-sleep
-      // startSessionTimer()
-      // Don't start auto-sleep timer immediately - wait until kiosk is closed
     }
   }
 
@@ -388,6 +410,7 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     // Clear UI state
     activeModel.value = null
     modelStatus.value = 'idle'
+    loadError.value = null
     loadingProgress.value = 0
     loadingStage.value = ''
     loadingStartTime.value = null
@@ -725,6 +748,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     // State
     activeModel,
     modelStatus,
+    loadError,
+    pullingModel,
     pendingRequest,
     loadingProgress,
     loadingStage,
@@ -757,6 +782,8 @@ export const useDemoControlStore = defineStore('demoControl', () => {
     clearSession,
     deactivateModelManually,
     setKioskOpen,
+    startPullStatusPolling,
+    stopPullStatusPolling,
     startAutoSleepTimer,
     startSessionTimer,
     stopSessionTimer,

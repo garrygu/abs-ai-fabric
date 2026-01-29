@@ -93,10 +93,9 @@ const activeIntelligenceCards = computed(() => {
   
   // Add asset state card - reactive based on workload state (only when no active workloads shown)
   const readyModels = modelsStore.readyModels
-  
-  // Check demoControlStore state for warming/running status
-  if (demoControlStore.isWarming && cards.length === 0) {
-    // Model is warming up
+
+  // Always prefer warming state when model is loading – never show "Models Ready" / "loaded" until actually ready
+  if (demoControlStore.isWarming && demoControlStore.activeModel) {
     let modelName = 'Model'
     if (demoControlStore.activeModel === 'deepseek-r1-70b') {
       modelName = 'DeepSeek R1 70B'
@@ -105,6 +104,8 @@ const activeIntelligenceCards = computed(() => {
     } else if (demoControlStore.activeModel === 'dual') {
       modelName = 'Dual 70B Models'
     }
+    // Replace any existing cards so we never show "Ready" while warming
+    cards.length = 0
     cards.push({
       icon: '⚡',
       title: `${modelName} Warming`,

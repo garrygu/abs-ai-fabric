@@ -296,7 +296,9 @@ onMounted(() => {
   
   // Check for already-loaded models on mount
   demoControl.checkLoadedModels()
-  
+  // Sync pull status when Admin is pulling a model (via gateway)
+  demoControl.startPullStatusPolling()
+
   // Calculate initial position from bottom-right if not saved
   if (panelPosition.value.x === 0 && panelPosition.value.y === 0) {
     nextTick(() => {
@@ -319,6 +321,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  demoControl.stopPullStatusPolling()
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', handleMouseUp)
   window.removeEventListener('touchmove', handleTouchMove)
@@ -547,12 +550,12 @@ function getGpuMetricStyle(utilization: number) {
     <template v-if="panelState === 'compact'">
       <!-- Active Model Section - Always shown in compact mode -->
       <div class="active-model-section active-model-section--compact">
-        <div class="active-model-label">ACTIVE MODEL</div>
-        <div class="active-model-name" :class="{ 'no-model': !demoControl.isRunning }">
-          {{ activeModelDisplayName }}
+        <div class="active-model-label">{{ demoControl.loadError ? 'ERROR' : demoControl.isWarming ? 'LOADING MODEL' : 'ACTIVE MODEL' }}</div>
+        <div class="active-model-name" :class="{ 'no-model': !demoControl.activeModel && !demoControl.loadError, 'active-model-name--loading': demoControl.isWarming, 'active-model-name--error': demoControl.loadError }">
+          {{ demoControl.loadError || (demoControl.isWarming ? `${activeModelDisplayName}...` : activeModelDisplayName) }}
         </div>
         
-        <!-- Try It Button - Only shown when running -->
+        <!-- Try It Button - Only shown when actually running (loaded), not while warming -->
         <button 
           v-if="demoControl.isRunning" 
           class="try-it-button try-it-button--compact"
@@ -561,14 +564,14 @@ function getGpuMetricStyle(utilization: number) {
           ⚡ Try It Yourself
         </button>
         
-        <!-- Quick activate button when idle -->
+        <!-- Quick activate button when idle or warming (so user can expand to see progress) -->
         <button 
           v-if="!demoControl.isRunning" 
           class="quick-activate-button"
           @click="setPanelState('expanded')"
-          title="Select model to activate"
+          :title="demoControl.isWarming ? 'Model loading – expand for progress' : 'Select model to activate'"
         >
-          Select Model →
+          {{ demoControl.isWarming ? 'Loading...' : 'Select Model →' }}
         </button>
       </div>
       
@@ -621,12 +624,20 @@ function getGpuMetricStyle(utilization: number) {
       <div class="model-selector-section">
       <div v-if="demoControl.isRunning" class="section-label">SWITCH MODEL</div>
       <div v-else class="section-label">SELECT MODEL TO ACTIVATE</div>
+
+      <!-- Load error: model not pulled -->
+      <div v-if="demoControl.loadError" class="load-error-message">
+        <span class="load-error-icon">📦</span>
+        {{ demoControl.loadError }}
+      </div>
       
       <div class="model-buttons">
         <button
           class="model-button"
           :class="{ 
-            'model-button--active': demoControl.activeModel === 'deepseek-r1-70b',
+            'model-button--active': demoControl.activeModel === 'deepseek-r1-70b' && demoControl.modelStatus === 'running',
+            'model-button--warming': demoControl.activeModel === 'deepseek-r1-70b' && demoControl.modelStatus === 'warming',
+            'model-button--pulling': demoControl.pullingModel === 'deepseek-r1-70b',
             'model-button--pending': demoControl.pendingRequest === 'deepseek-r1-70b'
           }"
           :disabled="demoControl.activeModel === 'deepseek-r1-70b'"
@@ -634,14 +645,18 @@ function getGpuMetricStyle(utilization: number) {
         >
           <span class="model-icon">🧠</span>
           <span class="model-name">DeepSeek R1 70B</span>
-          <span v-if="demoControl.activeModel === 'deepseek-r1-70b'" class="active-badge">ACTIVE</span>
+          <span v-if="demoControl.activeModel === 'deepseek-r1-70b' && demoControl.modelStatus === 'running'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.activeModel === 'deepseek-r1-70b' && demoControl.modelStatus === 'warming'" class="active-badge active-badge--loading">Loading...</span>
+          <span v-else-if="demoControl.pullingModel === 'deepseek-r1-70b'" class="active-badge active-badge--pulling">Pulling...</span>
           <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
         </button>
         
         <button
           class="model-button"
           :class="{ 
-            'model-button--active': demoControl.activeModel === 'llama3-70b',
+            'model-button--active': demoControl.activeModel === 'llama3-70b' && demoControl.modelStatus === 'running',
+            'model-button--warming': demoControl.activeModel === 'llama3-70b' && demoControl.modelStatus === 'warming',
+            'model-button--pulling': demoControl.pullingModel === 'llama3-70b',
             'model-button--pending': demoControl.pendingRequest === 'llama3-70b'
           }"
           :disabled="demoControl.activeModel === 'llama3-70b'"
@@ -649,14 +664,17 @@ function getGpuMetricStyle(utilization: number) {
         >
           <span class="model-icon">🦙</span>
           <span class="model-name">LLaMA-3 70B</span>
-          <span v-if="demoControl.activeModel === 'llama3-70b'" class="active-badge">ACTIVE</span>
+          <span v-if="demoControl.activeModel === 'llama3-70b' && demoControl.modelStatus === 'running'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.activeModel === 'llama3-70b' && demoControl.modelStatus === 'warming'" class="active-badge active-badge--loading">Loading...</span>
+          <span v-else-if="demoControl.pullingModel === 'llama3-70b'" class="active-badge active-badge--pulling">Pulling...</span>
           <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
         </button>
         
         <button
           class="model-button model-button--dual"
           :class="{ 
-            'model-button--active': demoControl.activeModel === 'dual',
+            'model-button--active': demoControl.activeModel === 'dual' && demoControl.modelStatus === 'running',
+            'model-button--warming': demoControl.activeModel === 'dual' && demoControl.modelStatus === 'warming',
             'model-button--pending': demoControl.pendingRequest === 'dual'
           }"
           :disabled="demoControl.activeModel === 'dual'"
@@ -664,7 +682,8 @@ function getGpuMetricStyle(utilization: number) {
         >
           <span class="model-icon">⚡</span>
           <span class="model-name">Dual 70B Showcase</span>
-          <span v-if="demoControl.activeModel === 'dual'" class="active-badge">ACTIVE</span>
+          <span v-if="demoControl.activeModel === 'dual' && demoControl.modelStatus === 'running'" class="active-badge">ACTIVE</span>
+          <span v-else-if="demoControl.activeModel === 'dual' && demoControl.modelStatus === 'warming'" class="active-badge active-badge--loading">Loading...</span>
           <span v-else-if="demoControl.isRunning" class="switch-hint">SWITCH →</span>
         </button>
       </div>
@@ -1403,6 +1422,11 @@ function getGpuMetricStyle(utilization: number) {
   font-size: 1rem;
 }
 
+.active-model-name.active-model-name--error {
+  color: var(--abs-warning, #e67e22);
+  font-size: 0.9rem;
+}
+
 .active-model-section--compact {
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -1442,6 +1466,22 @@ function getGpuMetricStyle(utilization: number) {
 /* Model Selector Section */
 .model-selector-section {
   margin-bottom: 16px;
+}
+
+.load-error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  color: var(--abs-warning, #e67e22);
+  background: rgba(230, 126, 34, 0.1);
+  border: 1px solid rgba(230, 126, 34, 0.3);
+  border-radius: 8px;
+}
+.load-error-icon {
+  flex-shrink: 0;
 }
 
 .section-label {
@@ -1515,6 +1555,28 @@ function getGpuMetricStyle(utilization: number) {
   border-radius: 4px;
   font-weight: 700;
   letter-spacing: 0.05em;
+}
+
+.active-badge--loading {
+  background: var(--text-muted);
+  animation: pulse-loading 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-loading {
+  50% { opacity: 0.7; }
+}
+
+.model-button--warming {
+  border-color: var(--text-muted);
+}
+
+.model-button--pulling {
+  border-color: var(--abs-warning, #e67e22);
+}
+
+.active-badge--pulling {
+  background: var(--abs-warning, #e67e22);
+  color: #fff;
 }
 
 .switch-hint {

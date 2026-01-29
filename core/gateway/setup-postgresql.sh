@@ -12,19 +12,14 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Create shared data directory
-echo "📁 Creating shared data directory..."
-mkdir -p /abs-shared-data/postgres
-chmod 755 /abs-shared-data/postgres
-
-# Create ABS network if it doesn't exist
+# Create ABS network if it doesn't exist (use same name as .env ABS_NETWORK, e.g. abs-net)
 echo "🌐 Creating ABS network..."
-docker network create abs-network 2>/dev/null || echo "Network abs-network already exists"
+docker network create abs-net 2>/dev/null || echo "Network abs-net already exists"
 
-# Start PostgreSQL container
+# Start PostgreSQL container (from core/ where docker-compose.yml lives)
 echo "🐘 Starting PostgreSQL container..."
 cd "$(dirname "$0")/.."
-docker-compose -f core.yml up -d postgresql
+docker compose -f docker-compose.yml up -d postgresql
 
 # Wait for PostgreSQL to be ready
 echo "⏳ Waiting for PostgreSQL to be ready..."

@@ -1,3 +1,4 @@
-cd C:\ABS\core
+$CoreDir = $PSScriptRoot
+Set-Location $CoreDir
 docker compose -f docker-compose.yml --env-file .env pull
 docker compose -f docker-compose.yml --env-file .env up -d
