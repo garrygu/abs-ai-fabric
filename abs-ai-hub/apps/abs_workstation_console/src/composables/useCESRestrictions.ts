@@ -83,7 +83,7 @@ export function useCESRestrictions() {
    */
   const cesBannerMessage = computed(() => {
     if (!isCESMode.value) return null
-    return 'CES Demo Mode: Admin operations are read-only. Viewing only.'
+    return 'Demo Mode: Admin operations are read-only. Viewing only.'
   })
 
   /**

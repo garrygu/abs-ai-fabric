@@ -43,7 +43,7 @@ onUnmounted(() => {
 
 <template>
   <div id="console-app" :class="appClasses">
-    <NetworkStatusBanner />
+    <!-- <NetworkStatusBanner /> -->
     <RouterView />
     <Transition name="fade">
       <AttractModeOverlay v-if="attractStore.isActive" />

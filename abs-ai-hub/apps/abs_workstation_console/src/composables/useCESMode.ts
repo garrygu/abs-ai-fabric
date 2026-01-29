@@ -35,7 +35,7 @@ export function useCESMode() {
   function toggleCESMode() {
     isCESMode.value = !isCESMode.value
     if (import.meta.env.DEV) {
-      console.log('[CESMode] CES Mode toggled:', isCESMode.value)
+      console.log('[CESMode] Demo Mode toggled:', isCESMode.value)
     }
   }
 
