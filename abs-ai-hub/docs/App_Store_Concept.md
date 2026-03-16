@@ -63,7 +63,20 @@ The ABS AI Hub implements a clear separation between **Asset Management** (what'
 
 ### Purpose
 
-The **Assets Repository** (`core/gateway/catalog.json`) is the single source of truth for everything installed and configured on the user's local machine. It centrally controls:
+The **Assets Repository** is the single source of truth for everything installed and configured on the user's local machine. It is structured as a two-tier system:
+
+1. **`assets/registry/assets.json`** — The **primary asset index** (bind-mounted into the gateway as `/app/assets/registry/assets.json`). This is the canonical file the gateway reads to enumerate which apps, models, services, tools, and datasets are registered. Each entry points to a `.yaml` file with full asset metadata.
+
+2. **`core/gateway/catalog.json`** — A **supplementary catalog** (also bind-mounted into the gateway). It provides additional configuration for assets such as model policies, allowed embeddings, and defaults. It is loaded by the gateway alongside the registry index.
+
+> [!IMPORTANT]
+> To **add, remove, or hide an app from the Hub UI**, you must edit **`assets/registry/assets.json`** and then call the gateway reload API:
+> ```
+> POST http://localhost:8081/v1/admin/assets/reload
+> ```
+> Changes to `catalog.json`, `apps-registry.json`, or `store/official-apps.json` alone will NOT remove an app from the Installed Apps dashboard, as those files serve different purposes.
+
+The Assets Repository centrally controls:
 
 - **Apps**: Installed applications with their configurations
 - **Models**: LLM models, embedding models available for use
@@ -71,6 +84,15 @@ The **Assets Repository** (`core/gateway/catalog.json`) is the single source of 
 - **Tools**: Functional capabilities (OCR, parsers, chunkers, rerankers)
 - **Datasets**: Data collections (vector stores, file collections)
 - **Secrets**: Credentials and API keys (references only)
+
+### Gateway Mount Map
+
+| Host Path | Container Path | Purpose |
+|-----------|---------------|---------|
+| `assets/` | `/app/assets` | Full assets directory (YAML files + registry index) |
+| `core/gateway/catalog.json` | `/app/catalog.json` | Policy and supplementary config |
+| `abs-ai-hub/apps-registry.json` | `/app/apps-registry.json` | App registry (for the App Store installation tracking) |
+| `abs-ai-hub/store` | `/app/store` | App Store official catalog |
 
 ### Asset Schema (App Example)
 
@@ -356,9 +378,13 @@ Creates app directory (abs-ai-hub/apps/{app-id}/)
     ↓
 Copies files and configuration
     ↓
-Adds app entry to catalog.json (Assets Repository)
+Adds entry to assets/registry/assets.json (Primary Asset Index)
     ↓
-Registers in apps-registry.json (Hub UI)
+Adds policy config to catalog.json (Supplementary)
+    ↓
+Registers in apps-registry.json (App Store tracking)
+    ↓
+Calls POST /v1/admin/assets/reload (triggers live gateway refresh)
     ↓
 App appears in Asset Management and "My Apps"
     ↓
@@ -391,7 +417,38 @@ Status reflected in Asset Management
 
 ### Assets Repository Structure
 
-**File**: `core/gateway/catalog.json`
+The gateway uses a two-tier system:
+
+#### Primary Index: `assets/registry/assets.json`
+
+This is the **canonical source of truth** the gateway reads at startup and on reload. It is an index of all registered assets. Each entry points to a YAML file with full metadata.
+
+```json
+{
+  "version": "1.0",
+  "description": "ABS AI Fabric Asset Registry Index",
+  "core_assets": [
+    { "id": "ollama",      "interface": "llm-runtime",    "path": "core/llm-runtime/ollama/asset.yaml" },
+    { "id": "postgresql",  "interface": "metadata-store", "path": "core/metadata-store/postgresql/asset.yaml" }
+  ],
+  "apps": [
+    { "id": "contract-reviewer-v2", "interface": "application", "path": "apps/contract-reviewer-v2/asset.yaml" },
+    { "id": "onyx-assistant",       "interface": "application", "path": "apps/onyx-assistant/asset.yaml" }
+  ],
+  "models": [ ... ],
+  "tools": [ ... ],
+  "datasets": [ ... ]
+}
+```
+
+**To add or remove an app from the Hub UI**, edit this file and call:
+```
+POST http://localhost:8081/v1/admin/assets/reload
+```
+
+#### Supplementary Config: `core/gateway/catalog.json`
+
+Provides model policies, allowed embeddings, and defaults for assets that need fine-grained configuration. Loaded alongside the registry index.
 
 ```json
 {
@@ -402,11 +459,9 @@ Status reflected in Asset Management
       "class": "app",
       "name": "Contract Reviewer v2",
       "lifecycle": { "desired": "running", "actual": "running" },
-      "policy": { ... },
-      "health": { ... },
-      "metadata": { ... }
-    },
-    // ... more apps, models, services, tools, datasets, secrets
+      "policy": { "allowed_models": ["llama3.2:3b"], "allowed_embeddings": ["legal-bert"] },
+      "metadata": { "url": "http://localhost:8082" }
+    }
   ]
 }
 ```
@@ -778,7 +833,7 @@ Dedicated update management interface:
 │  └──────────────────────────────────────────────────────┘  │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │ Legal Assistant                                        │  │
+│  │ Deposition Summarizer                                  │  │
 │  │ Current: 1.0.0 → Latest: 1.1.5                        │  │
 │  │ [View Changelog] [Update] [Skip]                      │  │
 │  └──────────────────────────────────────────────────────┘  │

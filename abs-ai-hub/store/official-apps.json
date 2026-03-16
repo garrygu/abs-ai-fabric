@@ -10,7 +10,14 @@
       "category": "Legal Apps",
       "author": "ABS AI Hub",
       "license": "MIT",
-      "keywords": ["contract", "legal", "ai", "analysis", "review", "risk-assessment"],
+      "keywords": [
+        "contract",
+        "legal",
+        "ai",
+        "analysis",
+        "review",
+        "risk-assessment"
+      ],
       "icon": "fas fa-file-contract",
       "source": {
         "type": "abs-official",
@@ -28,35 +35,6 @@
         "installable": true,
         "verified": true,
         "rating": 4.8,
-        "download_count": 0
-      }
-    },
-    {
-      "id": "legal-assistant",
-      "name": "Legal Assistant",
-      "version": "1.0.0",
-      "description": "Rich legal assistant with chat, RAG, and contract analysis capabilities. Provides AI-powered legal document review and research assistance.",
-      "category": "Legal Apps",
-      "author": "ABS AI Hub",
-      "license": "MIT",
-      "keywords": ["legal", "assistant", "chat", "rag", "research"],
-      "icon": "fas fa-balance-scale",
-      "source": {
-        "type": "abs-official",
-        "location": "file://abs-ai-hub/apps/legal-assistant"
-      },
-      "requirements": {
-        "services": ["qdrant", "ollama"],
-        "resources": {
-          "cpu": "2 cores",
-          "memory": "4GB",
-          "disk": "500MB"
-        }
-      },
-      "metadata": {
-        "installable": true,
-        "verified": true,
-        "rating": 4.6,
         "download_count": 0
       }
     },
@@ -97,7 +75,13 @@
       "category": "Utility Services",
       "author": "ABS AI Hub",
       "license": "MIT",
-      "keywords": ["whisper", "speech-to-text", "transcription", "audio", "asr"],
+      "keywords": [
+        "whisper",
+        "speech-to-text",
+        "transcription",
+        "audio",
+        "asr"
+      ],
       "icon": "fas fa-microphone",
       "source": {
         "type": "abs-official",
@@ -120,6 +104,3 @@
     }
   ]
 }
-
-
-

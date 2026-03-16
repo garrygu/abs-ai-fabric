@@ -137,10 +137,13 @@ onMounted(() => {
 
 function openApp(app: App) {
   // Use the URL from metadata (e.g., http://localhost:8050)
-  if (app.url && app.url.startsWith('http')) {
-    window.open(app.url, '_blank')
-  } else if (app.port) {
-    window.open(`http://localhost:${app.port}`, '_blank')
+  const appUrl = (app.metadata as any)?.url || (app as any).url
+  const appPort = (app.metadata as any)?.port || (app as any).port
+  
+  if (appUrl && appUrl.startsWith('http')) {
+    window.open(appUrl, '_blank')
+  } else if (appPort) {
+    window.open(`http://localhost:${appPort}`, '_blank')
   } else {
     router.push(`/workspace/${route.params.workspaceId}/apps/${app.id}`)
   }

@@ -401,7 +401,11 @@ const isApp = computed(() =>
 )
 
 // Computed: App URL from metadata
-const appUrl = computed(() => asset.value?.metadata?.url || '')
+const appUrl = computed(() => {
+  if (asset.value?.metadata?.url) return asset.value.metadata.url
+  if (asset.value?.metadata?.port) return `http://localhost:${asset.value.metadata.port}`
+  return ''
+})
 
 // Computed: Lifecycle states
 const desiredState = computed(() => asset.value?.lifecycle?.desired || 'on-demand')

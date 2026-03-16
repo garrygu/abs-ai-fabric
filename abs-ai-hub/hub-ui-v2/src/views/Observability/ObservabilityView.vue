@@ -732,7 +732,11 @@ function getAppUrl(asset: any): string | null {
 
 function openApp(asset: any) {
   const url = getAppUrl(asset)
-  if (url) window.open(url, '_blank')
+  if (url) {
+    window.open(url, '_blank')
+  } else if (asset.metadata?.port) {
+    window.open(`http://localhost:${asset.metadata.port}`, '_blank')
+  }
 }
 
 async function wakeAsset(asset: any) {

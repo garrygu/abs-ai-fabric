@@ -32,6 +32,12 @@
     },
     "deepseek-r1:70b": {
       "ollama": "deepseek-r1:70b"
+    },
+    "qwen3.5-35b-a3b": {
+      "ollama": "qwen3.5-35b-a3b"
+    },
+    "qwen3.5-35b-a3b-chat": {
+      "ollama": "qwen3.5-35b-a3b-chat"
     }
   }
 }

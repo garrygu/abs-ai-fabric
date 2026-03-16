@@ -529,11 +529,19 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           // Dual model: only generate both outputs if it's a comparison challenge
           if (challengeType === 'compare') {
             const [reasonedResult, explainedResult] = await Promise.all([
-              sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType).catch((err: Error) => {
+              sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType, (text) => {
+                if (activeModel.value !== null) {
+                  modelOutput.value = { ...modelOutput.value, reasoned: text }
+                }
+              }).catch((err: Error) => {
                 console.error('[DemoControl] DeepSeek error:', err)
                 return { content: `Error: ${err.message}`, metrics: { tokensPerSec: 0, timeToFirstToken: 0, latency: 0, contextTokens: 0, promptTokens: 0, completionTokens: 0 } }
               }),
-              sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType).catch((err: Error) => {
+              sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType, (text) => {
+                if (activeModel.value !== null) {
+                  modelOutput.value = { ...modelOutput.value, explained: text }
+                }
+              }).catch((err: Error) => {
                 console.error('[DemoControl] LLaMA error:', err)
                 return { content: `Error: ${err.message}`, metrics: { tokensPerSec: 0, timeToFirstToken: 0, latency: 0, contextTokens: 0, promptTokens: 0, completionTokens: 0 } }
               })
@@ -565,7 +573,11 @@ export const useDemoControlStore = defineStore('demoControl', () => {
             }
           } else if (challengeType === 'reasoning') {
             // Even in dual mode, if it's a reasoning challenge, just use DeepSeek
-            const result = await sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType)
+            const result = await sendChatCompletionWithMetrics('deepseek-r1-70b', fullPrompt, undefined, challengeType, (text) => {
+              if (activeModel.value !== null) {
+                modelOutput.value = { ...modelOutput.value, reasoned: text }
+              }
+            })
 
             // Update live metrics
             liveMetrics.value = {
@@ -581,7 +593,11 @@ export const useDemoControlStore = defineStore('demoControl', () => {
             }
           } else {
             // For other challenges (explanation, etc.), use LLaMA-3 70B
-            const result = await sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType)
+            const result = await sendChatCompletionWithMetrics('llama3-70b', fullPrompt, undefined, challengeType, (text) => {
+              if (activeModel.value !== null) {
+                modelOutput.value = { ...modelOutput.value, explained: text }
+              }
+            })
 
             // Update live metrics
             liveMetrics.value = {
@@ -598,7 +614,11 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
         } else if (activeModel.value === 'deepseek-r1-70b') {
           // Reasoning challenge - use DeepSeek
-          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType)
+          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType, (text) => {
+            if (activeModel.value !== null) {
+              modelOutput.value = { ...modelOutput.value, reasoned: text }
+            }
+          })
 
           // Update live metrics
           liveMetrics.value = {
@@ -620,7 +640,11 @@ export const useDemoControlStore = defineStore('demoControl', () => {
           }
         } else if (activeModel.value === 'llama3-70b') {
           // Executive explanation or summarization challenge
-          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType)
+          const result = await sendChatCompletionWithMetrics(activeModel.value, fullPrompt, undefined, challengeType, (text) => {
+            if (activeModel.value !== null) {
+              modelOutput.value = { ...modelOutput.value, explained: text }
+            }
+          })
 
           // Update live metrics
           liveMetrics.value = {

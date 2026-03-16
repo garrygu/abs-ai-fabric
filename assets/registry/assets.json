@@ -34,11 +34,7 @@
       "interface": "application",
       "path": "apps/deposition-summarizer/asset.yaml"
     },
-    {
-      "id": "legal-assistant",
-      "interface": "application",
-      "path": "apps/legal-assistant/asset.yaml"
-    },
+
     {
       "id": "onyx-assistant",
       "interface": "application",
@@ -104,6 +100,16 @@
       "id": "nomic-embed-text",
       "interface": "embedding-runtime",
       "path": "models/embeddings/nomic-embed/asset.yaml"
+    },
+    {
+      "id": "qwen3.5-35b-a3b",
+      "interface": "llm-runtime",
+      "path": "models/qwen3_5_35b_a3b/asset.yaml"
+    },
+    {
+      "id": "qwen3.5-35b-a3b-chat",
+      "interface": "llm-runtime",
+      "path": "models/qwen3_5_35b_a3b_chat/asset.yaml"
     }
   ],
   "tools": [

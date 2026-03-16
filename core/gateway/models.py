@@ -10,6 +10,8 @@ class ChatReq(BaseModel):
     messages: List[ChatMessage]
     temperature: Optional[float] = 0.2
     max_tokens: Optional[int] = None
+    stream: Optional[bool] = False
+    stream_options: Optional[Dict[str, Any]] = None
 
 class EmbedReq(BaseModel):
     input: List[str]

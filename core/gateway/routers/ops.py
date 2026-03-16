@@ -217,6 +217,9 @@ async def load_model(model_name: str):
                     "model": model_name,
                     "prompt": "test",
                     "stream": False,
+                    "options": {
+                        "num_ctx": 8192  # Limit context window to keep large models fully in GPU VRAM
+                    },
                     "keep_alive": "30m"  # Keep model loaded for 30 minutes
                 }
             )

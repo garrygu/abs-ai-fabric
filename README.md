@@ -7,7 +7,7 @@ A comprehensive AI-powered workstation for legal professionals, featuring contra
 This workstation follows a **Core Services** strategy with shared infrastructure:
 
 ### Core Services (Always-On)
-- **LLM Runtime**: Ollama or vLLM for language model inference
+- **LLM Runtime**: Ollama or vLLM for language model inference (supports advanced models like Qwen 3.5 and DeepSeek R1)
 - **Qdrant**: Vector database for semantic search and document embeddings
 - **Redis**: Cache and message queue for performance optimization
 - **Onyx**: AI assistant with chat interface, RAG capabilities, and agent management
@@ -93,7 +93,7 @@ AI assistant with built-in chat interface, RAG capabilities, and agent managemen
 - Document upload and analysis
 - RAG queries against knowledge base
 - Custom agent creation and management
-- Multi-model support (Ollama, vLLM)
+- Multi-model support (Ollama, vLLM - including Qwen 3.5 and DeepSeek R1)
 - Web search integration
 - Code execution capabilities
 

@@ -117,7 +117,10 @@ class LLMRuntimeAdapter:
             "model": model,
             "messages": messages,
             "stream": stream,
-            "options": {"temperature": temperature}
+            "options": {
+                "temperature": temperature,
+                "num_ctx": 8192  # Keep model fully in GPU VRAM (prevent 131K reload)
+            }
         }
         
         try:

@@ -606,9 +606,9 @@
             <!-- Status Badge -->
             <span 
               class="model-status-badge" 
-              :class="model.running ? 'status-running' : (model.installed ? 'status-installed' : 'status-available')"
+              :class="model.running ? 'status-running' : (model.installed ? 'status-installed' : (model.metadata?.local_path ? 'status-local' : 'status-available'))"
             >
-              {{ model.running ? '✅ RUNNING' : (model.installed ? '✅ INSTALLED' : '📦 AVAILABLE TO PULL') }}
+              {{ model.running ? '✅ RUNNING' : (model.installed ? '✅ INSTALLED' : (model.metadata?.local_path ? '📁 LOCAL — use button below' : '📦 AVAILABLE TO PULL')) }}
             </span>
             
             <!-- Type Badge -->
@@ -666,22 +666,36 @@
             
             <!-- For available: Pull -->
             <template v-else>
-              <div v-if="pullingModels[model.name]" class="pull-progress">
-                <div class="pull-progress-status">{{ pullProgress[model.name]?.status || 'Pulling...' }}</div>
-                <div v-if="pullProgress[model.name]?.total != null && pullProgress[model.name]?.total > 0" class="pull-progress-bar-wrap">
-                  <div 
-                    class="pull-progress-bar" 
-                    :style="{ width: Math.min(100, ((pullProgress[model.name]?.completed ?? 0) / (pullProgress[model.name]?.total ?? 1)) * 100) + '%' }"
-                  />
-                </div>
+              <!-- Local-only models: no Pull (would fail). Show create instructions + copy button. -->
+              <div v-if="model.metadata?.local_path" class="local-model-hint">
+                <span class="local-model-label">📁 Local model</span>
+                <span class="local-model-text">Create with Ollama from path (see description). Do not use Pull.</span>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary local-model-copy"
+                  @click="copyOllamaCreateCommand(model.name)"
+                >
+                  📋 Copy create command
+                </button>
               </div>
-              <button 
-                class="btn btn-sm btn-primary model-action-pull" 
-                @click="pullModelDirect(model.name)"
-                :disabled="pullingModels[model.name]"
-              >
-                {{ pullingModels[model.name] ? 'Pulling...' : '⬇️ Pull Model' }}
-              </button>
+              <template v-else>
+                <div v-if="pullingModels[model.name]" class="pull-progress">
+                  <div class="pull-progress-status">{{ pullProgress[model.name]?.status || 'Pulling...' }}</div>
+                  <div v-if="pullProgress[model.name]?.total != null && pullProgress[model.name]?.total > 0" class="pull-progress-bar-wrap">
+                    <div 
+                      class="pull-progress-bar" 
+                      :style="{ width: Math.min(100, ((pullProgress[model.name]?.completed ?? 0) / (pullProgress[model.name]?.total ?? 1)) * 100) + '%' }"
+                    />
+                  </div>
+                </div>
+                <button 
+                  class="btn btn-sm btn-primary model-action-pull" 
+                  @click="pullModelDirect(model.name)"
+                  :disabled="pullingModels[model.name]"
+                >
+                  {{ pullingModels[model.name] ? 'Pulling...' : '⬇️ Pull Model' }}
+                </button>
+              </template>
             </template>
           </div>
         </div>
@@ -1707,6 +1721,16 @@ async function pullModel() {
   }
 }
 
+function copyOllamaCreateCommand(modelName: string) {
+  const pathSegment = modelName.replace(/\./g, '_').replace(/-/g, '_')
+  const toCopy = `ollama create ${modelName} -f assets/models/${pathSegment}/Modelfile`
+  navigator.clipboard.writeText(toCopy).then(() => {
+    showToast('Command copied to clipboard. Run in terminal from repo root (e.g. D:\\abs-ai-fabric).', 'success')
+  }).catch(() => {
+    showToast('Could not copy. Run: ' + toCopy, 'warning')
+  })
+}
+
 async function pullModelDirect(modelName: string) {
   pullingModels[modelName] = true
   pullProgress[modelName] = {}
@@ -2693,6 +2717,20 @@ function formatLogTime(date: Date): string {
   margin-bottom: 0.25rem;
 }
 
+.local-model-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.local-model-label { font-weight: 600; color: var(--text-primary); }
+.local-model-text { color: var(--text-secondary); }
+.local-model-copy { margin-top: 0.35rem; align-self: flex-start; }
+
 /* Logs */
 .log-filter {
   padding: 0.4rem 0.75rem;
@@ -3251,6 +3289,12 @@ input:checked + .slider:before {
   background: rgba(59, 130, 246, 0.1);
   color: rgb(59, 130, 246);
   border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.model-status-badge.status-local {
+  background: rgba(100, 116, 139, 0.15);
+  color: rgb(100, 116, 139);
+  border: 1px solid rgba(100, 116, 139, 0.3);
 }
 
 .btn-block {

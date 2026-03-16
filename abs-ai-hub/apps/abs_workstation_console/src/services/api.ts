@@ -413,6 +413,10 @@ export interface ChatCompletionRequest {
     messages: ChatMessage[]
     temperature?: number
     max_tokens?: number
+    stream?: boolean
+    stream_options?: {
+        include_usage?: boolean
+    }
 }
 
 export interface ChatCompletionResponse {
@@ -594,7 +598,8 @@ export async function warmupModel(modelId: string | null): Promise<void> {
                 prompt: 'Hello',
                 stream: false,
                 options: {
-                    num_predict: 1  // Only generate 1 token for fast warmup
+                    num_predict: 1,  // Only generate 1 token for fast warmup
+                    num_ctx: 8192    // Limit context window to keep model fully in GPU VRAM
                 },
                 keep_alive: '30m'  // Keep model loaded for 30 minutes
             })
@@ -621,18 +626,19 @@ export async function sendChatCompletion(
     modelId: string | null,
     prompt: string,
     systemPrompt?: string,
-    challengeType?: string
+    challengeType?: string,
+    onChunk?: (text: string) => void
 ): Promise<string> {
-    const result = await sendChatCompletionWithMetrics(modelId, prompt, systemPrompt, challengeType)
+    const result = await sendChatCompletionWithMetrics(modelId, prompt, systemPrompt, challengeType, onChunk)
     return result.content
 }
 
-// Send chat completion and return both content and performance metrics
 export async function sendChatCompletionWithMetrics(
     modelId: string | null,
     prompt: string,
     systemPrompt?: string,
-    challengeType?: string
+    challengeType?: string,
+    onChunk?: (text: string) => void
 ): Promise<ChatCompletionResult> {
     const startTime = performance.now()
 
@@ -659,12 +665,7 @@ export async function sendChatCompletionWithMetrics(
 
         // For summarize challenge, include document content in the prompt if available
         let userPrompt = prompt
-        if (challengeType === 'summarize') {
-            // Check if document is passed in the prompt (it will be included by the store)
-            // The prompt format will be: "Document: [content]\n\nUser request: [prompt]"
-            // This is handled by the store when calling setChallenge
-        }
-
+        
         const request: ChatCompletionRequest = {
             model: gatewayModel,
             messages: [
@@ -678,10 +679,12 @@ export async function sendChatCompletionWithMetrics(
                 }
             ],
             temperature: challengeType === 'reasoning' ? 0.3 : 0.7,
-            max_tokens: 2000
+            max_tokens: 2000,
+            stream: !!onChunk,
+            stream_options: onChunk ? { include_usage: true } : undefined
         }
 
-        console.log('[API] Sending chat completion request:', { model: gatewayModel, prompt: prompt.substring(0, 100) + '...' })
+        console.log('[API] Sending chat completion request:', { model: gatewayModel, prompt: prompt.substring(0, 100) + '...', stream: request.stream })
 
         const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
             method: 'POST',
@@ -692,32 +695,82 @@ export async function sendChatCompletionWithMetrics(
             body: JSON.stringify(request)
         })
 
-        // Calculate time to first response (approximation - actual TTFT requires streaming)
-        const responseReceivedTime = performance.now()
-        const ttft = responseReceivedTime - startTime
-
         if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error')
             console.error(`[API] Chat completion failed: ${response.status}`, errorText)
             throw new Error(`Model API error: ${response.status} - ${errorText.substring(0, 200)}`)
         }
 
-        const data: ChatCompletionResponse = await response.json()
-        const content = data.choices?.[0]?.message?.content || 'No response generated'
+        let content = ''
+        let ttft = 0
+        let promptTokens = 0
+        let completionTokens = 0
+        let totalTokens = 0
 
-        // Calculate total latency
+        const contentType = response.headers.get('content-type') || ''
+        const isSSE = contentType.includes('text/event-stream')
+
+        if (request.stream && isSSE && response.body) {
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder("utf-8")
+            let buffer = ''
+            
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                
+                buffer += decoder.decode(value, { stream: true })
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                            const data = JSON.parse(line.slice(6))
+                            if (ttft === 0) {
+                                ttft = performance.now() - startTime
+                            }
+                            const delta = data.choices?.[0]?.delta?.content || ''
+                            if (delta) {
+                                content += delta
+                                if (onChunk) onChunk(content)
+                            }
+                            // Capture usage if provided in the last chunk
+                            if (data.usage) {
+                                promptTokens = data.usage.prompt_tokens || 0
+                                completionTokens = data.usage.completion_tokens || 0
+                                totalTokens = data.usage.total_tokens || 0
+                            }
+                        } catch (e) {
+                            // ignore parse errors for partial chunks
+                        }
+                    }
+                }
+            }
+            if (ttft === 0) ttft = performance.now() - startTime
+            // Estimate tokens if usage wasn't returned
+            if (completionTokens === 0 && content.length > 0) {
+                completionTokens = Math.ceil(content.length / 4) // rough estimate
+                promptTokens = Math.ceil((systemMessage.length + userPrompt.length) / 4)
+                totalTokens = promptTokens + completionTokens
+            }
+        } else {
+            const responseReceivedTime = performance.now()
+            ttft = responseReceivedTime - startTime
+            const data: ChatCompletionResponse = await response.json()
+            content = data.choices?.[0]?.message?.content || 'No response generated'
+            
+            promptTokens = data.usage?.prompt_tokens || 0
+            completionTokens = data.usage?.completion_tokens || 0
+            totalTokens = data.usage?.total_tokens || (promptTokens + completionTokens)
+            if (onChunk) onChunk(content)
+        }
+
         const endTime = performance.now()
         const totalLatency = endTime - startTime
 
-        // Extract usage data for token metrics
-        const promptTokens = data.usage?.prompt_tokens || 0
-        const completionTokens = data.usage?.completion_tokens || 0
-        const totalTokens = data.usage?.total_tokens || (promptTokens + completionTokens)
-
-        // Calculate tokens per second (completion tokens / generation time in seconds)
-        // Generation time = total time - TTFT (approximation)
         const generationTimeMs = totalLatency - ttft
-        const generationTimeSec = Math.max(0.1, generationTimeMs / 1000) // Minimum 0.1s to avoid division issues
+        const generationTimeSec = Math.max(0.1, generationTimeMs / 1000)
         const tokensPerSec = completionTokens > 0 ? Math.round(completionTokens / generationTimeSec) : 0
 
         const metrics: InferenceMetrics = {
@@ -739,7 +792,6 @@ export async function sendChatCompletionWithMetrics(
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('[API] Chat completion error:', errorMessage)
 
-        // Return error with zeroed metrics
         const endTime = performance.now()
         return {
             content: `Error: ${errorMessage}`,

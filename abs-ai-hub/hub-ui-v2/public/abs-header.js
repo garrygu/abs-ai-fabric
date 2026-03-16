@@ -131,7 +131,6 @@ class ABSUnifiedHeader extends HTMLElement {
       // Applications only (no services or models)
       { id: 'contract-reviewer-v2', display_name: 'Contract Reviewer', metadata: { url: 'http://localhost:8082', category: 'Legal Apps' } },
       { id: 'deposition-summarizer', display_name: 'Deposition Summarizer', metadata: { url: 'http://localhost:7860', category: 'Legal Apps' } },
-      { id: 'legal-assistant', display_name: 'Legal Assistant', metadata: { url: 'http://localhost:7862', category: 'Legal Apps' } },
       { id: 'onyx-assistant', display_name: 'Onyx AI Assistant', metadata: { url: 'http://localhost:8000', category: 'AI Assistants' } },
       { id: 'open-webui', display_name: 'Open WebUI', metadata: { url: 'http://localhost:3200', category: 'AI Platforms' } },
       { id: 'abs-workstation-console', display_name: 'Workstation Console', metadata: { url: 'http://localhost:5173', category: 'AI Platforms' } }

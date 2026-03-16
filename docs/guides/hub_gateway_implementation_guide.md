@@ -309,10 +309,41 @@ The Tri-Store Data Inspector provides cross-store data consistency analysis acro
 
 ## 8) Operations
 
-- **Update registry**: edit `registry.json` and `docker compose up -d hub-gateway` (no rebuild needed).
-- **Switch Ollama/vLLM**: change Core profile; Gateway auto-detects on next request.
-- **Cache control**: flush Redis cache for embeddings if you change models.
-- **Backups**: registry file (Git), Redis persistence if used (AOF), standard Core volume backups.
+### Asset Management (Add / Remove / Hide Apps)
+
+The gateway uses a **two-tier asset system**. Always edit the primary index and trigger a hot reload — no container restart needed.
+
+**Step 1 – Edit the primary asset index:**
+
+```
+assets/registry/assets.json   ← THE canonical list of registered assets
+```
+
+**Step 2 – Trigger a live reload (no restart required):**
+
+```powershell
+curl.exe -s -X POST http://localhost:8081/v1/admin/assets/reload
+# Returns: {"success":true,"message":"Assets reloaded successfully","asset_count":<N>}
+```
+
+### Gateway File Mount Map
+
+| Host Path | Container Path | Purpose |
+|-----------|---------------|---------|
+| `assets/` | `/app/assets` | Full asset directory (YAML files + registry index) |
+| `core/gateway/catalog.json` | `/app/catalog.json` | Supplementary policy/defaults config |
+| `abs-ai-hub/apps-registry.json` | `/app/apps-registry.json` | App Store installation tracking |
+| `abs-ai-hub/store` | `/app/store` | App Store official catalog |
+
+> [!IMPORTANT]
+> To **add, remove, or hide an app** from the Hub UI: edit `assets/registry/assets.json` and call `POST /v1/admin/assets/reload`. Editing `catalog.json`, `apps-registry.json`, or `store/official-apps.json` alone will **not** update the Installed Apps dashboard.
+
+### Other Operations
+
+- **Update model registry**: edit `registry.json` — gateway reads it on each request, no restart needed.
+- **Switch Ollama/vLLM**: change Core profile; gateway auto-detects on next request.
+- **Cache control**: flush Redis cache for embeddings if you change models: `docker exec abs-redis redis-cli FLUSHALL`
+- **Backups**: `assets/registry/assets.json` (Git), `core/gateway/catalog.json` (Git), Redis AOF if used, standard Core volume backups.
 - **Auto-wake**: Services automatically start when needed and sleep when idle (configurable).
 
 ---

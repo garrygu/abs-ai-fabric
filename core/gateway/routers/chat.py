@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Header, Request
-from typing import Optional, List
+from fastapi.responses import StreamingResponse
+from typing import Optional, List, AsyncGenerator
 import time
 import json
 import httpx
@@ -160,7 +161,7 @@ async def list_models(app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")
 
 @router.post("/v1/chat/completions")
 async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(None, alias="X-ABS-App-Id")):
-    """Chat completion using LLM adapter."""
+    """Chat completion using LLM adapter (supports streaming)."""
     cfg = pick_app_cfg(app_id)
     model_logical = req.model or cfg.get("chat_model", "contract-default")
     
@@ -175,8 +176,69 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
         if not await ensure_service_ready("ollama"):
             raise HTTPException(503, "Ollama service unavailable")
     
-    # Convert messages to dict format
-    messages = [m.model_dump() for m in req.messages]
+    # --- Streaming path: proxy SSE directly to Ollama's OpenAI-compat endpoint ---
+    if req.stream:
+        ollama_url = adapter._get_base_url().rstrip("/")
+        endpoint = f"{ollama_url}/v1/chat/completions"
+        import re
+        messages = []
+        for m in req.messages:
+            msg_dict = m.model_dump()
+            if msg_dict.get("role") == "assistant" and msg_dict.get("content"):
+                content = msg_dict["content"]
+                content = re.sub(r"<think>[\s\S]*?</think>\n*", "", content)
+                content = re.sub(r"<think>[\s\S]*$", "", content)  # Handle unclosed think tags
+                if len(content) > 2000:
+                    content = content[:2000] + "\n...[truncated context]"
+                msg_dict["content"] = content.strip()
+            messages.append(msg_dict)
+        payload = {
+            "model": model_logical,
+            "messages": messages,
+            "temperature": req.temperature or 0.7,
+            "stream": True,
+            "options": {
+                "num_ctx": 8192,  # Keep model fully in GPU VRAM (prevents reload with 131K default)
+                "num_batch": 128  # Prevent Windows GPU TDR (monitor blanking) by slicing prompt processing
+            },
+        }
+        if req.max_tokens:
+            payload["max_tokens"] = req.max_tokens
+        if req.stream_options:
+            payload["stream_options"] = req.stream_options
+
+        async def stream_generator() -> AsyncGenerator[bytes, None]:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                async with client.stream("POST", endpoint, json=payload) as resp:
+                    if resp.status_code != 200:
+                        body = await resp.aread()
+                        yield f"data: {json.dumps({'error': True, 'message': body.decode()})}\n\n".encode()
+                        return
+                    async for line in resp.aiter_lines():
+                        yield f"{line}\n".encode()
+
+        return StreamingResponse(
+            stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            }
+        )
+    
+    # --- Non-streaming path: use the adapter as before ---
+    messages = []
+    for m in req.messages:
+        msg_dict = m.model_dump()
+        if msg_dict.get("role") == "assistant" and msg_dict.get("content"):
+            import re
+            content = msg_dict["content"]
+            content = re.sub(r"<think>[\s\S]*?</think>\n*", "", content)
+            content = re.sub(r"<think>[\s\S]*$", "", content)
+            if len(content) > 2000:
+                content = content[:2000] + "\n...[truncated context]"
+            msg_dict["content"] = content.strip()
+        messages.append(msg_dict)
     
     result = await adapter.chat_completion(
         messages=messages,

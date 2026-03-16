@@ -827,6 +827,10 @@ function closeKiosk() {
             <span class="example-label">Example scenario:</span>
             <span class="example-text">{{ currentChallenge.exampleContext }}</span>
           </div>
+          <div class="perf-tip">
+            <span class="perf-tip-icon">⚡</span>
+            <span class="perf-tip-text">Running Q4-quantized 70B model — optimized for fast local inference on a single GPU with 8K context window</span>
+          </div>
         </div>
         
         <div class="prompt-section">
@@ -1392,6 +1396,31 @@ function closeKiosk() {
   color: var(--text-secondary);
   font-style: normal;
   display: block;
+}
+
+.perf-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 6px;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.perf-tip-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.perf-tip-text {
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.02em;
 }
 
 .prompt-section {
