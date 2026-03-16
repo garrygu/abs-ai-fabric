@@ -1,0 +1,38 @@
+asset_id: qwen3.5-35b-a3b
+display_name: Qwen 3.5 35B A3B
+version: "1.0.0"
+
+interface: llm-runtime
+interface_version: v1
+class: model
+
+description: |
+  Qwen 3.5 35B A3B (local). Model files at C:\Users\ai\models\Qwen3.5-35B-A3B.
+  To install, create in Ollama from that path, e.g. create a Modelfile with
+  "FROM C:\Users\ai\models\Qwen3.5-35B-A3B" then run: ollama create qwen3.5-35b-a3b -f Modelfile
+
+runtime:
+  type: external
+  install:
+    # Local model - create manually: ollama create qwen3.5-35b-a3b -f Modelfile (FROM path above)
+    command: echo "Create locally with ollama create qwen3.5-35b-a3b -f Modelfile"
+    once: true
+
+lifecycle:
+  desired: on-demand
+
+resources:
+  gpu_required: true
+  min_vram_gb: 24
+  min_ram_gb: 48
+  disk_gb: 25
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: true
+
+metadata:
+  provider: ollama
+  parameters: 35B
+  local_path: C:\Users\ai\models\Qwen3.5-35B-A3B

@@ -1,0 +1,5 @@
+# Qwen 3.5 35B A3B - use from repo or copy to C:\Users\ai\models\Qwen3.5-35B-A3B
+# Run: ollama create qwen3.5-35b-a3b -f Modelfile
+# (from this directory or pass full path to -f)
+
+FROM C:\Users\ai\models\Qwen3.5-35B-A3B

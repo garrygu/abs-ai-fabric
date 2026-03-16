@@ -1,0 +1,37 @@
+asset_id: qwen3.5-35b-a3b-chat
+display_name: Qwen 3.5 35B A3B Chat
+version: "1.0.0"
+
+interface: llm-runtime
+interface_version: v1
+class: model
+
+description: |
+  Qwen 3.5 35B A3B Chat variant (local). Same path C:\Users\ai\models\Qwen3.5-35B-A3B.
+  To install, create in Ollama from that path with a chat/system prompt in your Modelfile, e.g.:
+  ollama create qwen3.5-35b-a3b-chat -f Modelfile
+
+runtime:
+  type: external
+  install:
+    command: echo "Create locally with ollama create qwen3.5-35b-a3b-chat -f Modelfile"
+    once: true
+
+lifecycle:
+  desired: on-demand
+
+resources:
+  gpu_required: true
+  min_vram_gb: 24
+  min_ram_gb: 48
+  disk_gb: 25
+
+ownership:
+  provider: system
+  visibility: shared
+  requestable: true
+
+metadata:
+  provider: ollama
+  parameters: 35B
+  local_path: C:\Users\ai\models\Qwen3.5-35B-A3B

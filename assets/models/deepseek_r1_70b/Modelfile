@@ -1,0 +1,6 @@
+FROM deepseek-r1:70b
+
+# Limit context window to 8192 tokens to keep the model fully in GPU VRAM (~43 GB).
+# Without this, Ollama defaults to 131072 which inflates VRAM to 102 GB and
+# causes 5-6% CPU offload, making inference ~50x slower on that portion.
+PARAMETER num_ctx 8192

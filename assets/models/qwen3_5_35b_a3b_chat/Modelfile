@@ -1,0 +1,8 @@
+# Qwen 3.5 35B A3B Chat - same model path, optional chat tuning
+# Run: ollama create qwen3.5-35b-a3b-chat -f Modelfile
+
+FROM C:\Users\ai\models\Qwen3.5-35B-A3B
+
+# Optional: uncomment and edit for chat-focused behavior
+# SYSTEM You are a helpful assistant.
+# PARAMETER temperature 0.7
