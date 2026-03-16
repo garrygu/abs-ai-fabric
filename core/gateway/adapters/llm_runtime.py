@@ -119,7 +119,9 @@ class LLMRuntimeAdapter:
             "stream": stream,
             "options": {
                 "temperature": temperature,
-                "num_ctx": 8192  # Keep model fully in GPU VRAM (prevent 131K reload)
+                "num_ctx": 8192,     # Keep model fully in GPU VRAM (prevent 131K reload)
+                "num_batch": 64,     # Prevent Windows GPU TDR
+                "num_predict": 2048  # Cap generation tokens (DeepSeek R1 thinking chain)
             }
         }
         

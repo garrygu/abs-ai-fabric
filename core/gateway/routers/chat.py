@@ -198,8 +198,9 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
             "temperature": req.temperature or 0.7,
             "stream": True,
             "options": {
-                "num_ctx": 8192,  # Keep model fully in GPU VRAM (prevents reload with 131K default)
-                "num_batch": 128  # Prevent Windows GPU TDR (monitor blanking) by slicing prompt processing
+                "num_ctx": 8192,   # Keep model fully in GPU VRAM (prevents reload with 131K default)
+                "num_batch": 64,   # Prevent Windows GPU TDR by slicing prompt processing into smaller GPU kernels
+                "num_predict": 2048  # Cap total generation tokens (including DeepSeek R1 <think> chain) to prevent TDR
             },
         }
         if req.max_tokens:
