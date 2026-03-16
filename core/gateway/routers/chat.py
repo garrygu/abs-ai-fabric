@@ -245,6 +245,7 @@ async def chat(req: ChatReq, request: Request, app_id: Optional[str] = Header(No
         messages=messages,
         model=model_logical,
         temperature=req.temperature,
+        max_tokens=req.max_tokens,
         stream=False
     )
     
