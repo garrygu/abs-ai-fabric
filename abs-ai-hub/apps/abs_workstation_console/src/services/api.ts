@@ -680,8 +680,8 @@ export async function sendChatCompletionWithMetrics(
             ],
             temperature: challengeType === 'reasoning' ? 0.3 : 0.7,
             max_tokens: 2000,
-            stream: !!onChunk && !gatewayModel.toLowerCase().includes('deepseek'),
-            stream_options: (!!onChunk && !gatewayModel.toLowerCase().includes('deepseek')) ? { include_usage: true } : undefined
+            stream: !!onChunk,
+            stream_options: !!onChunk ? { include_usage: true } : undefined
         }
 
         console.log('[API] Sending chat completion request:', { model: gatewayModel, prompt: prompt.substring(0, 100) + '...', stream: request.stream })
