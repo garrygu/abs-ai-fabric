@@ -666,6 +666,12 @@ export async function sendChatCompletionWithMetrics(
         // For summarize challenge, include document content in the prompt if available
         let userPrompt = prompt
         
+        // DeepSeek models must NOT use streaming — sustained GPU decode-phase load
+        // causes workstation freeze (TDR hang) even at reduced power limits.
+        // See: docs/power_crash_analysis.md — Failure Mode 2
+        const isDeepSeek = gatewayModel.toLowerCase().includes('deepseek')
+        const useStream = !!onChunk && !isDeepSeek
+
         const request: ChatCompletionRequest = {
             model: gatewayModel,
             messages: [
@@ -680,8 +686,8 @@ export async function sendChatCompletionWithMetrics(
             ],
             temperature: challengeType === 'reasoning' ? 0.3 : 0.7,
             max_tokens: 2000,
-            stream: !!onChunk,
-            stream_options: !!onChunk ? { include_usage: true } : undefined
+            stream: useStream,
+            stream_options: useStream ? { include_usage: true } : undefined
         }
 
         console.log('[API] Sending chat completion request:', { model: gatewayModel, prompt: prompt.substring(0, 100) + '...', stream: request.stream })
