@@ -1,7 +1,12 @@
-# Incident Report: RTX 6000 Blackwell Power Crash on 110V Circuit
+# Incident Report: RTX 6000 Blackwell Instability on 110V Circuit
 
 ## Problem Description
-When running the "Try me" demo function using the DeepSeek 70B (Q4_K_M) model (or Dual Models mode) on an ABS Workstation Console, the system experiences a critical hardware crash (screen goes dark, system becomes unresponsive but fans remain on) during the 3rd conversation turn. The issue occurs consistently on Windows 11 Pro and requires a manual hard reboot to recover.
+When running the "Try me" demo function using the DeepSeek 70B (Q4_K_M) model (or Dual Models mode) on an ABS Workstation Console, the system experiences critical instability requiring a manual hard reboot to recover. Two distinct failure modes have been observed:
+
+| # | Power Limit | Symptom | Root Cause |
+|---|-------------|---------|------------|
+| 1 | 600W (default) | **Screen goes dark**, fans stay on | PSU OCP/OPP trip — 12V rail cut to GPU |
+| 2 | 400W | **Screen stays on**, system freezes (no input response) — **stream mode only** | GPU driver/TDR hang or sustained thermal/PCIe instability |
 
 **Hardware Profile:**
 *   **GPU:** NVIDIA RTX 6000 Blackwell (96GB VRAM, 600W TDP)
@@ -29,12 +34,32 @@ During that 3rd-conversation Prefill Phase, the Blackwell GPU experiences a **Tr
 
 This microsecond spike exceeds the derated maximum capacity of the 2000W PSU running on 110V. The PSU detects this as a dangerous short-circuit/overload and instantly triggers OCP/OPP, severing the 12V power to the PCIe cables. The GPU drops off the bus, the screen goes black, and the OS freezes (Kernel Panic / TDR Timeout).
 
-## Verified Workaround
-The issue was temporarily mitigated by limiting the GPU's power via the NVIDIA System Management Interface:
+## Failure Mode Analysis
+
+### Failure Mode 1: Screen Goes Dark (OCP/OPP Trip) — 600W default
+The PSU detects a transient spike exceeding its derated 110V capacity and instantly severs the 12V rail. The GPU drops off the PCIe bus, screen goes black. Classic hardware overcurrent protection.
+
+### Failure Mode 2: Screen Stays On, System Freezes — 400W cap, stream mode
+At 400W, the transient spike is capped at ~800W (2x), which is within the 110V PSU's derated range — so the PSU does **not** trip. Instead, the system freezes with the screen still displaying. This is a **distinctly different failure mode** and points to:
+
+1. **GPU TDR (Timeout Detection & Recovery) failure:** During streaming, the GPU sustains continuous Decode-phase load for an extended duration. If a driver or compute error occurs, Windows attempts a TDR reset. If TDR fails to recover the GPU, the system hangs completely.
+2. **Thermal throttle cascade:** Extended streaming mode keeps the GPU at sustained load. If the GPU or VRM temperature exceeds a threshold, the GPU clocks down aggressively, which can cause the driver to lose sync with in-flight CUDA/compute kernels, leading to a hang.
+3. **PCIe link instability:** Sustained power draw can cause micro-voltage droops on the PCIe 12VHPWR cable, corrupting PCIe communication without fully cutting power — leaving the display (connected via DisplayPort, not PCIe data) intact but the system unresponsive.
+
+> **Key diagnostic clue:** The screen staying on confirms the GPU has not entirely lost power. The freeze is happening at the **driver or OS kernel level**, not the hardware power level.
+
+## Workaround History
+| Power Limit | Result |
+|-------------|--------|
+| 600W (default) | Crash on 3rd turn — OCP/OPP trip |
+| 400W | Still freezes in stream mode — driver/thermal hang |
+| 250W | Previously stable — see below |
+
+The 250W limit was the only confirmed stable configuration:
 ```bash
 nvidia-smi -pl 250
 ```
-This forces the GPU to operate at a maximum of 250W. Even if a 2x transient spike occurs ($250W \times 2 = 500W$), the total system load stays well below the 110V PSU threshold. However, this severely throttles the performance of the Blackwell architecture.
+Even if a 2x transient spike occurs ($250W \times 2 = 500W$), the total system load stays well within the PSU threshold AND the sustained streaming load is low enough to avoid TDR hangs. However, this severely throttles performance.
 
 ## Permanent Solutions
 
@@ -48,11 +73,13 @@ This is the only way to safely run the 600W Blackwell at maximum capacity withou
 
 ### Solution B: Software Power Capping (Compromise)
 If installing a 240V line is impossible, you must permanently cap the GPU power draw to prevent the transient spikes from tripping the PSU.
-1.  Determine the highest stable power limit. 250W is overly restrictive; test limits in 25W increments (e.g., 350W, 400W).
+1.  **Start from the known-stable baseline (250W)** and test upward in small increments:
     ```bash
-    nvidia-smi -pl 400
+    nvidia-smi -pl 300
     ```
-2.  **Windows Automation:** The `nvidia-smi` power limit resets on every reboot. You must create a Windows Scheduled Task to run this command automatically on startup with highest (Administrator) privileges.
+    Specifically test in **stream mode** with multiple conversation turns, since that is the failure trigger at 400W.
+2.  Also consider disabling streaming at the application layer (already explored in previous work) to avoid the sustained Decode-phase load that triggers Failure Mode 2.
+3.  **Windows Automation:** The `nvidia-smi` power limit resets on every reboot. A Windows Scheduled Task must be used to set the limit automatically (see `setup_nvidia_powerlimit.ps1`).
 
 ### Additional Safety Checks
 *   **Cable Integrity:** Ensure the 600W GPU is powered by dedicated, high-quality 12V-2x6 or 12VHPWR cables connected directly to the PSU. Absolutely **do not** use "daisy-chained" (split) 8-pin PCIe cables, as combining transient spikes onto shared wires is a severe fire hazard.
