@@ -1,135 +1,193 @@
-# AI Workstation - Legal
+# ABS AI Fabric
 
-A comprehensive AI-powered workstation for legal professionals, featuring contract review, document analysis, and legal research capabilities.
+A local AI platform for running AI workloads on ABS workstations — no cloud required. ABS AI Fabric provides shared core services, a unified API gateway, asset management, and a growing catalog of applications including legal document review, chat assistants, and system observability.
+
+All processing stays on-device. Data never leaves the workstation.
 
 ## Architecture
 
-This workstation follows a **Core Services** strategy with shared infrastructure:
+ABS AI Fabric follows an **asset-based, interface-driven** design: applications bind to stable interfaces (LLM runtime, vector store, cache) rather than specific implementations. The Hub Gateway resolves bindings at runtime and orchestrates auto-wake for on-demand services.
+
+```
+Applications (Hub UI, Workstation Console, Contract Reviewer, …)
+        ↓
+Hub Gateway (:8081) — OpenAI-compatible API, asset registry, service orchestration
+        ↓
+Core Services (Ollama, Qdrant, Redis, PostgreSQL)
+        ↓
+NVIDIA GPU + local storage
+```
 
 ### Core Services (Always-On)
-- **LLM Runtime**: Ollama or vLLM for language model inference (supports advanced models like Qwen 3.5 and DeepSeek R1)
-- **Qdrant**: Vector database for semantic search and document embeddings
-- **Redis**: Cache and message queue for performance optimization
-- **Onyx**: AI assistant with chat interface, RAG capabilities, and agent management
 
-### Optional Services (On-Demand)
-- **Parser/OCR**: Document parsing and optical character recognition
-- **MinIO**: Object storage for document management
-- **Whisper**: Speech-to-text transcription
-- **TTS/Translation**: Text-to-speech and translation services
-- **Redaction/PII**: Privacy and sensitive data detection
+| Service | Port | Description |
+|---------|------|-------------|
+| **Hub Gateway** | 8081 | Unified API, asset registry, model management, GPU metrics |
+| **Ollama** | 11434 | LLM runtime for local inference |
+| **Qdrant** | 6333 | Vector database for semantic search |
+| **Redis** | 6379 | Cache and session storage |
+| **PostgreSQL** | 5432 | Document metadata and application data |
+
+Optional extended assets (Whisper, OCR, vLLM, etc.) are registered under `assets/` and activated on demand via the gateway.
+
+See [Core README](core/README.md) for gateway API endpoints and service management.
 
 ## Project Structure
 
 ```
-C:\ABS\
-├── core\                    # Core Services (shared infrastructure)
-│   ├── core.yml            # Core services definition
-│   ├── start-core.ps1      # Start core services
-│   ├── stop-core.ps1       # Stop core services
-│   └── update-core.ps1     # Update core services
-│
-└── abs-ai-hub\             # Applications
-    ├── apps\               # Individual applications
-    │   ├── contract-reviewer\
-    │   ├── rag-pdf-voice\
-    │   └── whisper-server\
-    ├── hub-ui\             # Web interface
-    └── installers\         # Installation scripts
+abs-ai-fabric/
+├── core/                       # Core services (Docker Compose, Hub Gateway)
+├── abs-ai-hub/                 # Applications and admin UI
+│   ├── hub-ui-v2/              # AI Fabric admin UI (Vue 3)
+│   ├── apps/                   # Individual applications
+│   │   ├── abs_workstation_console/
+│   │   ├── contract-reviewer-v2/
+│   │   ├── legal-assistant/
+│   │   ├── onyx-suite/
+│   │   └── whisper-server/
+│   └── apps-registry.json      # Application catalog for the Hub
+├── assets/                     # Asset definitions (models, services, tools)
+├── core-interfaces/            # Versioned interface contracts
+└── docs/                       # Architecture, API, and operational guides
 ```
 
 ## Quick Start
 
+### Prerequisites
+
+- Windows 10/11 with Docker Desktop (WSL2 recommended)
+- NVIDIA GPU with CUDA drivers (for LLM inference)
+- Node.js 18+ and npm (for Hub UI and Workstation Console)
+- PowerShell (for core service scripts on Windows)
+
+> For detailed Windows setup — Docker Desktop, WSL2, GPU passthrough — see the [Windows Setup Guide](docs/guides/Windows_Setup_Guide.md).
+
 ### 1. Start Core Services
+
 ```powershell
-cd C:\ABS\core
+cd core
+copy .env.example .env   # first time only
 .\start-core.ps1
 ```
 
-### 2. Run Applications
+Or with Docker Compose directly:
+
 ```powershell
-cd C:\ABS\abs-ai-hub\apps\contract-reviewer
+cd core
 docker compose up -d
 ```
 
-### 3. Access Applications
-- **ABS AI Hub**: http://localhost:3000 (Main interface)
-- **Onyx Chat**: http://localhost:8000 (AI assistant with chat interface)
-- **Contract Reviewer**: http://localhost:7860
-- **RAG PDF Voice**: http://localhost:8080
+Verify the gateway:
 
-## Requirements
+```powershell
+curl http://localhost:8081/health
+```
 
-- Windows 10 Pro or later
-- Docker Desktop with WSL2 integration
-- NVIDIA GPU driver with CUDA support (recommended)
-- PowerShell (Admin) for script execution
+### 2. Start AI Fabric (Admin UI)
 
-> **📘 Setup Instructions**: For detailed Windows setup, including Docker Desktop WSL2 configuration and GPU passthrough, see the **[Windows Setup Guide](docs/guides/Windows_Setup_Guide.md)**.
+```powershell
+cd abs-ai-hub/hub-ui-v2
+npm install   # first time only
+npm run dev
+```
+
+**Access:** http://localhost:5173
+
+### 3. Start Workstation Console (optional)
+
+Real-time system metrics, GPU observability, and CES showcase mode.
+
+```powershell
+cd abs-ai-hub/apps/abs_workstation_console
+npm install   # first time only
+npm run dev
+```
+
+**Access:** http://localhost:5200
+
+### Windows one-click start
+
+Run `Start.bat` from the repo root to launch core services, AI Fabric, and Workstation Console in separate windows.
+
+For a full CES demo setup, see the [CES Setup Guide](docs/ces/CES_SETUP_GUIDE.md).
 
 ## Applications
 
-### Contract Reviewer
-AI-powered contract analysis that extracts key clauses, identifies risks, and provides citation-backed reports.
+| Application | Port | Description |
+|-------------|------|-------------|
+| **AI Fabric** (hub-ui-v2) | 5173 | Admin UI — apps, assets, observability, service controls |
+| **Workstation Console** | 5200 | System metrics, GPU workloads, attract-mode showcase |
+| **Contract Reviewer v2** | 8082 | AI contract analysis with document library and risk assessment |
+| **Legal Assistant** | 8050 | Chat, RAG, and legal document research |
+| **Onyx Suite** | 8150 | Full Onyx deployment for chat and knowledge management |
+| **Whisper Server** | 8001 | Speech-to-text transcription |
 
-**Features:**
-- PDF and DOCX document support
-- OCR for scanned documents
-- Policy-based compliance checking
-- Risk assessment and recommendations
-- Citation tracking
+Start a containerized app from its directory:
 
-### RAG PDF Voice
-Document analysis with voice interaction capabilities.
+```powershell
+cd abs-ai-hub/apps/contract-reviewer-v2
+docker compose up -d
+```
 
-### Whisper Server
-Speech-to-text transcription service for audio processing.
-
-### Onyx AI Assistant
-AI assistant with built-in chat interface, RAG capabilities, and agent management.
-
-**Features:**
-- Natural language chat interface
-- Document upload and analysis
-- RAG queries against knowledge base
-- Custom agent creation and management
-- Multi-model support (Ollama, vLLM - including Qwen 3.5 and DeepSeek R1)
-- Web search integration
-- Code execution capabilities
+All containerized apps join the `abs-net` Docker network and connect to core services via the gateway.
 
 ## Documentation
 
-### Onyx Integration
-- **[Onyx Integration Guide](core/docs/Onyx_Integration_Guide.md)**: Complete technical integration guide
-- **[Onyx Chat User Manual](core/docs/Onyx_Chat_User_Manual.md)**: User interface guide
-- **[Onyx Quick Reference](core/docs/Onyx_Quick_Reference.md)**: Quick reference card
+Full documentation index: [docs/README.md](docs/README.md)
 
-### Core Services
-- **[Core Services Guide](core/docs/core_services_guide.md)**: Core service management
-- **[Hub Gateway Implementation](core/docs/hub_gateway_implementation_guide.md)**: Gateway configuration
-- **[Auto-Wake Architecture](core/docs/Flexible%20Core%20Services%20and%20Auto-Wake%20Architecture.md)**: Service orchestration
+**Team handoff:** [项目移交说明](docs/项目移交说明.md) — project purpose, architecture, key docs, and operational notes for new teams.
+
+### Getting started
+
+- [Core Services Guide](docs/guides/core_services_guide.md)
+- [CES Setup Guide](docs/ces/CES_SETUP_GUIDE.md)
+- [Platform Overview](docs/ces/ABS_AI_FABRIC_OVERVIEW.md)
+
+### Architecture
+
+- [Project Structure & Evolvable Core](docs/architecture/project_structure_and_evolvable_core.md)
+- [Architecture and Component View](docs/architecture/Architecture_and_Component_View.md)
+- [Auto-Wake Architecture](docs/architecture/Flexible%20Core%20Services%20and%20Auto-Wake%20Architecture.md)
+
+### API & integration
+
+- [API Reference](docs/api/API_Reference_and_Usage_Scenarios.md)
+- [Hub Gateway Implementation](docs/guides/hub_gateway_implementation_guide.md)
+- [App Manifest Specification](docs/architecture/app_manifest_specification.md)
+
+### Onyx
+
+- [Onyx Integration Guide](docs/guides/Onyx_Integration_Guide.md)
+- [Onyx Chat User Manual](docs/guides/Onyx_Chat_User_Manual.md)
+- [Onyx Quick Reference](docs/guides/Onyx_Quick_Reference.md)
 
 ## Development
 
-### Adding New Applications
-1. Create app directory in `abs-ai-hub/apps/`
-2. Add `docker-compose.yml` that joins `abs-net` network
-3. Configure environment variables to connect to Core services
-4. Add app manifest to `apps-registry.json`
+### Adding a new application
 
-### Core Service Management
-- **Start**: `.\start-core.ps1`
-- **Stop**: `.\stop-core.ps1`
-- **Update**: `.\update-core.ps1`
-- **Status**: `docker compose -f core.yml ps`
+1. Create an app directory under `abs-ai-hub/apps/`
+2. Add `docker-compose.yml` that joins the `abs-net` network
+3. Add an `app.manifest.json` following the [app manifest spec](docs/architecture/app_manifest_specification.md)
+4. Register the app in `abs-ai-hub/apps-registry.json`
+
+Applications should call the Hub Gateway (`http://hub-gateway:8081`) rather than connecting directly to core service containers.
+
+### Core service management
+
+```powershell
+cd core
+.\start-core.ps1          # Start all core services
+.\stop-core.ps1            # Stop all core services
+.\update-core.ps1          # Rebuild and update
+docker compose ps          # Check status
+```
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test with Core services
-5. Submit a pull request
+2. Create a feature branch (`feat/scope-brief`)
+3. Make your changes and test against core services
+4. Submit a pull request
 
 ## License
 
@@ -137,4 +195,4 @@ AI assistant with built-in chat interface, RAG capabilities, and agent managemen
 
 ## Support
 
-For issues and questions, please create an issue in the repository.
+For issues and questions, open an issue in the repository.
